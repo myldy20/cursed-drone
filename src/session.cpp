@@ -41,12 +41,30 @@ constexpr std::array kLocales{
     std::pair{Locale::en, std::string_view{"en"}},
 };
 
+constexpr std::array kScenes{
+    std::pair{SceneKind::derelict, std::string_view{"derelict"}},
+    std::pair{SceneKind::factory, std::string_view{"factory"}},
+    std::pair{SceneKind::wasteland, std::string_view{"wasteland"}},
+};
+
 constexpr std::array kEngines{
     std::pair{EngineKind::diagnostic, std::string_view{"diagnostic"}},
     std::pair{EngineKind::macro, std::string_view{"macro"}},
     std::pair{EngineKind::body, std::string_view{"body"}},
     std::pair{EngineKind::grain, std::string_view{"grain"}},
     std::pair{EngineKind::particle, std::string_view{"particle"}},
+    std::pair{EngineKind::derelict_bed, std::string_view{"derelict_bed"}},
+    std::pair{EngineKind::footsteps, std::string_view{"footsteps"}},
+    std::pair{EngineKind::door, std::string_view{"door"}},
+    std::pair{EngineKind::pipe, std::string_view{"pipe"}},
+    std::pair{EngineKind::motor, std::string_view{"motor"}},
+    std::pair{EngineKind::machinery, std::string_view{"machinery"}},
+    std::pair{EngineKind::crowd, std::string_view{"crowd"}},
+    std::pair{EngineKind::metal, std::string_view{"metal"}},
+    std::pair{EngineKind::wind, std::string_view{"wind"}},
+    std::pair{EngineKind::birds, std::string_view{"birds"}},
+    std::pair{EngineKind::insects, std::string_view{"insects"}},
+    std::pair{EngineKind::signal, std::string_view{"signal"}},
 };
 
 constexpr std::array kEffects{
@@ -186,7 +204,78 @@ Session make_default_session() {
         {EffectKind::delay, 0.18F, 0.30F, 0.42F},
         {EffectKind::bypass, 0.0F, 0.50F, 0.0F},
     }};
+    session.performance.texture = 0.34F;
+    session.performance.pulse = 0.32F;
+    session.performance.chaos = 0.22F;
+    session.performance.space = 0.42F;
+    session.performance.events = 0.44F;
+    apply_scene_recipe(session, SceneKind::derelict);
     return session;
+}
+
+void apply_scene_recipe(Session& session, SceneKind scene) {
+    session.scene = scene;
+
+    const auto set_actor = [&session](
+                               std::size_t index,
+                               EngineKind engine,
+                               float frequency,
+                               float timbre,
+                               float color,
+                               float motion,
+                               float texture,
+                               float level,
+                               float pan) {
+        auto& slot = session.slots[index];
+        slot.enabled = true;
+        slot.engine = engine;
+        slot.frequency_hz = frequency;
+        slot.timbre = timbre;
+        slot.color = color;
+        slot.motion = motion;
+        slot.texture = texture;
+        slot.level = level;
+        slot.pan = pan;
+        for (auto& effect : slot.effects) {
+            effect = {};
+        }
+        for (auto& modulator : slot.modulators) {
+            modulator = {};
+        }
+        slot.modulators[0] = {
+            true, ModWave::random_walk, ModDestination::pan, 0.035F + 0.017F * static_cast<float>(index), 0.10F, 0.0F};
+    };
+
+    switch (scene) {
+    case SceneKind::derelict:
+        set_actor(0U, EngineKind::derelict_bed, 41.2F, 0.22F, 0.32F, 0.18F, 0.20F, 0.28F, -0.12F);
+        set_actor(1U, EngineKind::footsteps, 58.0F, 0.50F, 0.34F, 0.34F, 0.48F, 0.38F, -0.28F);
+        set_actor(2U, EngineKind::door, 92.0F, 0.44F, 0.42F, 0.24F, 0.48F, 0.25F, 0.22F);
+        set_actor(3U, EngineKind::pipe, 73.0F, 0.48F, 0.38F, 0.27F, 0.42F, 0.25F, 0.45F);
+        break;
+    case SceneKind::factory:
+        set_actor(0U, EngineKind::motor, 34.0F, 0.44F, 0.42F, 0.58F, 0.42F, 0.31F, -0.42F);
+        set_actor(1U, EngineKind::machinery, 51.0F, 0.46F, 0.55F, 0.62F, 0.50F, 0.34F, 0.28F);
+        set_actor(2U, EngineKind::crowd, 118.0F, 0.36F, 0.50F, 0.34F, 0.56F, 0.22F, -0.10F);
+        set_actor(3U, EngineKind::metal, 76.0F, 0.64F, 0.70F, 0.30F, 0.66F, 0.28F, 0.48F);
+        break;
+    case SceneKind::wasteland:
+        set_actor(0U, EngineKind::wind, 46.0F, 0.38F, 0.52F, 0.42F, 0.40F, 0.30F, -0.18F);
+        set_actor(1U, EngineKind::birds, 760.0F, 0.42F, 0.62F, 0.36F, 0.32F, 0.22F, 0.46F);
+        set_actor(2U, EngineKind::insects, 1320.0F, 0.48F, 0.58F, 0.52F, 0.50F, 0.18F, -0.50F);
+        set_actor(3U, EngineKind::signal, 86.0F, 0.35F, 0.44F, 0.28F, 0.30F, 0.24F, 0.18F);
+        break;
+    }
+
+    for (auto& slot : session.slots) {
+        slot.effects[0] = {EffectKind::lowpass, 0.08F, 0.72F, 0.0F};
+        slot.effects[1] = {EffectKind::drive, 0.025F, 0.50F, 0.0F};
+        slot.effects[2] = {EffectKind::delay, 0.08F, 0.18F, 0.22F};
+        slot.effects[3] = {EffectKind::bypass, 0.0F, 0.50F, 0.0F};
+    }
+    session.slots[0].effects[2].amount = 0.04F;
+    session.slots[2].effects[2] = {EffectKind::delay, 0.16F, 0.24F, 0.32F};
+    session.slots[3].effects[2] = {EffectKind::delay, 0.13F, 0.34F, 0.36F};
 }
 
 bool save_session(const Session& session, const std::filesystem::path& path, std::string& error) {
@@ -199,6 +288,7 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
     output << std::setprecision(9);
     output << "cursed_drone_session=" << session.schema_version << '\n';
     output << "locale=" << to_string(session.locale) << '\n';
+    output << "scene=" << to_string(session.scene) << '\n';
     output << "tempo_bpm=" << session.tempo_bpm << '\n';
     output << "master_level=" << session.master_level << '\n';
     output << "fade_in_seconds=" << session.fade_in_seconds << '\n';
@@ -269,7 +359,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
 
     const auto schema = values.find("cursed_drone_session");
     if (schema == values.end() ||
-        (schema->second != "1" && schema->second != "2" && schema->second != "3")) {
+        (schema->second != "1" && schema->second != "2" && schema->second != "3" && schema->second != "4")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -278,6 +368,10 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     const auto locale = values.find("locale");
     if (locale != values.end() && !parse_locale(locale->second, loaded.locale)) {
         error = "invalid locale";
+        return false;
+    }
+    if (!parse_enum_value(values, "scene", loaded.scene, kScenes)) {
+        error = "invalid scene";
         return false;
     }
     if (!parse_float(values, "tempo_bpm", loaded.tempo_bpm) ||
@@ -342,17 +436,22 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     loaded.performance.space = std::clamp(loaded.performance.space, 0.0F, 1.0F);
     loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
-    loaded.schema_version = 3;
+    if (schema->second != "4") {
+        apply_scene_recipe(loaded, SceneKind::derelict);
+    }
+    loaded.schema_version = 4;
     session = loaded;
     return true;
 }
 
 std::string to_string(Locale value) { return enum_name(value, kLocales); }
+std::string to_string(SceneKind value) { return enum_name(value, kScenes); }
 std::string to_string(EngineKind value) { return enum_name(value, kEngines); }
 std::string to_string(EffectKind value) { return enum_name(value, kEffects); }
 std::string to_string(ModWave value) { return enum_name(value, kWaves); }
 std::string to_string(ModDestination value) { return enum_name(value, kDestinations); }
 
 bool parse_locale(const std::string& text, Locale& value) { return parse_enum(text, value, kLocales); }
+bool parse_scene(const std::string& text, SceneKind& value) { return parse_enum(text, value, kScenes); }
 
 } // namespace cursed_drone

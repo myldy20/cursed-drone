@@ -16,7 +16,8 @@ namespace {
 void print_help(cd::Locale locale) {
     std::cout << cd::tr(locale, cd::TextId::app_name) << " — "
               << cd::tr(locale, cd::TextId::app_subtitle) << "\n\n"
-              << "cursed-drone [--lang ru|en] [--load FILE] [--save-default FILE]\n"
+              << "cursed-drone [--lang ru|en] [--scene derelict|factory|wasteland]\n"
+              << "             [--load FILE] [--save-default FILE]\n"
               << "             [--render FILE] [--seconds N]\n\n"
               << cd::tr(locale, cd::TextId::diagnostic_warning) << '\n';
 }
@@ -39,6 +40,8 @@ int main(int argc, char** argv) {
     std::filesystem::path save_path;
     std::filesystem::path render_path;
     float seconds = 12.0F;
+    cd::SceneKind requested_scene{cd::SceneKind::derelict};
+    bool has_requested_scene = false;
     bool show_help = argc == 1;
     bool has_action = false;
 
@@ -57,6 +60,14 @@ int main(int argc, char** argv) {
                 std::cerr << "Unsupported language: " << value << '\n';
                 return 2;
             }
+        } else if (argument == "--scene") {
+            const std::string value = require_value("--scene");
+            if (!cd::parse_scene(value, requested_scene)) {
+                std::cerr << "Unsupported scene: " << value << '\n';
+                return 2;
+            }
+            has_requested_scene = true;
+            has_action = true;
         } else if (argument == "--load") {
             load_path = require_value("--load");
             has_action = true;
@@ -87,6 +98,9 @@ int main(int argc, char** argv) {
     if (!load_path.empty() && !cd::load_session(load_path, session, error)) {
         std::cerr << cd::tr(session.locale, cd::TextId::error) << ": " << error << '\n';
         return 1;
+    }
+    if (has_requested_scene) {
+        cd::apply_scene_recipe(session, requested_scene);
     }
     if (!save_path.empty()) {
         if (!cd::save_session(session, save_path, error)) {

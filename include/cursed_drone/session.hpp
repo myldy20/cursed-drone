@@ -13,7 +13,26 @@ inline constexpr std::size_t kEffectsPerSlot = 4;
 inline constexpr std::size_t kModulatorsPerSlot = 4;
 
 enum class Locale { ru, en };
-enum class EngineKind { diagnostic, macro, body, grain, particle };
+enum class SceneKind { derelict, factory, wasteland };
+enum class EngineKind {
+    diagnostic,
+    macro,
+    body,
+    grain,
+    particle,
+    derelict_bed,
+    footsteps,
+    door,
+    pipe,
+    motor,
+    machinery,
+    crowd,
+    metal,
+    wind,
+    birds,
+    insects,
+    signal
+};
 enum class EffectKind { bypass, drive, lowpass, tremolo, delay, crusher };
 enum class ModWave { sine, triangle, sample_hold, random_walk };
 enum class ModDestination {
@@ -71,8 +90,9 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{3};
+    unsigned schema_version{4};
     Locale locale{Locale::ru};
+    SceneKind scene{SceneKind::derelict};
     float tempo_bpm{45.0F};
     float master_level{0.80F};
     float fade_in_seconds{4.0F};
@@ -82,15 +102,18 @@ struct Session {
 };
 
 [[nodiscard]] Session make_default_session();
+void apply_scene_recipe(Session& session, SceneKind scene);
 [[nodiscard]] bool save_session(const Session& session, const std::filesystem::path& path, std::string& error);
 [[nodiscard]] bool load_session(const std::filesystem::path& path, Session& session, std::string& error);
 
 [[nodiscard]] std::string to_string(Locale value);
+[[nodiscard]] std::string to_string(SceneKind value);
 [[nodiscard]] std::string to_string(EngineKind value);
 [[nodiscard]] std::string to_string(EffectKind value);
 [[nodiscard]] std::string to_string(ModWave value);
 [[nodiscard]] std::string to_string(ModDestination value);
 
 [[nodiscard]] bool parse_locale(const std::string& text, Locale& value);
+[[nodiscard]] bool parse_scene(const std::string& text, SceneKind& value);
 
 } // namespace cursed_drone

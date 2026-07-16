@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.16)
 
-project(cursed_drone VERSION 0.3.0 LANGUAGES CXX)
+project(cursed_drone VERSION 0.4.0 LANGUAGES CXX)
 
 option(CURSED_DRONE_BUILD_SDL "Build the SDL2 handheld/desktop frontend" ON)
 option(CURSED_DRONE_BUILD_TESTS "Build the test executable" ON)
@@ -29,8 +29,10 @@ add_library(cursed_drone_core
     src/audio.cpp
     src/i18n.cpp
     src/session.cpp
+    src/soundscape.cpp
     src/wav.cpp
 )
+target_include_directories(cursed_drone_core PRIVATE src)
 target_include_directories(cursed_drone_core PUBLIC include)
 target_compile_features(cursed_drone_core PUBLIC cxx_std_20)
 target_compile_options(cursed_drone_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion)

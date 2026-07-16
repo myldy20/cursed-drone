@@ -23,7 +23,7 @@ A single drone engine with selectable waveforms is insufficient. The instrument 
 2. an excitable modal resonator for metallic strikes, string-like color and digging/footstep events;
 3. an event source for particles and grains with bounded random gaps.
 
-In `0.3.0`, `TONE`, `RESONATOR`, `GRAINLET`, and `PARTICLES` cover these roles. `Events` controls event density and irregularity, `Pulse` controls rhythmic envelope depth and density, and the shared tempo scales both processes.
+In `0.4.0` these roles are direct: Derelict combines room bed, footsteps, door and pipe; Factory uses motor, machine, crowd and metal; Wasteland uses wind, birds, insects and signal. Shared tempo scales repeating processes, while every actor owns its gesture state.
 
 ## Target sound spaces
 
@@ -32,11 +32,11 @@ In `0.3.0`, `TONE`, `RESONATOR`, `GRAINLET`, and `PARTICLES` cover these roles. 
 - `TONE`: low shape/noise, moderate drift, low level;
 - `RESONATOR`: low or mid frequency, strong excitation, moderate brightness;
 - `GRAINLET` or `PARTICLES`: a quiet granular attack edge;
-- `Events` 40–70%, `Chaos` 15–35%, and modest `Space`.
+- `Activity` 40–70%, `Tension` 15–35%, and modest `Distance`.
 
 ### Rising impulse followed by a random pause
 
-This requires a dedicated event shape: attack/ramp → release → bounded random hold. `0.3.0` already provides irregular gaps and strikes, but it does not yet attach a directed pitch rise to each event. That should be a small DSP event generator, not a tracker sequencer.
+In 0.4 this is the dedicated `SIGNAL` actor: attack/ramp → release → a directed rising sequence → bounded random hold. It is a small state machine, not a tracker sequencer.
 
 ### Low metallic pulses plus an almost-piano upper layer
 

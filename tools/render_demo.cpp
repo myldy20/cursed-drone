@@ -19,6 +19,14 @@ int main(int argc, char** argv) {
         }
     }
     auto session = cursed_drone::make_default_session();
+    if (argc > 3) {
+        cursed_drone::SceneKind scene{};
+        if (!cursed_drone::parse_scene(argv[3], scene)) {
+            std::cerr << "Invalid scene (use derelict, factory or wasteland)\n";
+            return 2;
+        }
+        cursed_drone::apply_scene_recipe(session, scene);
+    }
     std::string error;
     if (!cursed_drone::render_session_to_wav(session, path, seconds, error)) {
         std::cerr << error << '\n';

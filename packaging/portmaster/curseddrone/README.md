@@ -5,7 +5,7 @@
 Это тестовый пакет, а не готовый релиз PortMaster. При первом запуске он:
 
 1. открывает SDL2 fullscreen;
-2. проигрывает текущий четырёхслотовый гудёж;
+2. проигрывает текущий процедурный ландшафт;
 3. показывает четыре пульсирующие панели;
 4. записывает video/audio/input параметры и все нажатые кнопки;
 5. после нажатия Start запускает основной прототип.
@@ -24,7 +24,7 @@
 | X | next screen / следующий экран |
 | Y | next slot on FX screen / следующий слот на экране FX |
 | Select/Back | auto-fade in/out / автофейд входа/выхода |
-| Start | change selected FX type / сменить тип выбранного FX |
+| Start | change landscape on Scene or FX type on FX / сменить ландшафт или тип FX |
 
 Language and separate fade-in/fade-out times are changed on the `SETUP / НАСТР.` screen with L1/R1.
 

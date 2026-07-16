@@ -12,9 +12,10 @@ Included modules:
 - `PhysicalModeling/modalvoice.{h,cpp}`, `resonator.{h,cpp}`;
 - `Synthesis/oscillator.{h,cpp}`.
 
-The files are used by the four provisional product engines in Cursed Drone
-0.3.0. The upstream MIT license is reproduced in `LICENSE`. No upstream
-source file in this directory has been modified.
+The files are used by the four 0.3 expert-mode engines. Starting in 0.4, the
+stable state-variable filter is also a building block for the procedural scene
+actors. The upstream MIT license is reproduced in `LICENSE`. No upstream source
+file in this directory has been modified.
 
 To update the subset, check out a reviewed DaisySP commit, copy the same file
 set, update the pinned SHA above and in `THIRD_PARTY_NOTICES.md`, then run the

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "cursed_drone/audio.hpp"
+#include "soundscape.hpp"
 
 #include "Noise/clockednoise.h"
 #include "Noise/grainlet.h"
@@ -181,10 +182,12 @@ public:
         grain_.Init(sample_rate_);
         particle_.Init(sample_rate_);
         clocked_noise_.Init(sample_rate_);
+        soundscape_.prepare(sample_rate_, slot_index_);
         event_phase_ = 1.0F;
         event_period_ = 1.0F;
         grain_envelope_ = 0.0F;
         drift_phase_ = 0.0F;
+        soundscape_.reset();
     }
 
     float next(
@@ -268,6 +271,21 @@ public:
             particle_.SetRandomFreq(0.15F + motion * motion * 12.0F);
             particle_.SetSync(trigger);
             return particle_.Process() * 2.2F;
+        case EngineKind::derelict_bed:
+        case EngineKind::footsteps:
+        case EngineKind::door:
+        case EngineKind::pipe:
+        case EngineKind::motor:
+        case EngineKind::machinery:
+        case EngineKind::crowd:
+        case EngineKind::metal:
+        case EngineKind::wind:
+        case EngineKind::birds:
+        case EngineKind::insects:
+        case EngineKind::signal:
+            return soundscape_.next(
+                kind, frequency, timbre, color, motion, texture,
+                tempo_bpm, pulse, chaos, events);
         }
         return 0.0F;
     }
@@ -287,6 +305,7 @@ private:
     daisysp::GrainletOscillator grain_{};
     daisysp::Particle particle_{};
     daisysp::ClockedNoise clocked_noise_{};
+    detail::SoundscapeVoice soundscape_{};
 };
 
 class EffectRuntime {
@@ -706,6 +725,32 @@ public:
                     parameters.motion += events_macro * 0.58F + chaos_macro * 0.24F;
                     parameters.texture += texture_macro * 0.62F + events_macro * 0.30F;
                     break;
+                case EngineKind::derelict_bed:
+                case EngineKind::motor:
+                case EngineKind::wind:
+                    parameters.timbre += texture_macro * 0.18F;
+                    parameters.color += texture_macro * 0.24F;
+                    parameters.motion += events_macro * 0.25F + chaos_macro * 0.18F;
+                    parameters.texture += texture_macro * 0.46F;
+                    break;
+                case EngineKind::footsteps:
+                case EngineKind::machinery:
+                case EngineKind::birds:
+                case EngineKind::insects:
+                case EngineKind::signal:
+                    parameters.color += texture_macro * 0.18F;
+                    parameters.motion += pulse_macro * 0.38F + events_macro * 0.22F;
+                    parameters.texture += texture_macro * 0.58F + chaos_macro * 0.12F;
+                    break;
+                case EngineKind::door:
+                case EngineKind::pipe:
+                case EngineKind::metal:
+                case EngineKind::crowd:
+                    parameters.timbre += texture_macro * 0.22F;
+                    parameters.color += chaos_macro * 0.22F;
+                    parameters.motion += events_macro * 0.30F;
+                    parameters.texture += texture_macro * 0.64F + chaos_macro * 0.18F;
+                    break;
                 }
                 parameters.motion += std::abs(chaos_value) * 0.28F;
                 parameters.texture += std::abs(chaos_value) * 0.32F;
@@ -718,6 +763,18 @@ public:
                 case EngineKind::body: pulse_ratio = 1.0F; pulse_depth = 0.22F; break;
                 case EngineKind::grain: pulse_ratio = 2.0F; pulse_depth = 0.88F; break;
                 case EngineKind::particle: pulse_ratio = 0.75F; pulse_depth = 0.58F; break;
+                case EngineKind::derelict_bed: pulse_ratio = 0.25F; pulse_depth = 0.08F; break;
+                case EngineKind::footsteps: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::door: pulse_ratio = 0.37F; pulse_depth = 0.0F; break;
+                case EngineKind::pipe: pulse_ratio = 0.31F; pulse_depth = 0.06F; break;
+                case EngineKind::motor: pulse_ratio = 0.5F; pulse_depth = 0.09F; break;
+                case EngineKind::machinery: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::crowd: pulse_ratio = 0.2F; pulse_depth = 0.05F; break;
+                case EngineKind::metal: pulse_ratio = 0.43F; pulse_depth = 0.0F; break;
+                case EngineKind::wind: pulse_ratio = 0.17F; pulse_depth = 0.04F; break;
+                case EngineKind::birds: pulse_ratio = 0.67F; pulse_depth = 0.0F; break;
+                case EngineKind::insects: pulse_ratio = 2.0F; pulse_depth = 0.06F; break;
+                case EngineKind::signal: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
                 case EngineKind::diagnostic: break;
                 }
                 pulse_phases_[slot_index] += pulse_rate * pulse_ratio / config_.sample_rate;
@@ -811,7 +868,7 @@ public:
             dc_input_ = mix;
             dc_output_ = dc_removed;
 
-            constexpr float limiter_drive = 1.35F;
+            constexpr float limiter_drive = 1.85F;
             frame = {
                 std::tanh(dc_removed.left * limiter_drive),
                 std::tanh(dc_removed.right * limiter_drive),

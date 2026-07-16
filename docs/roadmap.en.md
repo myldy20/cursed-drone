@@ -1,5 +1,17 @@
 # Roadmap
 
+## 0.4 slice — procedural landscapes (ready for subjective testing)
+
+- three scene recipes: Derelict, Factory and Wasteland;
+- twelve actors with separate timing, excitation and material models;
+- heel/toe approach footsteps, stick-slip door, wind, motors, machine, crowd, metal, birds and a rising signal;
+- Material / Activity / Tension / Distance / Evolution macros instead of cosmetic shared-FX control;
+- schema 4 with automatic migration of an old autosave to the new default scene;
+- fallback glyphs for typography and arrows instead of question marks;
+- three automatic WAV previews in GitHub Actions.
+
+**Next gate:** subjective Mac listening, followed by DSP load and a ten-minute Brick run.
+
 ## 0.3 slice — distinct sources and a legible scene (done)
 
 - pinned vendored DaisySP subset with the full MIT notice;
@@ -31,7 +43,7 @@ Measure engine/effect cost, run 4-engine/16-effect scenarios at available CPU fr
 
 **Gate:** a useful four-slot patch at 1008 MHz with at least 25% block headroom.
 
-## M3 — product engines (started in 0.3)
+## M3 — product sources (continues after 0.4)
 
 1. `PARTICLE`: a lightweight DaisySP Oscillator/Dust/Particle/ClockedNoise/Grainlet set is complete.
 2. `MACRO`: audited MIT STM32 macro-oscillator DSP under a neutral product label.

@@ -26,7 +26,9 @@ ctest --test-dir build --output-on-failure
 ./build/cursed-drone-sdl
 ```
 
-Keyboard controls are Left/Right for slot, Up/Down for parameter or FX, A/D to change, Tab or 1–5 to select Scene/Slots/FX/Master/Setup, Space to mute while preserving tails, F for the configured fade, K to clear voices and FX memory, and Escape to quit. On FX, Left/Right selects amount/tone/feedback, S selects the next slot, and E changes the algorithm. Language and separate fade times are edited on Setup.
+Keyboard controls are Left/Right for slot, Up/Down for parameter or FX, A/D to change, Tab or 1–5 to select Scene/Slots/FX/Master/Setup, Space to mute while preserving tails, F for the configured fade, K to clear voices and FX memory, and Escape to quit. E changes Derelict/Factory/Wasteland on Scene and the selected algorithm on FX. The five scene macros are Material, Activity, Tension, Distance and Evolution. Language and separate fade times are edited on Setup.
+
+Actions also publishes `cursed-drone-soundscape-previews` with a 30-second unattended render of every landscape.
 
 The four default sources should be visibly and audibly different: Tone, Resonator, Grainlet, and Particles. Scopes now draw captured audio. The thin cream bar beneath a scope is smoothed RMS and the short red marker is peak hold. Master and Setup also expose measured DSP callback load. Settings are autosaved after roughly 750 ms of inactivity.
 

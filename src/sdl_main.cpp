@@ -80,10 +80,19 @@ std::string_view page_name(Page page, bool russian) noexcept {
 
 std::string_view macro_name(int index, bool russian) noexcept {
     constexpr std::array<std::string_view, 5> r{
-        "ТЕКСТУРА", "ПУЛЬС", "ХАОС", "ПРОСТРАНСТВО", "СОБЫТИЯ"};
+        "МАТЕРИАЛ", "АКТИВНОСТЬ", "НАПРЯЖЕНИЕ", "ДИСТАНЦИЯ", "РАЗВИТИЕ"};
     constexpr std::array<std::string_view, 5> e{
-        "TEXTURE", "PULSE", "CHAOS", "SPACE", "EVENTS"};
+        "MATERIAL", "ACTIVITY", "TENSION", "DISTANCE", "EVOLUTION"};
     return (russian ? r : e)[static_cast<std::size_t>(index)];
+}
+
+std::string_view scene_name(cd::SceneKind scene, bool russian) noexcept {
+    switch (scene) {
+    case cd::SceneKind::derelict: return russian ? "ЗАБРОШЕННОЕ" : "DERELICT";
+    case cd::SceneKind::factory: return russian ? "ЦЕХ" : "FACTORY";
+    case cd::SceneKind::wasteland: return russian ? "ПУСТОШЬ" : "WASTELAND";
+    }
+    return {};
 }
 
 std::string_view engine_name(cd::EngineKind kind, bool russian) noexcept {
@@ -93,6 +102,18 @@ std::string_view engine_name(cd::EngineKind kind, bool russian) noexcept {
     case cd::EngineKind::body: return russian ? "РЕЗОНАТОР" : "RESONATOR";
     case cd::EngineKind::grain: return russian ? "ЗЕРНО" : "GRAINLET";
     case cd::EngineKind::particle: return russian ? "ЧАСТИЦЫ" : "PARTICLES";
+    case cd::EngineKind::derelict_bed: return russian ? "ФОН" : "ROOM BED";
+    case cd::EngineKind::footsteps: return russian ? "ШАГИ" : "FOOTSTEPS";
+    case cd::EngineKind::door: return russian ? "ДВЕРЬ" : "DOOR";
+    case cd::EngineKind::pipe: return russian ? "ТРУБА" : "PIPE";
+    case cd::EngineKind::motor: return russian ? "МОТОР" : "MOTOR";
+    case cd::EngineKind::machinery: return russian ? "СТАНОК" : "MACHINE";
+    case cd::EngineKind::crowd: return russian ? "ТОЛПА" : "CROWD";
+    case cd::EngineKind::metal: return russian ? "МЕТАЛЛ" : "METAL";
+    case cd::EngineKind::wind: return russian ? "ВЕТЕР" : "WIND";
+    case cd::EngineKind::birds: return russian ? "ПТИЦЫ" : "BIRDS";
+    case cd::EngineKind::insects: return russian ? "НАСЕКОМЫЕ" : "INSECTS";
+    case cd::EngineKind::signal: return russian ? "СИГНАЛ" : "SIGNAL";
     }
     return {};
 }
@@ -123,6 +144,66 @@ std::string_view slot_name(int index, const cd::SlotSettings& slot, cd::Locale l
     case cd::EngineKind::particle: {
         constexpr std::array<std::string_view, 4> r{"РЕЗОНАНС", "РАЗБРОС", "ДВИЖЕНИЕ", "ПЛОТНОСТЬ"};
         constexpr std::array<std::string_view, 4> e{"RESONANCE", "SPREAD", "MOTION", "DENSITY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::derelict_bed: {
+        constexpr std::array<std::string_view, 4> r{"ТЕЛО", "ВОЗДУХ", "ДРЕЙФ", "ИЗНОС"};
+        constexpr std::array<std::string_view, 4> e{"BODY", "AIR", "DRIFT", "WEAR"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::footsteps: {
+        constexpr std::array<std::string_view, 4> r{"ПОВЕРХН.", "ЯРКОСТЬ", "СКОРОСТЬ", "КРОШКА"};
+        constexpr std::array<std::string_view, 4> e{"SURFACE", "BRIGHT", "SPEED", "DEBRIS"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::door: {
+        constexpr std::array<std::string_view, 4> r{"ДЕРЕВО", "ТОН", "ДВИЖЕНИЕ", "ТРЕНИЕ"};
+        constexpr std::array<std::string_view, 4> e{"WOOD", "PITCH", "MOTION", "FRICTION"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::pipe: {
+        constexpr std::array<std::string_view, 4> r{"РЕЗОНАНС", "ВОЗДУХ", "ПОРЫВЫ", "СТУКИ"};
+        constexpr std::array<std::string_view, 4> e{"RESONANCE", "AIR", "GUSTS", "KNOCKS"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::motor: {
+        constexpr std::array<std::string_view, 4> r{"РОТОР", "ЩЕТКИ", "НАГРУЗКА", "ИЗНОС"};
+        constexpr std::array<std::string_view, 4> e{"ROTOR", "BRUSHES", "LOAD", "WEAR"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::machinery: {
+        constexpr std::array<std::string_view, 4> r{"КОРПУС", "МЕТАЛЛ", "ЦИКЛ", "ВЫХЛОП"};
+        constexpr std::array<std::string_view, 4> e{"BODY", "METAL", "CYCLE", "EXHAUST"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::crowd: {
+        constexpr std::array<std::string_view, 4> r{"ФОРМАНТЫ", "ЯРКОСТЬ", "ФРАЗЫ", "МАССА"};
+        constexpr std::array<std::string_view, 4> e{"FORMANTS", "BRIGHT", "PHRASES", "MASS"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::metal: {
+        constexpr std::array<std::string_view, 4> r{"МАТЕРИАЛ", "ЯРКОСТЬ", "РАЗМАХ", "ТРЕНИЕ"};
+        constexpr std::array<std::string_view, 4> e{"MATERIAL", "BRIGHT", "SWEEP", "FRICTION"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::wind: {
+        constexpr std::array<std::string_view, 4> r{"ПОРЫВ", "ВЫСОТА", "ДВИЖЕНИЕ", "ПЫЛЬ"};
+        constexpr std::array<std::string_view, 4> e{"GUST", "HEIGHT", "MOTION", "DUST"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::birds: {
+        constexpr std::array<std::string_view, 4> r{"ГОЛОС", "КОНТУР", "ФРАЗЫ", "ЗЕРНО"};
+        constexpr std::array<std::string_view, 4> e{"VOICE", "CONTOUR", "PHRASES", "GRAIN"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::insects: {
+        constexpr std::array<std::string_view, 4> r{"ВИД", "ВЫСОТА", "РОЙ", "ШОРОХ"};
+        constexpr std::array<std::string_view, 4> e{"SPECIES", "HEIGHT", "SWARM", "SCRATCH"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::signal: {
+        constexpr std::array<std::string_view, 4> r{"ФОРМА", "ОБЕРТОН", "СКОРОСТЬ", "ПЫЛЬ"};
+        constexpr std::array<std::string_view, 4> e{"SHAPE", "OVERTONE", "SPEED", "DUST"};
         return (russian ? r : e)[static_cast<std::size_t>(character)];
     }
     case cd::EngineKind::diagnostic:
@@ -492,18 +573,18 @@ void draw_header(SDL_Renderer* renderer, const cd::Session& session, const UiSta
 
 std::string_view macro_description(int index, bool russian) noexcept {
     constexpr std::array<std::string_view, 5> r{
-        "ГАРМОНИКИ · ФИЛЬТР · DRIVE",
-        "ОГИБАЮЩАЯ · ТРЕМОЛО · СЛОИ",
-        "ВЫСОТА · УРОВЕНЬ · ПАНОРАМА",
-        "ДЕЛЕЙ · ОБР.СВЯЗЬ · СТЕРЕО",
-        "УДАРЫ · ПАЧКИ · ПАУЗЫ",
+        "ТЕМБР ФОНА · ПОВЕРХНОСТЬ",
+        "ЧАСТОТА ЖЕСТОВ · ДВИЖЕНИЕ",
+        "НЕСТАБИЛЬНОСТЬ · ВЫСОТА",
+        "БЛИЗКО / ДАЛЕКО · ХВОСТЫ",
+        "ДЛИННЫЕ ЦИКЛЫ · МУТАЦИИ",
     };
     constexpr std::array<std::string_view, 5> e{
-        "HARMONICS · FILTER · DRIVE",
-        "ENVELOPE · TREMOLO · LAYERS",
-        "PITCH · LEVEL · PAN · CHANCE",
-        "DELAY · FEEDBACK · STEREO",
-        "STRIKES · BURSTS · GAPS",
+        "BACKGROUND TONE · SURFACES",
+        "GESTURE RATE · MOVEMENT",
+        "INSTABILITY · PITCH PRESSURE",
+        "NEAR / FAR · REVERBERANT TAILS",
+        "LONG CYCLES · MUTATION",
     };
     return (russian ? r : e)[static_cast<std::size_t>(index)];
 }
@@ -531,9 +612,10 @@ void draw_scene(
         cd::ui::draw_text(renderer, 26, y + 29, macro_description(index, ru(session)), selected ? kInk : kDim);
     }
 
-    cd::ui::draw_text(renderer, 342, 59, ru(session) ? "ИСТОЧНИКИ" : "SOURCES", kDim);
+    cd::ui::draw_text(renderer, 342, 55, ru(session) ? "ЛАНДШАФТ" : "LANDSCAPE", kDim);
+    cd::ui::draw_text(renderer, 342, 68, scene_name(session.scene, ru(session)), kInk);
     for (int index = 0; index < 4; ++index) {
-        const int y = 82 + index * 59;
+        const int y = 98 + index * 53;
         const auto& slot = session.slots[static_cast<std::size_t>(index)];
         const bool active = state.slot == index;
         if (active) outline(renderer, {334, y - 8, 158, 49}, kInk);
@@ -546,7 +628,7 @@ void draw_scene(
             slot.enabled ? (ru(session) ? "ЗВУЧИТ" : "RUNNING") : "MUTE", slot.enabled ? kDim : kFxColors[0]);
     }
     const float chaos = std::clamp(telemetry.chaos_activity, 0.0F, 1.0F);
-    cd::ui::draw_text(renderer, 342, 323, ru(session) ? "АКТИВН. ХАОСА" : "CHAOS ACTIVITY", kDim);
+    cd::ui::draw_text(renderer, 342, 323, ru(session) ? "НЕСТАБИЛЬНОСТЬ" : "INSTABILITY", kDim);
     bar(renderer, 342, 338, 142, 7, chaos, react(kFxColors[0], chaos));
 }
 
@@ -745,6 +827,10 @@ void draw(
         help = ru(session)
             ? "↑/↓ FX  ←/→ ПОЛЕ  S СЛОТ  A/D ЗНАЧ.  E ТИП"
             : "↑/↓ FX  ←/→ FIELD  S SLOT  A/D VALUE  E TYPE";
+    } else if (state.page == Page::perform) {
+        help = ru(session)
+            ? "↑/↓ РУЧКА  A/D ЗНАЧ.  E ЛАНДШАФТ  F ФЕЙД  K KILL"
+            : "↑/↓ MACRO  A/D VALUE  E LANDSCAPE  F FADE  K KILL";
     } else if (state.page == Page::master || state.page == Page::setup) {
         help = ru(session)
             ? "↑/↓ ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
@@ -787,13 +873,15 @@ bool update_fade(cd::Session& session, UiState& state, float seconds) noexcept {
     return true;
 }
 
-void cycle_effect(cd::Session& session, const UiState& state) noexcept {
-    if (state.page != Page::effects) {
-        return;
+void cycle_context(cd::Session& session, const UiState& state) noexcept {
+    if (state.page == Page::perform) {
+        const auto next = static_cast<cd::SceneKind>((static_cast<int>(session.scene) + 1) % 3);
+        cd::apply_scene_recipe(session, next);
+    } else if (state.page == Page::effects) {
+        auto& kind = session.slots[static_cast<std::size_t>(state.slot)]
+            .effects[static_cast<std::size_t>(parameter(state))].kind;
+        kind = static_cast<cd::EffectKind>((static_cast<int>(kind) + 1) % 6);
     }
-    auto& kind = session.slots[static_cast<std::size_t>(state.slot)]
-        .effects[static_cast<std::size_t>(parameter(state))].kind;
-    kind = static_cast<cd::EffectKind>((static_cast<int>(kind) + 1) % 6);
 }
 
 } // namespace
@@ -913,7 +1001,7 @@ int main(int, char**) {
                         changed = true;
                     }
                     break;
-                case SDLK_e: cycle_effect(session, state); changed = true; break;
+                case SDLK_e: cycle_context(session, state); changed = true; break;
                 case SDLK_f: toggle_fade(session, state); changed = true; break;
                 case SDLK_k:
                     audio.graph.panic();
@@ -971,7 +1059,7 @@ int main(int, char**) {
                     }
                     break;
                 case SDL_CONTROLLER_BUTTON_BACK: toggle_fade(session, state); changed = true; break;
-                case SDL_CONTROLLER_BUTTON_START: cycle_effect(session, state); changed = true; break;
+                case SDL_CONTROLLER_BUTTON_START: cycle_context(session, state); changed = true; break;
                 default: break;
                 }
             } else if (event.type == SDL_CONTROLLERBUTTONUP) {

@@ -14,7 +14,7 @@ DAISYSP := third_party/daisysp/Source/Filters/svf.cpp \
 	third_party/daisysp/Source/PhysicalModeling/modalvoice.cpp \
 	third_party/daisysp/Source/PhysicalModeling/resonator.cpp \
 	third_party/daisysp/Source/Synthesis/oscillator.cpp
-CORE := src/audio.cpp src/i18n.cpp src/session.cpp src/wav.cpp
+CORE := src/audio.cpp src/i18n.cpp src/session.cpp src/soundscape.cpp src/wav.cpp
 DAISYSP_OBJECTS := $(patsubst %.cpp,$(BUILD)/%.o,$(DAISYSP))
 
 .PHONY: all test render sdl probe clean
