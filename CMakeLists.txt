@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.16)
 
-project(cursed_drone VERSION 0.1.0 LANGUAGES CXX)
+project(cursed_drone VERSION 0.2.0 LANGUAGES CXX)
 
 option(CURSED_DRONE_BUILD_SDL "Build the SDL2 handheld/desktop frontend" ON)
 option(CURSED_DRONE_BUILD_TESTS "Build the test executable" ON)
@@ -43,7 +43,7 @@ if(CURSED_DRONE_BUILD_SDL)
         set(CURSED_DRONE_SDL_TARGET PkgConfig::SDL2)
     endif()
     if(CURSED_DRONE_SDL_TARGET)
-        add_executable(cursed-drone-sdl src/sdl_main.cpp)
+        add_executable(cursed-drone-sdl src/sdl_main.cpp src/bitmap_text.cpp)
         target_link_libraries(cursed-drone-sdl PRIVATE cursed_drone_core ${CURSED_DRONE_SDL_TARGET})
         if(TARGET SDL2::SDL2main)
             target_link_libraries(cursed-drone-sdl PRIVATE SDL2::SDL2main)

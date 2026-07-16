@@ -1,12 +1,16 @@
 # Roadmap
 
+## 0.2 slice — interface and autonomy (done)
+
+The prototype now includes a dependency-free Cyrillic/Latin bitmap renderer, Performance/Slot/FX/Master views, accelerated hold input, non-destructive Texture/Pulse/Chaos/Space/Fade macros, BPM pulses, smoothed random events, audio-reactive telemetry, tail-preserving mute, hard Kill/Panic, and backward-compatible session schema 2. This is an early M4/M5 slice shipped before product engines so the control model can be tested on hardware.
+
 ## M0 — testable signal path (done)
 
 GPL-3.0-or-later project, dependency-light C++20 core, 4 slots × 4 effects × 4 modulation lanes, lock-free SPSC session transfer, RU/EN catalog, `.cdrone` serialization, offline WAV, SDL2 shell and smoke tests.
 
 ## M1 — real TrimUI Brick probe
 
-Build aarch64, verify SDL video/audio and every button, identify writable storage, measure callback sizes and xruns, map each supported firmware explicitly, add a Cyrillic/Latin font renderer, and persist language/session.
+Build aarch64, verify SDL video/audio and every button, identify writable storage, measure callback sizes and xruns, map each supported firmware explicitly, verify the new Cyrillic/Latin font renderer on the physical display, and persist language/session.
 
 **Gate:** ten continuous minutes of the diagnostic patch with no underrun or memory growth.
 
@@ -27,7 +31,7 @@ Every import records an exact commit, license, provenance and adapter tests. Any
 
 ## M4 — controlled corruption
 
-Add small bounded `Mutate`, structural `Corrupt`, parameter locks, deterministic seeds, Brownian/logistic/follower/Euclidean/probability modulation, shared clock ratios, undo, and an always-available hardware Panic action.
+Add small bounded `Mutate`, structural `Corrupt`, parameter locks, deterministic seeds, Brownian/logistic/follower/Euclidean/probability modulation, shared clock ratios, undo, and evolve the current hard Kill into a short click-free hardware Panic action.
 
 ## M5 — complete UX
 

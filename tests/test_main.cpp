@@ -63,6 +63,18 @@ void test_audio() {
     }
     expect(energy > 1.0, "default patch should produce sound");
     expect(peak <= 1.0001F, "master limiter should contain output");
+    const auto telemetry = graph.telemetry();
+    expect(telemetry.master_rms > 0.0F, "master telemetry should react to audio");
+    expect(telemetry.slot_rms[0] > 0.0F, "slot telemetry should react to audio");
+
+    graph.panic();
+    graph.process(block);
+    float panic_peak = 0.0F;
+    for (const auto frame : block) {
+        panic_peak = std::max(panic_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
+    }
+    expect(panic_peak == 0.0F, "panic should clear output and effect tails");
+    expect(graph.telemetry().master_peak == 0.0F, "panic should clear telemetry");
 }
 
 void test_session_roundtrip() {
@@ -70,12 +82,22 @@ void test_session_roundtrip() {
     auto original = cd::make_default_session();
     original.locale = cd::Locale::en;
     original.slots[2].effects[1].amount = 0.731F;
+    original.performance.texture = 0.812F;
+    original.performance.pulse = 0.643F;
+    original.performance.chaos = 0.522F;
+    original.performance.space = 0.407F;
+    original.performance.fade = 0.381F;
     std::string error;
     expect(cd::save_session(original, path, error), "session should save");
     cd::Session loaded{};
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
+    expect(std::abs(loaded.performance.texture - 0.812F) < 0.0001F, "texture macro should roundtrip");
+    expect(std::abs(loaded.performance.pulse - 0.643F) < 0.0001F, "pulse macro should roundtrip");
+    expect(std::abs(loaded.performance.chaos - 0.522F) < 0.0001F, "chaos macro should roundtrip");
+    expect(std::abs(loaded.performance.space - 0.407F) < 0.0001F, "space macro should roundtrip");
+    expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "fade macro should roundtrip");
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
 }

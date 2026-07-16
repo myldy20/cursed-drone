@@ -25,6 +25,15 @@ struct AudioConfig {
     std::size_t max_block_frames{512};
 };
 
+struct AudioTelemetry {
+    std::array<float, kSlotCount> slot_rms{};
+    std::array<float, kSlotCount> slot_peak{};
+    float master_rms{0.0F};
+    float master_peak{0.0F};
+    float pulse_phase{0.0F};
+    float chaos_activity{0.0F};
+};
+
 template <typename T, std::size_t Capacity>
 class SpscQueue {
     static_assert(Capacity >= 2);
@@ -75,6 +84,12 @@ public:
 
     // Audio thread. No allocation, file access, locks, or exceptions.
     void process(std::span<StereoFrame> output) noexcept;
+
+    // UI thread. Atomically snapshots meters produced by the audio callback.
+    [[nodiscard]] AudioTelemetry telemetry() const noexcept;
+
+    // UI thread. Clears voices and effect memory on the next audio block.
+    void panic() noexcept;
 
     [[nodiscard]] float sample_rate() const noexcept;
 

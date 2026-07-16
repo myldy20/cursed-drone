@@ -28,9 +28,9 @@ render: $(BUILD)/cursed-drone-render
 	mkdir -p out
 	./$(BUILD)/cursed-drone-render out/cursed-drone-demo.wav 12
 
-sdl: | $(BUILD)
+sdl: src/sdl_main.cpp src/bitmap_text.cpp third_party/font512/font_data.inc | $(BUILD)
 	@if command -v sdl2-config >/dev/null 2>&1; then \
-		$(CXX) $(CPPFLAGS) $(CXXFLAGS) $$(sdl2-config --cflags) $(CORE) src/sdl_main.cpp $$(sdl2-config --libs) -o $(BUILD)/cursed-drone-sdl; \
+		$(CXX) $(CPPFLAGS) $(CXXFLAGS) $$(sdl2-config --cflags) $(CORE) src/sdl_main.cpp src/bitmap_text.cpp $$(sdl2-config --libs) -o $(BUILD)/cursed-drone-sdl; \
 	else \
 		echo "SDL2 development files are required for the SDL frontend"; exit 1; \
 	fi

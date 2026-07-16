@@ -1,5 +1,18 @@
 # Дорожная карта
 
+## Срез 0.2 — интерфейс и автономность (готово)
+
+- встроенный RU/EN bitmap renderer без SDL_ttf;
+- экраны Performance, Slot, FX и Master;
+- нелинейное ускорение при удержании;
+- недеструктивные Texture/Pulse/Chaos/Space/Fade;
+- BPM-пульсации и сглаженные случайные события;
+- реактивные RMS/peak/осциллографические данные;
+- музыкальный mute с хвостом и отдельный аппаратный Kill/Panic;
+- schema 2 с обратной загрузкой schema 1.
+
+Это ранний срез M4/M5, сделанный до продуктовых движков ради проверки управления на реальном устройстве.
+
 ## M0 — каркас и проверяемый тракт (готово)
 
 - GPL-3.0-or-later репозиторий;
@@ -17,7 +30,7 @@
 - проверить SDL video, ALSA/SDL audio, все аппаратные кнопки и путь writable data;
 - измерить реальные callback size, underrun/xrun и стабильность 48 kHz;
 - составить mapping Knulli и CrossMix/stock, не предполагая одинаковые keycodes;
-- добавить bitmap/font renderer с кириллицей и английским;
+- проверить встроенный bitmap/font renderer с кириллицей и английским на реальном дисплее;
 - сохранить language/session после перезапуска.
 
 **Критерий:** 10 минут непрерывного diagnostic patch без underrun и утечки памяти.
@@ -48,7 +61,7 @@
 - parameter locks и deterministic seed;
 - Brownian, logistic chaos, follower, Euclidean и probability sources;
 - общий clock и ratio без tracker transport;
-- `Panic` аппаратной комбинацией.
+- развить текущий `KILL` до короткого click-free fade и аппаратной комбинации.
 
 ## M5 — UX и пресеты
 

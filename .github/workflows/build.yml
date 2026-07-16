@@ -41,6 +41,7 @@ jobs:
           cp build-macos/cursed-drone-probe dist/cursed-drone-macos/
           cp build-macos/cursed-drone-render dist/cursed-drone-macos/
           cp README.md LICENSE THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
+          cp third_party/font512/LICENSE dist/cursed-drone-macos/font512-UNLICENSE.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-macos-arm64

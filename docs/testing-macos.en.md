@@ -26,4 +26,6 @@ ctest --test-dir build --output-on-failure
 ./build/cursed-drone-sdl
 ```
 
-Keyboard controls are Left/Right for slot, Up/Down for parameter, A/D to change, Space to mute, L for RU/EN, and Escape to quit. Parameter text currently lives in the window title; the complete font UI follows the Brick video-driver probe.
+Keyboard controls are Left/Right for slot, Up/Down for parameter, A/D to change, Tab or 1–4 to select Performance/Slot/FX/Master, Space to mute while preserving tails, F for a four-second fade, K to clear voices and FX memory, E to change the selected FX algorithm, L for RU/EN, and Escape to quit.
+
+All labels now render inside the window with the built-in Cyrillic/Latin bitmap font. A/D starts at one-percent precision and accelerates after 1.05 and 2.2 seconds. Meters, peak lines, scope motion and FX brightness use live audio telemetry. Please check that Russian glyphs remain aligned, the performance macros sound dramatic enough, mute preserves delay tails, and K removes them.

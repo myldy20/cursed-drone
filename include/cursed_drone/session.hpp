@@ -60,11 +60,21 @@ struct SlotSettings {
     std::array<ModSettings, kModulatorsPerSlot> modulators{};
 };
 
+struct PerformanceSettings {
+    // Global, non-destructive macros layered over the detailed slot settings.
+    float texture{0.22F};
+    float pulse{0.12F};
+    float chaos{0.08F};
+    float space{0.20F};
+    float fade{1.0F};
+};
+
 struct Session {
-    unsigned schema_version{1};
+    unsigned schema_version{2};
     Locale locale{Locale::ru};
     float tempo_bpm{60.0F};
     float master_level{0.75F};
+    PerformanceSettings performance{};
     std::array<SlotSettings, kSlotCount> slots{};
 };
 

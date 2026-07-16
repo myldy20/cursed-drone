@@ -177,6 +177,11 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
     output << "locale=" << to_string(session.locale) << '\n';
     output << "tempo_bpm=" << session.tempo_bpm << '\n';
     output << "master_level=" << session.master_level << '\n';
+    output << "performance.texture=" << session.performance.texture << '\n';
+    output << "performance.pulse=" << session.performance.pulse << '\n';
+    output << "performance.chaos=" << session.performance.chaos << '\n';
+    output << "performance.space=" << session.performance.space << '\n';
+    output << "performance.fade=" << session.performance.fade << '\n';
     for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
         const auto& slot = session.slots[slot_index];
         output << key(slot_index, "enabled") << '=' << (slot.enabled ? 1 : 0) << '\n';
@@ -236,7 +241,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
 
     const auto schema = values.find("cursed_drone_session");
-    if (schema == values.end() || schema->second != "1") {
+    if (schema == values.end() || (schema->second != "1" && schema->second != "2")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -248,7 +253,12 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         return false;
     }
     if (!parse_float(values, "tempo_bpm", loaded.tempo_bpm) ||
-        !parse_float(values, "master_level", loaded.master_level)) {
+        !parse_float(values, "master_level", loaded.master_level) ||
+        !parse_float(values, "performance.texture", loaded.performance.texture) ||
+        !parse_float(values, "performance.pulse", loaded.performance.pulse) ||
+        !parse_float(values, "performance.chaos", loaded.performance.chaos) ||
+        !parse_float(values, "performance.space", loaded.performance.space) ||
+        !parse_float(values, "performance.fade", loaded.performance.fade)) {
         error = "invalid master value";
         return false;
     }
@@ -293,6 +303,12 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
 
     loaded.tempo_bpm = std::clamp(loaded.tempo_bpm, 10.0F, 300.0F);
     loaded.master_level = std::clamp(loaded.master_level, 0.0F, 1.0F);
+    loaded.performance.texture = std::clamp(loaded.performance.texture, 0.0F, 1.0F);
+    loaded.performance.pulse = std::clamp(loaded.performance.pulse, 0.0F, 1.0F);
+    loaded.performance.chaos = std::clamp(loaded.performance.chaos, 0.0F, 1.0F);
+    loaded.performance.space = std::clamp(loaded.performance.space, 0.0F, 1.0F);
+    loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
+    loaded.schema_version = 2;
     session = loaded;
     return true;
 }

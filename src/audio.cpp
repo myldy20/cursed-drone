@@ -95,10 +95,17 @@ private:
 
 class DiagnosticEngine {
 public:
+    void prepare(std::size_t style) noexcept {
+        style_ = style % kSlotCount;
+        random_state_ = 0xC801'3EA4U ^ (0x9E37'79B9U * static_cast<std::uint32_t>(style_ + 1U));
+        reset();
+    }
+
     void reset() noexcept {
         phase_a_ = 0.0F;
         phase_b_ = 0.0F;
         noise_filter_ = 0.0F;
+        particle_ = 0.0F;
     }
 
     float next(float frequency, float timbre, float color, float motion, float texture, float sample_rate) noexcept {
@@ -113,14 +120,40 @@ public:
         const float raw_noise = next_noise(random_state_);
         const float noise_coefficient = 0.0007F + motion * motion * 0.07F;
         noise_filter_ += (raw_noise - noise_filter_) * noise_coefficient;
-        const float body = fundamental * (0.82F - timbre * 0.32F) + overtone * (0.08F + timbre * 0.30F);
-        return body * (1.0F - texture * 0.45F) + noise_filter_ * texture * 1.7F;
+        switch (style_) {
+        case 0U: {
+            const float body = fundamental * (0.82F - timbre * 0.32F) + overtone * (0.08F + timbre * 0.30F);
+            return body * (1.0F - texture * 0.45F) + noise_filter_ * texture * 1.7F;
+        }
+        case 1U: {
+            const float threshold = 0.08F + timbre * 0.84F;
+            const float pulse = phase_b_ < threshold ? 1.0F : -1.0F;
+            return fundamental * (0.48F - texture * 0.12F) + pulse * (0.10F + timbre * 0.20F) +
+                noise_filter_ * texture * 1.35F;
+        }
+        case 2U: {
+            const float modulator = std::sin(phase_b_ * kTwoPi) * (0.5F + timbre * 7.0F);
+            const float fm = std::sin(phase_a_ * kTwoPi + modulator);
+            return fm * (0.58F - texture * 0.16F) + overtone * 0.16F + noise_filter_ * texture * 1.1F;
+        }
+        default: {
+            particle_ *= 0.992F - motion * 0.018F;
+            const float trigger = 0.985F - motion * motion * 0.25F;
+            if (raw_noise > trigger) {
+                particle_ = 0.35F + 0.65F * std::abs(next_noise(random_state_));
+            }
+            return fundamental * (0.22F - texture * 0.10F) + noise_filter_ * (0.35F + texture * 1.6F) +
+                particle_ * overtone * (0.25F + timbre * 0.55F);
+        }
+        }
     }
 
 private:
     float phase_a_{0.0F};
     float phase_b_{0.0F};
     float noise_filter_{0.0F};
+    float particle_{0.0F};
+    std::size_t style_{0U};
     std::uint32_t random_state_{0xC801'3EA4U};
 };
 
@@ -260,7 +293,8 @@ struct SlotRuntime {
     std::array<SmoothedValue, kEffectsPerSlot> effect_tone{};
     std::array<SmoothedValue, kEffectsPerSlot> effect_feedback{};
 
-    void prepare(float sample_rate, const SlotSettings& settings) {
+    void prepare(float sample_rate, const SlotSettings& settings, std::size_t slot_index) {
+        diagnostic.prepare(slot_index);
         frequency.prepare(settings.frequency_hz, sample_rate);
         timbre.prepare(settings.timbre, sample_rate);
         color.prepare(settings.color, sample_rate);
@@ -311,6 +345,8 @@ struct ModulatedParameters {
     float level{0.35F};
     float pan{0.0F};
     std::array<float, kEffectsPerSlot> effect_amount{};
+    std::array<float, kEffectsPerSlot> effect_tone{};
+    std::array<float, kEffectsPerSlot> effect_feedback{};
 };
 
 void apply_modulation(ModulatedParameters& parameters, ModDestination destination, float value) noexcept {
@@ -354,9 +390,13 @@ public:
     void prepare(const AudioConfig& config, const Session& initial_session) {
         config_ = config;
         session_ = initial_session;
-        master_.prepare(session_.master_level, config_.sample_rate, 30.0F);
+        master_.prepare(session_.master_level * session_.performance.fade, config_.sample_rate, 100.0F);
+        performance_texture_.prepare(session_.performance.texture, config_.sample_rate, 80.0F);
+        performance_pulse_.prepare(session_.performance.pulse, config_.sample_rate, 80.0F);
+        performance_chaos_.prepare(session_.performance.chaos, config_.sample_rate, 120.0F);
+        performance_space_.prepare(session_.performance.space, config_.sample_rate, 100.0F);
         for (std::size_t index = 0; index < kSlotCount; ++index) {
-            slots_[index].prepare(config_.sample_rate, session_.slots[index]);
+            slots_[index].prepare(config_.sample_rate, session_.slots[index], index);
         }
         reset();
         prepared_ = true;
@@ -365,19 +405,41 @@ public:
     void reset() noexcept {
         dc_input_ = {};
         dc_output_ = {};
+        pulse_phase_ = 0.0F;
+        chaos_phase_ = 0.0F;
+        chaos_current_.fill(0.0F);
+        chaos_target_.fill(0.0F);
         master_.snap();
+        performance_texture_.snap();
+        performance_pulse_.snap();
+        performance_chaos_.snap();
+        performance_space_.snap();
         for (auto& slot : slots_) {
             slot.reset();
         }
+        clear_telemetry();
     }
 
-    bool submit_session(const Session& session) noexcept {
-        return sessions_.push(session);
+    bool submit_session(const Session& session) noexcept { return sessions_.push(session); }
+
+    void panic() noexcept { panic_requested_.store(true, std::memory_order_release); }
+
+    AudioTelemetry telemetry() const noexcept {
+        AudioTelemetry result{};
+        for (std::size_t index = 0; index < kSlotCount; ++index) {
+            result.slot_rms[index] = slot_rms_[index].load(std::memory_order_relaxed);
+            result.slot_peak[index] = slot_peak_[index].load(std::memory_order_relaxed);
+        }
+        result.master_rms = master_rms_.load(std::memory_order_relaxed);
+        result.master_peak = master_peak_.load(std::memory_order_relaxed);
+        result.pulse_phase = pulse_meter_.load(std::memory_order_relaxed);
+        result.chaos_activity = chaos_meter_.load(std::memory_order_relaxed);
+        return result;
     }
 
     void process(std::span<StereoFrame> output) noexcept {
         std::fill(output.begin(), output.end(), StereoFrame{});
-        if (!prepared_) {
+        if (!prepared_ || output.empty()) {
             return;
         }
 
@@ -388,13 +450,52 @@ public:
         }
         if (received) {
             session_ = incoming;
-            master_.set(session_.master_level);
+            master_.set(session_.master_level * clamp01(session_.performance.fade));
+            performance_texture_.set(clamp01(session_.performance.texture));
+            performance_pulse_.set(clamp01(session_.performance.pulse));
+            performance_chaos_.set(clamp01(session_.performance.chaos));
+            performance_space_.set(clamp01(session_.performance.space));
             for (std::size_t index = 0; index < kSlotCount; ++index) {
                 slots_[index].update_targets(session_.slots[index]);
             }
         }
 
+        if (panic_requested_.exchange(false, std::memory_order_acq_rel)) {
+            reset();
+            return;
+        }
+
+        std::array<double, kSlotCount> slot_energy{};
+        std::array<float, kSlotCount> slot_peak{};
+        double master_energy = 0.0;
+        float master_peak = 0.0F;
+        float last_chaos_activity = 0.0F;
+
         for (auto& frame : output) {
+            const float texture_macro = macro_curve(performance_texture_.next());
+            const float pulse_macro = macro_curve(performance_pulse_.next());
+            const float chaos_macro = macro_curve(performance_chaos_.next());
+            const float space_macro = macro_curve(performance_space_.next());
+
+            const float pulse_rate = std::clamp(session_.tempo_bpm, 10.0F, 300.0F) / 60.0F *
+                (1.0F + pulse_macro * 3.0F);
+            pulse_phase_ += pulse_rate / config_.sample_rate;
+            pulse_phase_ -= std::floor(pulse_phase_);
+
+            chaos_phase_ += (0.06F + chaos_macro * chaos_macro * 3.5F) / config_.sample_rate;
+            if (chaos_phase_ >= 1.0F) {
+                chaos_phase_ -= 1.0F;
+                for (auto& target : chaos_target_) {
+                    target = next_noise(chaos_random_state_);
+                }
+            }
+            const float chaos_slew = 1.0F - std::exp(-1.0F / (config_.sample_rate * 0.075F));
+            last_chaos_activity = 0.0F;
+            for (std::size_t index = 0; index < kSlotCount; ++index) {
+                chaos_current_[index] += (chaos_target_[index] - chaos_current_[index]) * chaos_slew;
+                last_chaos_activity = std::max(last_chaos_activity, std::abs(chaos_current_[index]) * chaos_macro);
+            }
+
             StereoFrame mix{};
             for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
                 const auto& settings = session_.slots[slot_index];
@@ -408,9 +509,13 @@ public:
                     runtime.level.next(),
                     runtime.pan.next(),
                     {},
+                    {},
+                    {},
                 };
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
                     parameters.effect_amount[effect_index] = runtime.effect_amount[effect_index].next();
+                    parameters.effect_tone[effect_index] = runtime.effect_tone[effect_index].next();
+                    parameters.effect_feedback[effect_index] = runtime.effect_feedback[effect_index].next();
                 }
                 for (std::size_t mod_index = 0; mod_index < kModulatorsPerSlot; ++mod_index) {
                     const auto& mod = settings.modulators[mod_index];
@@ -420,11 +525,51 @@ public:
                         runtime.modulators[mod_index].next(mod, config_.sample_rate));
                 }
 
+                const float chaos_value = chaos_current_[slot_index] * chaos_macro;
+                parameters.frequency *= std::pow(2.0F, chaos_value * 0.36F);
+                parameters.timbre += texture_macro * (0.24F + 0.05F * static_cast<float>(slot_index));
+                parameters.color += texture_macro * (slot_index % 2U == 0U ? 0.24F : -0.16F);
+                parameters.motion += texture_macro * 0.30F + std::abs(chaos_value) * 0.28F;
+                parameters.texture += texture_macro * 0.68F + std::abs(chaos_value) * 0.32F;
+                parameters.pan += chaos_value * 0.38F;
+
+                float slot_pulse_phase = pulse_phase_ + static_cast<float>(slot_index) * chaos_macro * 0.11F;
+                slot_pulse_phase -= std::floor(slot_pulse_phase);
+                const float pulse_wave = 0.5F + 0.5F * std::sin(slot_pulse_phase * kTwoPi - kPi * 0.5F);
+                const float pulse_envelope = std::pow(pulse_wave, 1.0F + pulse_macro * 10.0F);
+                const float pulse_gain = 1.0F - pulse_macro * 0.92F * (1.0F - pulse_envelope);
+                parameters.level *= pulse_gain * std::clamp(1.0F + chaos_value * 0.72F, 0.16F, 1.65F);
+
+                for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
+                    switch (settings.effects[effect_index].kind) {
+                    case EffectKind::drive:
+                    case EffectKind::crusher:
+                        parameters.effect_amount[effect_index] += texture_macro * 0.42F;
+                        break;
+                    case EffectKind::lowpass:
+                        parameters.effect_tone[effect_index] += texture_macro * 0.16F;
+                        break;
+                    case EffectKind::tremolo:
+                        parameters.effect_amount[effect_index] += pulse_macro * 0.20F;
+                        break;
+                    case EffectKind::delay:
+                        parameters.effect_amount[effect_index] += space_macro * 0.58F;
+                        parameters.effect_feedback[effect_index] += space_macro * 0.46F;
+                        parameters.effect_tone[effect_index] += space_macro * 0.13F;
+                        break;
+                    case EffectKind::bypass:
+                        break;
+                    }
+                    parameters.effect_amount[effect_index] = clamp01(parameters.effect_amount[effect_index]);
+                    parameters.effect_tone[effect_index] = clamp01(parameters.effect_tone[effect_index]);
+                    parameters.effect_feedback[effect_index] = clamp01(parameters.effect_feedback[effect_index]);
+                }
+
                 parameters.timbre = clamp01(parameters.timbre);
                 parameters.color = clamp01(parameters.color);
                 parameters.motion = clamp01(parameters.motion);
                 parameters.texture = clamp01(parameters.texture);
-                parameters.level = std::clamp(parameters.level, 0.0F, 1.25F);
+                parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
 
                 float mono = 0.0F;
@@ -445,16 +590,19 @@ public:
                 };
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
-                    const auto& effect = settings.effects[effect_index];
                     slot_frame = runtime.effects[effect_index].process(
                         slot_frame,
-                        effect.kind,
+                        settings.effects[effect_index].kind,
                         parameters.effect_amount[effect_index],
-                        runtime.effect_tone[effect_index].next(),
-                        runtime.effect_feedback[effect_index].next());
+                        parameters.effect_tone[effect_index],
+                        parameters.effect_feedback[effect_index]);
                 }
                 mix.left += slot_frame.left;
                 mix.right += slot_frame.right;
+                const float slot_power = 0.5F * (slot_frame.left * slot_frame.left + slot_frame.right * slot_frame.right);
+                slot_energy[slot_index] += static_cast<double>(slot_power);
+                slot_peak[slot_index] = std::max(
+                    slot_peak[slot_index], std::max(std::abs(slot_frame.left), std::abs(slot_frame.right)));
             }
 
             const float master = master_.next();
@@ -474,19 +622,84 @@ public:
                 std::tanh(dc_removed.left * limiter_drive),
                 std::tanh(dc_removed.right * limiter_drive),
             };
+            const float master_power = 0.5F * (frame.left * frame.left + frame.right * frame.right);
+            master_energy += static_cast<double>(master_power);
+            master_peak = std::max(master_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
         }
+
+        const float frame_count = static_cast<float>(output.size());
+        for (std::size_t index = 0; index < kSlotCount; ++index) {
+            publish_meter(slot_rms_[index], slot_rms_smooth_[index],
+                std::sqrt(static_cast<float>(slot_energy[index]) / frame_count), 0.18F);
+            publish_peak(slot_peak_[index], slot_peak_smooth_[index], slot_peak[index]);
+        }
+        publish_meter(master_rms_, master_rms_smooth_,
+            std::sqrt(static_cast<float>(master_energy) / frame_count), 0.20F);
+        publish_peak(master_peak_, master_peak_smooth_, master_peak);
+        pulse_meter_.store(pulse_phase_, std::memory_order_relaxed);
+        chaos_meter_.store(last_chaos_activity, std::memory_order_relaxed);
     }
 
     float sample_rate() const noexcept { return config_.sample_rate; }
 
 private:
+    static float macro_curve(float value) noexcept {
+        value = clamp01(value);
+        return value * value * (3.0F - 2.0F * value);
+    }
+
+    static void publish_meter(std::atomic<float>& destination, float& smoothed, float value, float mix) noexcept {
+        smoothed += (value - smoothed) * mix;
+        destination.store(smoothed, std::memory_order_relaxed);
+    }
+
+    static void publish_peak(std::atomic<float>& destination, float& smoothed, float value) noexcept {
+        smoothed = std::max(value, smoothed * 0.91F);
+        destination.store(smoothed, std::memory_order_relaxed);
+    }
+
+    void clear_telemetry() noexcept {
+        slot_rms_smooth_.fill(0.0F);
+        slot_peak_smooth_.fill(0.0F);
+        for (std::size_t index = 0; index < kSlotCount; ++index) {
+            slot_rms_[index].store(0.0F, std::memory_order_relaxed);
+            slot_peak_[index].store(0.0F, std::memory_order_relaxed);
+        }
+        master_rms_smooth_ = 0.0F;
+        master_peak_smooth_ = 0.0F;
+        master_rms_.store(0.0F, std::memory_order_relaxed);
+        master_peak_.store(0.0F, std::memory_order_relaxed);
+        pulse_meter_.store(0.0F, std::memory_order_relaxed);
+        chaos_meter_.store(0.0F, std::memory_order_relaxed);
+    }
+
     AudioConfig config_{};
     Session session_{};
     std::array<SlotRuntime, kSlotCount> slots_{};
     SpscQueue<Session, 8> sessions_{};
     SmoothedValue master_{};
+    SmoothedValue performance_texture_{};
+    SmoothedValue performance_pulse_{};
+    SmoothedValue performance_chaos_{};
+    SmoothedValue performance_space_{};
     StereoFrame dc_input_{};
     StereoFrame dc_output_{};
+    std::array<float, kSlotCount> chaos_current_{};
+    std::array<float, kSlotCount> chaos_target_{};
+    float pulse_phase_{0.0F};
+    float chaos_phase_{0.0F};
+    std::uint32_t chaos_random_state_{0xD00D'F00DU};
+    std::array<std::atomic<float>, kSlotCount> slot_rms_{};
+    std::array<std::atomic<float>, kSlotCount> slot_peak_{};
+    std::atomic<float> master_rms_{0.0F};
+    std::atomic<float> master_peak_{0.0F};
+    std::atomic<float> pulse_meter_{0.0F};
+    std::atomic<float> chaos_meter_{0.0F};
+    std::array<float, kSlotCount> slot_rms_smooth_{};
+    std::array<float, kSlotCount> slot_peak_smooth_{};
+    float master_rms_smooth_{0.0F};
+    float master_peak_smooth_{0.0F};
+    std::atomic<bool> panic_requested_{false};
     bool prepared_{false};
 };
 
@@ -502,6 +715,8 @@ void AudioGraph::prepare(const AudioConfig& config, const Session& initial_sessi
 void AudioGraph::reset() noexcept { impl_->reset(); }
 bool AudioGraph::submit_session(const Session& session) noexcept { return impl_->submit_session(session); }
 void AudioGraph::process(std::span<StereoFrame> output) noexcept { impl_->process(output); }
+AudioTelemetry AudioGraph::telemetry() const noexcept { return impl_->telemetry(); }
+void AudioGraph::panic() noexcept { impl_->panic(); }
 float AudioGraph::sample_rate() const noexcept { return impl_->sample_rate(); }
 
 } // namespace cursed_drone

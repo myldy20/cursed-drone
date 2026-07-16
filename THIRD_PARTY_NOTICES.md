@@ -1,8 +1,16 @@
 # Сторонний код / Third-party notices
 
-На стадии `0.1.0` репозиторий **не содержит импортированного DSP-кода**. Исполняемый прототип использует только стандартную библиотеку C++, системный SDL2 (когда он доступен) и собственный диагностический генератор. Генератор предназначен для проверки аудиографа и будет скрыт из пользовательского списка после подключения продуктовых движков.
+На стадии `0.2.0` репозиторий **не содержит импортированного DSP-кода**. Исполняемый прототип использует стандартную библиотеку C++, системный SDL2 (когда он доступен), собственный диагностический генератор и public-domain bitmap-шрифт. Генератор предназначен для проверки аудиографа и будет скрыт из пользовательского списка после подключения продуктовых движков.
 
-At `0.1.0`, the repository contains **no imported DSP implementation**. The executable prototype only uses the C++ standard library, system SDL2 when present, and an original diagnostic signal generator. The latter validates the graph and will be hidden from the product engine list once real engines land.
+At `0.2.0`, the repository contains **no imported DSP implementation**. The executable prototype uses the C++ standard library, system SDL2 when present, an original diagnostic signal generator, and a public-domain bitmap font. The diagnostic source will be hidden from the product engine list once real engines land.
+
+## Vendored UI font / Встроенный UI-шрифт
+
+| Project | Files | Pinned commit | License | Local use |
+| --- | --- | --- | --- | --- |
+| [alexfru/512_8](https://github.com/alexfru/512_8) | `third_party/font512/font_data.inc` | `6bd43ef930697ac54567e9fcf59e6ffc24c6813e` | Unlicense / public domain | 512-glyph 8×8 bold bitmap font; UTF-8 UI maps Latin and Russian glyphs |
+
+The unmodified upstream initializer data and full license text are stored beside the font.
 
 ## Planned dependencies / Планируемые зависимости
 

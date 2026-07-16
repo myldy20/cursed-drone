@@ -8,7 +8,7 @@
 
 Главная целевая консоль — **TrimUI Brick**. Архитектура не привязана к одной прошивке: SDL2-оболочка и компактное C++-ядро рассчитаны также на Anbernic, PortMaster-совместимые устройства и обычный Linux desktop.
 
-> Статус: ранний исполняемый прототип `0.1.0`. Аудиограф, сессии, автоматизации, базовые FX и двуязычная инфраструктура работают. Текущий генератор звука — только диагностический тест тракта. Продуктовые движки DaisySP/Mutable Instruments подключаются на следующем этапе.
+> Статус: интерактивный прототип `0.2.0`. В окне есть полноценные RU/EN-подписи, performance/slot/FX/master-экраны, реактивные метры, нелинейное ускорение кнопок и первые глобальные макросы управляемого хаоса. Текущий источник всё ещё диагностический; продуктовые движки DaisySP/Mutable Instruments остаются следующим крупным DSP-этапом.
 
 ## Идея
 
@@ -36,6 +36,12 @@
 - русский и английский каталоги строк, переключаемые без перезапуска;
 - CLI offline-render в stereo 48 kHz float WAV;
 - SDL2-прототип с логическим разрешением 512×384, масштабируемым до 1024×768;
+- встроенный public-domain bitmap-шрифт 8×8 с латиницей и кириллицей, без SDL_ttf;
+- четыре интерфейсных экрана: performance, детальные параметры слотов, FX и master;
+- глобальные недеструктивные макросы `Texture`, `Pulse`, `Chaos`, `Space`, `Fade`;
+- четырёхсекундный auto-fade и отдельный `KILL`, очищающий голоса и хвосты эффектов;
+- RMS/peak telemetry из аудиопотока для реактивных метров и анимации;
+- ускорение изменения значения после 1,05 и 2,2 секунды удержания;
 - тесты очереди, локализации, аудиографа и round-trip сессии.
 
 ## Сборка
@@ -90,11 +96,25 @@ ctest --test-dir build --output-on-failure
 | выбрать слот | ← / → | D-pad ← / → |
 | выбрать параметр | ↑ / ↓ | D-pad ↑ / ↓ |
 | изменить значение | A / D | L / R |
+| следующий экран | Tab или 1…4 | X |
 | mute слота | Space | A |
-| RU / EN | L | Select + Y |
+| плавный fade in/out (4 с) | F | Select / Back |
+| очистить голоса и FX-хвосты | K | B |
+| сменить тип выбранного FX | E | Start |
+| RU / EN | L | Y |
 | выход | Esc | Menu |
 
-На текущем этапе экран визуализирует четыре слота и значения без шрифтового рендера; выбранный локализованный параметр показывается в заголовке окна. Полный bitmap/font UI — часть следующего этапа.
+Одиночное нажатие меняет обычный параметр на 1%. После 1,05 секунды удержания шаги идут вдвое быстрее, после 2,2 секунды — резко ускоряются. Mute прекращает новый сигнал, но намеренно оставляет музыкальный delay-tail; `KILL` очищает и источники, и память эффектов.
+
+Performance-макросы не перезаписывают детальные параметры:
+
+| Макрос | Что меняет в аудиографе |
+| --- | --- |
+| `Texture` | тембр, цвет, motion, шумовую долю, drive/crusher и яркость фильтра |
+| `Pulse` | BPM-синхронную нелинейную огибающую уровня и дополнительную глубину tremolo |
+| `Chaos` | сглаженные случайные события pitch/level/pan/texture с растущей частотой |
+| `Space` | amount, feedback и время/тон delay |
+| `Fade` | отдельный сглаженный слой над master level |
 
 ## Продуктовые движки
 
@@ -130,9 +150,11 @@ ctest --test-dir build --output-on-failure
 
 The primary target is the **TrimUI Brick**, while the SDL2 shell and compact C++ core are intended to remain portable to Anbernic devices, PortMaster systems and desktop Linux.
 
-> Status: early executable prototype `0.1.0`. The audio graph, sessions, modulation, basic effects and bilingual infrastructure work. The current sound source is a diagnostic signal-path probe only; DaisySP and permissively licensed Mutable Instruments DSP adapters come next.
+> Status: interactive prototype `0.2.0`. It now has in-window RU/EN text, performance/slot/FX/master views, reactive meters, accelerated hold input, four-second fades, a hard kill action, and non-destructive Texture/Pulse/Chaos/Space macros. The source remains diagnostic; DaisySP and permissively licensed Mutable Instruments DSP adapters come next.
 
 Each of four independent slots contains one engine, four serial effects and four free modulation lanes. The mixer ends in DC removal and a soft master limiter. There is a shared sense of time, but no notes table, transport or tracker sequencing.
+
+Keyboard controls: Left/Right selects a slot, Up/Down selects a parameter, A/D changes it, Tab (or 1–4) changes page, Space mutes with effect tails, F runs a four-second fade, K kills all voices/tails, E changes the selected FX type, L toggles RU/EN, and Escape exits.
 
 ### Build
 

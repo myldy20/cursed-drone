@@ -26,7 +26,7 @@ flowchart TD
 
 Each slot is `engine → FX1 → FX2 → FX3 → FX4 → level/pan`. Four modulation lanes alter smoothed engine, mix or effect parameters before each sample is processed.
 
-The `0.1.0` diagnostic engine validates this route; it is not intended to replace any upstream product engine. Each future adapter follows the same conceptual contract:
+The `0.2.0` diagnostic source exposes four deliberately different test characters: base drone, pulse-wave, FM, and noise/particle. This validates the control model but is not intended to replace any upstream product engine. Each future adapter follows the same conceptual contract:
 
 ```cpp
 prepare(sample_rate, max_block_frames)
@@ -38,15 +38,15 @@ An adapter must allocate ahead of time, map stable product macros to upstream ra
 
 ## Parameters and modulation
 
-The stable macro surface is `frequency`, `timbre`, `color`, `motion`, `texture`, `level`, and `pan`. Continuous values use roughly 20 ms one-pole smoothing; master uses 30 ms. Switches and algorithms change at block boundaries.
+The stable detailed surface is `frequency`, `timbre`, `color`, `motion`, `texture`, `level`, and `pan`. Continuous detailed values use roughly 20 ms one-pole smoothing; master/performance use 80–120 ms. Schema 2 adds separate non-destructive `texture`, `pulse`, `chaos`, `space`, and `fade` performance values. They are layered over the detailed patch in the callback, so returning a macro restores the base settings. The loader migrates schema 1 with safe defaults.
 
-Current sources are sine, triangle, sample-and-hold and bounded random walk. Destinations are pitch, the five engine macros, level, pan, and every FX amount. Pitch is exponential; other routes are additive and clamped. Planned clock-aware sources include follower, Brownian and logistic chaos, Euclidean pulses, probability bursts and short step curves—without introducing a tracker grid.
+Current sources are sine, triangle, sample-and-hold and bounded random walk. Destinations are pitch, the five engine macros, level, pan, and every FX amount. Pitch is exponential; other routes are additive and clamped. The Pulse performance macro already supplies a nonlinear BPM envelope; Chaos updates rate-dependent random targets and slews them before affecting pitch/level/pan/texture. Planned sources include follower, Brownian/logistic, Euclidean, probability bursts and short step curves—without introducing a tracker grid.
 
 ## FX, memory and safety
 
 Every FX cell currently preallocates a 1.3 second stereo delay line. Sixteen cells consume about 8 MB at 48 kHz, but algorithm changes never allocate in the callback. A later shared fixed pool may reduce that footprint.
 
-After summing the four slots, master smoothing feeds a DC blocker and a `tanh` soft limiter whose output remains inside `[-1, 1]`. A future always-available Panic action will fade, clear runaway feedback/freeze states, and restore safe output.
+After summing the four slots, master smoothing feeds a DC blocker and a `tanh` soft limiter whose output remains inside `[-1, 1]`. The current atomic Kill request clears sources, delay memory, DC state and telemetry at the next block boundary. A later revision will surround that hard reset with a short click-free fade.
 
 | Thread | Allowed | Forbidden |
 | --- | --- | --- |
@@ -54,4 +54,4 @@ After summing the four slots, master smoothing feeds a DC blocker and a `tanh` s
 | UI/main | input, drawing, Session edits and saving | direct mutation of DSP runtime |
 | background (later) | loading into staging buffers | writes to active audio buffers |
 
-The logical UI is `512×384`, scaling exactly to the Brick's `1024×768`; wider screens use letterboxing.
+The logical UI is `512×384`, scaling exactly to the Brick's `1024×768`; wider screens use letterboxing. A vendored 512-glyph bitmap font supplies in-window Russian and English without SDL_ttf. The audio thread publishes per-slot and master RMS/peak through atomics; the renderer consumes telemetry snapshots without touching DSP runtime.
