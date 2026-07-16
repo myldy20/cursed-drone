@@ -1,0 +1,5 @@
+/build/
+/out/
+*.wav
+*.cdrone
+.DS_Store
