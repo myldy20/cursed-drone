@@ -17,3 +17,61 @@ jobs:
         run: cmake --build build --parallel 2
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2
+        run: brew install sdl2
+      - name: Configure
+        run: >-
+          cmake -S . -B build-macos
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+      - name: Build
+        run: cmake --build build-macos --parallel 3
+      - name: Test
+        run: ctest --test-dir build-macos --output-on-failure
+      - name: Assemble test bundle
+        run: |
+          mkdir -p dist/cursed-drone-macos
+          cp build-macos/cursed-drone dist/cursed-drone-macos/
+          cp build-macos/cursed-drone-sdl dist/cursed-drone-macos/
+          cp build-macos/cursed-drone-probe dist/cursed-drone-macos/
+          cp build-macos/cursed-drone-render dist/cursed-drone-macos/
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-macos-arm64
+          path: dist/cursed-drone-macos
+
+  portmaster-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Build in Ubuntu 20.04 aarch64
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 \
+            bash -ec '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip
+              cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
+              cmake --build build-aarch64 --parallel 2
+              ctest --test-dir build-aarch64 --output-on-failure
+              strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+              ./tools/package_portmaster.sh build-aarch64 dist
+            '
+      - name: Inspect binaries
+        run: |
+          file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+          unzip -l dist/curseddrone-aarch64-test.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-portmaster-aarch64
+          path: dist/curseddrone-aarch64-test.zip

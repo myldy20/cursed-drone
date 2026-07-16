@@ -113,6 +113,7 @@ ctest --test-dir build --output-on-failure
 - [Исследование проектов и DSP](docs/research.ru.md) · [Research](docs/research.en.md)
 - [Дорожная карта](docs/roadmap.ru.md) · [Roadmap](docs/roadmap.en.md)
 - [TrimUI Brick и портирование](docs/trimui-brick.ru.md) · [TrimUI Brick and porting](docs/trimui-brick.en.md)
+- [Тестирование на macOS](docs/testing-macos.ru.md) · [Testing on macOS](docs/testing-macos.en.md)
 - [Лицензии и сторонний код](THIRD_PARTY_NOTICES.md)
 
 ## Лицензия

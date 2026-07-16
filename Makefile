@@ -5,7 +5,7 @@ CPPFLAGS ?= -Iinclude
 BUILD := build
 CORE := src/audio.cpp src/i18n.cpp src/session.cpp src/wav.cpp
 
-.PHONY: all test render sdl clean
+.PHONY: all test render sdl probe clean
 
 all: $(BUILD)/cursed-drone $(BUILD)/cursed-drone-tests $(BUILD)/cursed-drone-render
 
@@ -33,6 +33,13 @@ sdl: | $(BUILD)
 		$(CXX) $(CPPFLAGS) $(CXXFLAGS) $$(sdl2-config --cflags) $(CORE) src/sdl_main.cpp $$(sdl2-config --libs) -o $(BUILD)/cursed-drone-sdl; \
 	else \
 		echo "SDL2 development files are required for the SDL frontend"; exit 1; \
+	fi
+
+probe: | $(BUILD)
+	@if command -v sdl2-config >/dev/null 2>&1; then \
+		$(CXX) $(CPPFLAGS) $(CXXFLAGS) $$(sdl2-config --cflags) $(CORE) tools/device_probe.cpp $$(sdl2-config --libs) -o $(BUILD)/cursed-drone-probe; \
+	else \
+		echo "SDL2 development files are required for the device probe"; exit 1; \
 	fi
 
 clean:

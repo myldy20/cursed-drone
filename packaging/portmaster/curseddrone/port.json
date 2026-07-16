@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "name": "curseddrone.zip",
+  "items": [
+    "Cursed Drone.sh",
+    "curseddrone"
+  ],
+  "items_opt": null,
+  "attr": {
+    "title": "Cursed Drone",
+    "desc": "Four controllable engines for drones, noise fields and unstable sound spaces.",
+    "inst": "Pre-release device probe and audio prototype. The first launch records video, audio and controller information.",
+    "genres": [
+      "music"
+    ],
+    "porter": [
+      "myldy20"
+    ],
+    "image": {},
+    "rtr": true,
+    "runtime": null,
+    "reqs": [],
+    "arch": [
+      "aarch64"
+    ]
+  }
+}
