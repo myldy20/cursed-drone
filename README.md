@@ -1,5 +1,7 @@
 # Проклятый гудёж / Cursed Drone
 
+[![build](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg)](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml)
+
 **RU** · [English below](#english)
 
 `Cursed Drone` — нативный звуковой инструмент для маленьких Linux-консолей. Его задача — создавать дроны, шумовые поля, пульсации и управляемые звуковые катастрофы без трекерной сетки и без необходимости программировать синтезатор.
