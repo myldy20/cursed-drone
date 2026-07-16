@@ -26,7 +26,7 @@ flowchart TD
 
 Each slot is `engine → FX1 → FX2 → FX3 → FX4 → level/pan`. Four modulation lanes alter smoothed engine, mix or effect parameters before each sample is processed.
 
-The `0.2.0` diagnostic source exposes four deliberately different test characters: base drone, pulse-wave, FM, and noise/particle. This validates the control model but is not intended to replace any upstream product engine. Each future adapter follows the same conceptual contract:
+The `0.3.0` default patch uses four distinct adapters around a pinned DaisySP subset: `TONE` (Oscillator + ClockedNoise), `RESONATOR` (ModalVoice/Resonator), `GRAINLET`, and `PARTICLES` (Particle/SVF). The old diagnostic source remains only for schema 1/2 loading. Future engines follow the same conceptual contract:
 
 ```cpp
 prepare(sample_rate, max_block_frames)
@@ -38,9 +38,9 @@ An adapter must allocate ahead of time, map stable product macros to upstream ra
 
 ## Parameters and modulation
 
-The stable detailed surface is `frequency`, `timbre`, `color`, `motion`, `texture`, `level`, and `pan`. Continuous detailed values use roughly 20 ms one-pole smoothing; master/performance use 80–120 ms. Schema 2 adds separate non-destructive `texture`, `pulse`, `chaos`, `space`, and `fade` performance values. They are layered over the detailed patch in the callback, so returning a macro restores the base settings. The loader migrates schema 1 with safe defaults.
+The stable detailed surface is `frequency`, `timbre`, `color`, `motion`, `texture`, `level`, and `pan`, with engine-specific UI labels for the four character controls. Continuous detailed values use roughly 20 ms one-pole smoothing; master/performance use 80–120 ms. Schema 3 stores non-destructive `texture`, `pulse`, `chaos`, `space`, and `events` performance values plus separate fade-in/fade-out times. Fade remains a master-output state. The loader migrates schema 1/2 with safe defaults.
 
-Current sources are sine, triangle, sample-and-hold and bounded random walk. Destinations are pitch, the five engine macros, level, pan, and every FX amount. Pitch is exponential; other routes are additive and clamped. The Pulse performance macro already supplies a nonlinear BPM envelope; Chaos updates rate-dependent random targets and slews them before affecting pitch/level/pan/texture. Planned sources include follower, Brownian/logistic, Euclidean, probability bursts and short step curves—without introducing a tracker grid.
+Current sources are sine, triangle, sample-and-hold and bounded random walk. Destinations are pitch, the engine macros, level, pan, and every FX amount. Pitch is exponential; other routes are additive and clamped. Pulse supplies per-engine nonlinear BPM envelopes with distinct ratios/depths. Events scales strike/burst frequency and bounded random gaps. Chaos updates rate-dependent random targets and slews them before affecting pitch/level/pan/texture. Planned sources include directed event ramps, a bounded quantizer, follower, Brownian/logistic, Euclidean, probability bursts and short step curves—without introducing a tracker grid.
 
 ## FX, memory and safety
 
@@ -54,4 +54,4 @@ After summing the four slots, master smoothing feeds a DC blocker and a `tanh` s
 | UI/main | input, drawing, Session edits and saving | direct mutation of DSP runtime |
 | background (later) | loading into staging buffers | writes to active audio buffers |
 
-The logical UI is `512×384`, scaling exactly to the Brick's `1024×768`; wider screens use letterboxing. A vendored 512-glyph bitmap font supplies in-window Russian and English without SDL_ttf. The audio thread publishes per-slot and master RMS/peak through atomics; the renderer consumes telemetry snapshots without touching DSP runtime.
+The logical UI is `512×384`, scaling exactly to the Brick's `1024×768`; wider screens use letterboxing. A vendored 512-glyph bitmap font supplies in-window Russian and English without SDL_ttf. The audio thread publishes per-slot/master RMS, peak, and 64-point captured waveforms through atomics. The SDL callback measures processing time as a fraction of the available block and displays it as DSP load. The UI writes debounced schema 3 autosaves under `SDL_GetPrefPath`.

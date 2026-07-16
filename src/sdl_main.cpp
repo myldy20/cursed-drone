@@ -9,8 +9,10 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <string_view>
@@ -29,16 +31,19 @@ constexpr std::array<SDL_Color, 4> kFxColors{{
     {216, 88, 88, 255}, {224, 154, 63, 255}, {80, 169, 154, 255}, {91, 122, 187, 255},
 }};
 
-enum class Page { perform, slot, effects, master };
+enum class Page { perform, slot, effects, master, setup };
 
 struct AudioBridge {
     cd::AudioGraph graph{};
+    std::atomic<float> cpu_load{0.0F};
+    float sample_rate{48'000.0F};
 };
 
 struct UiState {
     Page page{Page::perform};
     int slot{0};
-    std::array<int, 4> selected{};
+    std::array<int, 5> selected{};
+    int effect_field{0};
     int held_direction{0};
     Uint32 held_since{0};
     Uint32 last_repeat{0};
@@ -49,43 +54,89 @@ struct UiState {
 
 void audio_callback(void* userdata, Uint8* bytes, int byte_count) {
     auto& bridge = *static_cast<AudioBridge*>(userdata);
+    const Uint64 started = SDL_GetPerformanceCounter();
     auto* frames = reinterpret_cast<cd::StereoFrame*>(bytes);
-    bridge.graph.process({
-        frames, static_cast<std::size_t>(byte_count) / sizeof(cd::StereoFrame)});
+    const auto frame_count = static_cast<std::size_t>(byte_count) / sizeof(cd::StereoFrame);
+    bridge.graph.process({frames, frame_count});
+    const double elapsed = static_cast<double>(SDL_GetPerformanceCounter() - started) /
+        static_cast<double>(SDL_GetPerformanceFrequency());
+    const double available = static_cast<double>(frame_count) / static_cast<double>(bridge.sample_rate);
+    const float load = static_cast<float>(std::clamp(elapsed / available, 0.0, 4.0));
+    const float previous = bridge.cpu_load.load(std::memory_order_relaxed);
+    bridge.cpu_load.store(previous + (load - previous) * 0.12F, std::memory_order_relaxed);
 }
 
 bool ru(const cd::Session& session) noexcept { return session.locale == cd::Locale::ru; }
 
 std::string_view page_name(Page page, bool russian) noexcept {
     switch (page) {
-    case Page::perform: return russian ? "ИГРА" : "PERFORM";
-    case Page::slot: return russian ? "СЛОТ" : "SLOT";
-    case Page::effects: return russian ? "ЭФФЕКТЫ" : "EFFECTS";
+    case Page::perform: return russian ? "СЦЕНА" : "SCENE";
+    case Page::slot: return russian ? "СЛОТЫ" : "SLOTS";
+    case Page::effects: return "FX";
     case Page::master: return russian ? "МАСТЕР" : "MASTER";
+    case Page::setup: return russian ? "НАСТР." : "SETUP";
     }
     return {};
 }
 
 std::string_view macro_name(int index, bool russian) noexcept {
     constexpr std::array<std::string_view, 5> r{
-        "ТЕКСТУРА", "ПУЛЬС", "ХАОС", "ПРОСТРАНСТВО", "ФЕЙД"};
+        "ТЕКСТУРА", "ПУЛЬС", "ХАОС", "ПРОСТРАНСТВО", "СОБЫТИЯ"};
     constexpr std::array<std::string_view, 5> e{
-        "TEXTURE", "PULSE", "CHAOS", "SPACE", "FADE"};
+        "TEXTURE", "PULSE", "CHAOS", "SPACE", "EVENTS"};
     return (russian ? r : e)[static_cast<std::size_t>(index)];
 }
 
-std::string_view slot_name(int index, cd::Locale locale) {
-    constexpr std::array ids{
-        cd::TextId::frequency, cd::TextId::timbre, cd::TextId::color, cd::TextId::motion,
-        cd::TextId::texture, cd::TextId::level, cd::TextId::pan,
-    };
-    return cd::tr(locale, ids[static_cast<std::size_t>(index)]);
+std::string_view engine_name(cd::EngineKind kind, bool russian) noexcept {
+    switch (kind) {
+    case cd::EngineKind::diagnostic: return russian ? "ДИАГН." : "LEGACY";
+    case cd::EngineKind::macro: return russian ? "ТОН" : "TONE";
+    case cd::EngineKind::body: return russian ? "РЕЗОНАТОР" : "RESONATOR";
+    case cd::EngineKind::grain: return russian ? "ЗЕРНО" : "GRAINLET";
+    case cd::EngineKind::particle: return russian ? "ЧАСТИЦЫ" : "PARTICLES";
+    }
+    return {};
+}
+
+std::string_view slot_name(int index, const cd::SlotSettings& slot, cd::Locale locale) {
+    const bool russian = locale == cd::Locale::ru;
+    if (index == 0) return cd::tr(locale, cd::TextId::engine);
+    if (index == 1) return cd::tr(locale, cd::TextId::frequency);
+    if (index == 6) return cd::tr(locale, cd::TextId::level);
+    if (index == 7) return cd::tr(locale, cd::TextId::pan);
+    const int character = index - 2;
+    switch (slot.engine) {
+    case cd::EngineKind::macro: {
+        constexpr std::array<std::string_view, 4> r{"ФОРМА", "РАССТРОЙКА", "ДРЕЙФ", "ШУМ"};
+        constexpr std::array<std::string_view, 4> e{"SHAPE", "DETUNE", "DRIFT", "NOISE"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::body: {
+        constexpr std::array<std::string_view, 4> r{"МАТЕРИАЛ", "ЯРКОСТЬ", "УДАРЫ", "ВОЗБУЖД."};
+        constexpr std::array<std::string_view, 4> e{"MATERIAL", "BRIGHT", "STRIKES", "EXCITE"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::grain: {
+        constexpr std::array<std::string_view, 4> r{"ФОРМАНТА", "ФОРМА", "РОССЫПЬ", "ЗЕРНО"};
+        constexpr std::array<std::string_view, 4> e{"FORMANT", "SHAPE", "SCATTER", "GRAIN"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::particle: {
+        constexpr std::array<std::string_view, 4> r{"РЕЗОНАНС", "РАЗБРОС", "ДВИЖЕНИЕ", "ПЛОТНОСТЬ"};
+        constexpr std::array<std::string_view, 4> e{"RESONANCE", "SPREAD", "MOTION", "DENSITY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::diagnostic:
+        break;
+    }
+    constexpr std::array ids{cd::TextId::timbre, cd::TextId::color, cd::TextId::motion, cd::TextId::texture};
+    return cd::tr(locale, ids[static_cast<std::size_t>(character)]);
 }
 
 std::string_view effect_name(cd::EffectKind kind, bool russian) noexcept {
     switch (kind) {
     case cd::EffectKind::bypass: return russian ? "ОБХОД" : "BYPASS";
-    case cd::EffectKind::drive: return "DRIVE";
+    case cd::EffectKind::drive: return russian ? "ДРАЙВ" : "DRIVE";
     case cd::EffectKind::lowpass: return russian ? "ФИЛЬТР" : "LOWPASS";
     case cd::EffectKind::tremolo: return russian ? "ТРЕМОЛО" : "TREMOLO";
     case cd::EffectKind::delay: return russian ? "ДЕЛЕЙ" : "DELAY";
@@ -107,9 +158,10 @@ int page_index(Page page) noexcept { return static_cast<int>(page); }
 int parameter_count(Page page) noexcept {
     switch (page) {
     case Page::perform: return 5;
-    case Page::slot: return 7;
-    case Page::effects: return 12;
-    case Page::master: return 2;
+    case Page::slot: return 8;
+    case Page::effects: return 4;
+    case Page::master: return 3;
+    case Page::setup: return 3;
     }
     return 1;
 }
@@ -128,7 +180,7 @@ float macro_value(const cd::PerformanceSettings& settings, int index) noexcept {
     case 1: return settings.pulse;
     case 2: return settings.chaos;
     case 3: return settings.space;
-    default: return settings.fade;
+    default: return settings.events;
     }
 }
 
@@ -138,30 +190,30 @@ float* macro_value(cd::PerformanceSettings& settings, int index) noexcept {
     case 1: return &settings.pulse;
     case 2: return &settings.chaos;
     case 3: return &settings.space;
-    default: return &settings.fade;
+    default: return &settings.events;
     }
 }
 
 float slot_value(const cd::SlotSettings& slot, int index) noexcept {
     switch (index) {
-    case 0: return slot.frequency_hz;
-    case 1: return slot.timbre;
-    case 2: return slot.color;
-    case 3: return slot.motion;
-    case 4: return slot.texture;
-    case 5: return slot.level;
+    case 1: return slot.frequency_hz;
+    case 2: return slot.timbre;
+    case 3: return slot.color;
+    case 4: return slot.motion;
+    case 5: return slot.texture;
+    case 6: return slot.level;
     default: return slot.pan;
     }
 }
 
 float* slot_value(cd::SlotSettings& slot, int index) noexcept {
     switch (index) {
-    case 0: return &slot.frequency_hz;
-    case 1: return &slot.timbre;
-    case 2: return &slot.color;
-    case 3: return &slot.motion;
-    case 4: return &slot.texture;
-    case 5: return &slot.level;
+    case 1: return &slot.frequency_hz;
+    case 2: return &slot.timbre;
+    case 3: return &slot.color;
+    case 4: return &slot.motion;
+    case 5: return &slot.texture;
+    case 6: return &slot.level;
     default: return &slot.pan;
     }
 }
@@ -184,10 +236,14 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
         break;
     case Page::slot: {
         const int slot = slot_override >= 0 ? slot_override : state.slot;
-        const float value = slot_value(session.slots[static_cast<std::size_t>(slot)], selected);
         if (selected == 0) {
+            return std::string{engine_name(
+                session.slots[static_cast<std::size_t>(slot)].engine, ru(session))};
+        }
+        const float value = slot_value(session.slots[static_cast<std::size_t>(slot)], selected);
+        if (selected == 1) {
             std::snprintf(result, sizeof(result), "%.1f Hz", static_cast<double>(value));
-        } else if (selected == 6) {
+        } else if (selected == 7) {
             std::snprintf(result, sizeof(result), "%+.2f", static_cast<double>(value));
         } else {
             std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(value * 100.0F)));
@@ -196,18 +252,28 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
     }
     case Page::effects: {
         const auto& effect = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(selected / 3)];
+            .effects[static_cast<std::size_t>(selected)];
         std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
-            effect_value(effect, selected % 3) * 100.0F)));
+            effect_value(effect, state.effect_field) * 100.0F)));
         break;
     }
     case Page::master:
         if (selected == 0) {
             std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
                 session.master_level * 100.0F)));
-        } else {
+        } else if (selected == 1) {
             std::snprintf(result, sizeof(result), "%.0f BPM", static_cast<double>(session.tempo_bpm));
+        } else {
+            std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
+                session.performance.fade * 100.0F)));
         }
+        break;
+    case Page::setup:
+        if (selected == 0) {
+            return session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
+        }
+        std::snprintf(result, sizeof(result), "%.2f s", static_cast<double>(
+            selected == 1 ? session.fade_in_seconds : session.fade_out_seconds));
         break;
     }
     return result;
@@ -216,13 +282,20 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
 std::string current_label(const cd::Session& session, const UiState& state) {
     switch (state.page) {
     case Page::perform: return std::string{macro_name(parameter(state), ru(session))};
-    case Page::slot: return std::string{slot_name(parameter(state), session.locale)};
+    case Page::slot: return std::string{slot_name(
+        parameter(state), session.slots[static_cast<std::size_t>(state.slot)], session.locale)};
     case Page::effects:
-        return "FX " + std::to_string(parameter(state) / 3 + 1) + " " +
-            std::string{effect_field(parameter(state), ru(session))};
+        return "FX " + std::to_string(parameter(state) + 1) + " " +
+            std::string{effect_field(state.effect_field, ru(session))};
     case Page::master:
-        return parameter(state) == 0 ? std::string{cd::tr(session.locale, cd::TextId::master)} :
-            (ru(session) ? "ТЕМП" : "TEMPO");
+        if (parameter(state) == 0) return std::string{cd::tr(session.locale, cd::TextId::master)};
+        if (parameter(state) == 1) return ru(session) ? "ТЕМП" : "TEMPO";
+        return ru(session) ? "ФЕЙД ВЫХОДА" : "OUTPUT FADE";
+    case Page::setup:
+        if (parameter(state) == 0) return std::string{cd::tr(session.locale, cd::TextId::language)};
+        return parameter(state) == 1
+            ? (ru(session) ? "ФЕЙД ВХОДА" : "FADE IN")
+            : (ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT");
     }
     return {};
 }
@@ -233,16 +306,24 @@ void adjust(cd::Session& session, UiState& state, float steps) {
     case Page::perform: {
         float* value = macro_value(session.performance, selected);
         *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
-        if (selected == 4) {
-            state.auto_fade = false;
-        }
         break;
     }
     case Page::slot: {
-        float* value = slot_value(session.slots[static_cast<std::size_t>(state.slot)], selected);
         if (selected == 0) {
+            constexpr std::array engines{
+                cd::EngineKind::macro, cd::EngineKind::body,
+                cd::EngineKind::grain, cd::EngineKind::particle};
+            auto& engine = session.slots[static_cast<std::size_t>(state.slot)].engine;
+            auto found = std::find(engines.begin(), engines.end(), engine);
+            int index = found == engines.end() ? 0 : static_cast<int>(found - engines.begin());
+            index = (index + (steps > 0.0F ? 1 : 3)) % 4;
+            engine = engines[static_cast<std::size_t>(index)];
+            break;
+        }
+        float* value = slot_value(session.slots[static_cast<std::size_t>(state.slot)], selected);
+        if (selected == 1) {
             *value = std::clamp(*value * std::pow(2.0F, steps / 12.0F), 8.0F, 2'000.0F);
-        } else if (selected == 6) {
+        } else if (selected == 7) {
             *value = std::clamp(*value + steps * 0.02F, -1.0F, 1.0F);
         } else {
             *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
@@ -251,16 +332,27 @@ void adjust(cd::Session& session, UiState& state, float steps) {
     }
     case Page::effects: {
         auto& effect = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(selected / 3)];
-        float* value = effect_value(effect, selected % 3);
+            .effects[static_cast<std::size_t>(selected)];
+        float* value = effect_value(effect, state.effect_field);
         *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
         break;
     }
     case Page::master:
         if (selected == 0) {
             session.master_level = std::clamp(session.master_level + steps * 0.01F, 0.0F, 1.0F);
-        } else {
+        } else if (selected == 1) {
             session.tempo_bpm = std::clamp(session.tempo_bpm + steps, 10.0F, 300.0F);
+        } else {
+            session.performance.fade = std::clamp(session.performance.fade + steps * 0.01F, 0.0F, 1.0F);
+            state.auto_fade = false;
+        }
+        break;
+    case Page::setup:
+        if (selected == 0) {
+            session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
+        } else {
+            float& seconds = selected == 1 ? session.fade_in_seconds : session.fade_out_seconds;
+            seconds = std::clamp(seconds + steps * 0.25F, 0.25F, 30.0F);
         }
         break;
     }
@@ -271,6 +363,10 @@ void start_adjust(cd::Session& session, UiState& state, int direction, Uint32 no
     state.held_since = now;
     state.last_repeat = now;
     adjust(session, state, static_cast<float>(direction));
+    if ((state.page == Page::slot && parameter(state) == 0) ||
+        (state.page == Page::setup && parameter(state) == 0)) {
+        state.held_direction = 0;
+    }
 }
 
 bool repeat_adjust(cd::Session& session, UiState& state, Uint32 now) {
@@ -328,55 +424,131 @@ void bar(SDL_Renderer* renderer, int x, int y, int width, int height, float valu
 }
 
 void scope(
-    SDL_Renderer* renderer, int x, int y, int width, int height, float rms, float peak, float phase, int seed) {
+    SDL_Renderer* renderer,
+    int x,
+    int y,
+    int width,
+    int height,
+    const std::array<float, cd::kScopePointCount>& samples,
+    float rms,
+    float peak) {
     outline(renderer, {x, y, width, height}, {105, 92, 118, 255});
-    const float level = std::clamp(rms * 4.2F, 0.0F, 1.0F);
-    const int filled = static_cast<int>(std::lround(level * static_cast<float>(height - 4)));
-    fill(renderer, {x + 2, y + height - filled - 2, width - 4, filled}, react(kInk, level));
-    const int peak_y = y + height - 2 - static_cast<int>(std::lround(
-        std::clamp(peak * 2.4F, 0.0F, 1.0F) * static_cast<float>(height - 4)));
-    SDL_SetRenderDrawColor(renderer, 225, 77, 96, 255);
-    SDL_RenderDrawLine(renderer, x + 2, peak_y, x + width - 3, peak_y);
-    SDL_SetRenderDrawColor(renderer, 16, 12, 22, 210);
-    int previous = y + height / 2;
-    for (int column = 3; column < width - 4; column += 3) {
-        const float wave = std::sin(
-            phase * 6.2831853F + static_cast<float>(column) * 0.21F + static_cast<float>(seed));
-        const int current = y + height / 2 +
-            static_cast<int>(wave * level * static_cast<float>(height) * 0.36F);
-        SDL_RenderDrawLine(renderer, x + column - 1, previous, x + column + 2, current);
+    fill(renderer, {x + 1, y + 1, width - 2, height - 2}, {18, 15, 24, 255});
+    const int meter_height = 7;
+    const int wave_height = height - meter_height - 3;
+    const int center = y + wave_height / 2 + 1;
+    SDL_SetRenderDrawColor(renderer, 63, 55, 74, 255);
+    SDL_RenderDrawLine(renderer, x + 2, center, x + width - 3, center);
+    const float visual_gain = std::min(8.0F, 0.86F / std::max(peak, 0.04F));
+    SDL_SetRenderDrawColor(renderer, kInk.r, kInk.g, kInk.b, kInk.a);
+    int previous = center;
+    for (int column = 2; column < width - 2; ++column) {
+        const std::size_t point = std::min(
+            cd::kScopePointCount - 1U,
+            static_cast<std::size_t>(column - 2) * cd::kScopePointCount /
+                static_cast<std::size_t>(std::max(1, width - 4)));
+        const float sample = std::clamp(samples[point] * visual_gain, -1.0F, 1.0F);
+        const int current = center - static_cast<int>(std::lround(
+            sample * static_cast<float>(wave_height - 5) * 0.5F));
+        SDL_RenderDrawLine(renderer, x + column - 1, previous, x + column, current);
         previous = current;
     }
+    const int meter_y = y + height - meter_height - 1;
+    const float rms_meter = std::clamp(rms * 4.2F, 0.0F, 1.0F);
+    fill(renderer, {x + 2, meter_y, width - 4, meter_height - 1}, {35, 30, 46, 255});
+    fill(renderer, {x + 2, meter_y, static_cast<int>(std::lround(
+        static_cast<float>(width - 4) * rms_meter)), meter_height - 1},
+        react(kInk, rms_meter));
+    const int peak_x = x + 2 + static_cast<int>(std::lround(
+        static_cast<float>(width - 5) * std::clamp(peak * 2.4F, 0.0F, 1.0F)));
+    SDL_SetRenderDrawColor(renderer, 225, 77, 96, 255);
+    SDL_RenderDrawLine(renderer, peak_x, meter_y - 1, peak_x, meter_y + meter_height - 1);
 }
 
-float effective_amount(const cd::Session& session, const cd::EffectSettings& effect) noexcept {
-    float value = effect.amount;
-    if (effect.kind == cd::EffectKind::drive || effect.kind == cd::EffectKind::crusher) {
-        value += session.performance.texture * session.performance.texture * 0.42F;
-    } else if (effect.kind == cd::EffectKind::tremolo) {
-        value += session.performance.pulse * session.performance.pulse * 0.20F;
-    } else if (effect.kind == cd::EffectKind::delay) {
-        value += session.performance.space * session.performance.space * 0.58F;
-    }
-    return std::clamp(value, 0.0F, 1.0F);
-}
-
-void draw_header(SDL_Renderer* renderer, const cd::Session& session, Page active) {
+void draw_header(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
     cd::ui::draw_text(renderer, 10, 5, cd::tr(session.locale, cd::TextId::app_name), kInk, 2);
-    const auto active_name = page_name(active, ru(session));
-    cd::ui::draw_text(renderer, kWidth - 10 - cd::ui::text_width(active_name), 9, active_name, kDim);
-    constexpr std::array<Page, 4> pages{Page::perform, Page::slot, Page::effects, Page::master};
-    for (int index = 0; index < 4; ++index) {
-        const int x = 10 + index * 124;
-        const bool selected = pages[static_cast<std::size_t>(index)] == active;
+    std::string status{page_name(state.page, ru(session))};
+    SDL_Color status_color = kDim;
+    if (state.auto_fade) {
+        status = std::string{ru(session) ? "ФЕЙД " : "FADE "} +
+            (state.fade_target > session.performance.fade ? "↑ " : "↓ ") +
+            std::to_string(static_cast<int>(std::lround(session.performance.fade * 100.0F))) + "%";
+        status_color = {91, 218, 179, 255};
+    }
+    cd::ui::draw_text(renderer, kWidth - 10 - cd::ui::text_width(status), 9, status, status_color);
+    constexpr std::array<Page, 5> pages{
+        Page::perform, Page::slot, Page::effects, Page::master, Page::setup};
+    for (int index = 0; index < 5; ++index) {
+        const int x = 10 + index * 99;
+        const bool selected = pages[static_cast<std::size_t>(index)] == state.page;
         if (selected) {
-            fill(renderer, {x, 26, 120, 16}, kPurple);
+            fill(renderer, {x, 26, 95, 16}, kPurple);
         } else {
-            outline(renderer, {x, 26, 120, 16}, {58, 49, 72, 255});
+            outline(renderer, {x, 26, 95, 16}, {58, 49, 72, 255});
         }
-        cd::ui::draw_text(renderer, x + 5, 30, page_name(pages[static_cast<std::size_t>(index)], ru(session)),
+        cd::ui::draw_text(renderer, x + 4, 30, page_name(pages[static_cast<std::size_t>(index)], ru(session)),
             selected ? kInk : kDim);
     }
+}
+
+std::string_view macro_description(int index, bool russian) noexcept {
+    constexpr std::array<std::string_view, 5> r{
+        "ГАРМОНИКИ · ФИЛЬТР · DRIVE",
+        "ОГИБАЮЩАЯ · ТРЕМОЛО · СЛОИ",
+        "ВЫСОТА · УРОВЕНЬ · ПАНОРАМА",
+        "ДЕЛЕЙ · ОБР.СВЯЗЬ · СТЕРЕО",
+        "УДАРЫ · ПАЧКИ · ПАУЗЫ",
+    };
+    constexpr std::array<std::string_view, 5> e{
+        "HARMONICS · FILTER · DRIVE",
+        "ENVELOPE · TREMOLO · LAYERS",
+        "PITCH · LEVEL · PAN · CHANCE",
+        "DELAY · FEEDBACK · STEREO",
+        "STRIKES · BURSTS · GAPS",
+    };
+    return (russian ? r : e)[static_cast<std::size_t>(index)];
+}
+
+void draw_scene(
+    SDL_Renderer* renderer,
+    const cd::Session& session,
+    const cd::AudioTelemetry& telemetry,
+    const UiState& state) {
+    fill(renderer, {10, 48, 492, 306}, kPanel);
+    for (int index = 0; index < 5; ++index) {
+        const int y = 58 + index * 56;
+        const bool selected = parameter(state) == index;
+        if (selected) {
+            fill(renderer, {18, y - 5, 308, 51}, {73, 46, 104, 255});
+            outline(renderer, {18, y - 5, 308, 51}, kInk);
+        }
+        cd::ui::draw_text(renderer, 26, y, macro_name(index, ru(session)), selected ? kInk : kDim);
+        char number[12]{};
+        std::snprintf(number, sizeof(number), "%d%%", static_cast<int>(std::lround(
+            macro_value(session.performance, index) * 100.0F)));
+        cd::ui::draw_text(renderer, 294 - cd::ui::text_width(number), y, number, selected ? kInk : kDim);
+        bar(renderer, 26, y + 14, 276, 9, macro_value(session.performance, index),
+            selected ? kInk : kFxColors[static_cast<std::size_t>(index % 4)]);
+        cd::ui::draw_text(renderer, 26, y + 29, macro_description(index, ru(session)), selected ? kInk : kDim);
+    }
+
+    cd::ui::draw_text(renderer, 342, 59, ru(session) ? "ИСТОЧНИКИ" : "SOURCES", kDim);
+    for (int index = 0; index < 4; ++index) {
+        const int y = 82 + index * 59;
+        const auto& slot = session.slots[static_cast<std::size_t>(index)];
+        const bool active = state.slot == index;
+        if (active) outline(renderer, {334, y - 8, 158, 49}, kInk);
+        const std::string title = std::to_string(index + 1) + "  " +
+            std::string{engine_name(slot.engine, ru(session))};
+        cd::ui::draw_text(renderer, 342, y, title, active ? kInk : kDim);
+        const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(index)] * 4.2F, 0.0F, 1.0F);
+        bar(renderer, 342, y + 16, 142, 8, meter, react(kFxColors[static_cast<std::size_t>(index)], meter));
+        cd::ui::draw_text(renderer, 342, y + 29,
+            slot.enabled ? (ru(session) ? "ЗВУЧИТ" : "RUNNING") : "MUTE", slot.enabled ? kDim : kFxColors[0]);
+    }
+    const float chaos = std::clamp(telemetry.chaos_activity, 0.0F, 1.0F);
+    cd::ui::draw_text(renderer, 342, 323, ru(session) ? "АКТИВН. ХАОСА" : "CHAOS ACTIVITY", kDim);
+    bar(renderer, 342, 338, 142, 7, chaos, react(kFxColors[0], chaos));
 }
 
 void draw_tracks(
@@ -395,25 +567,22 @@ void draw_tracks(
         }
         const std::string title = std::string{ru(session) ? "СЛОТ " : "SLOT "} + std::to_string(index + 1);
         cd::ui::draw_text(renderer, x + 7, 56, title, kInk);
-        const std::string style = std::string{ru(session) ? "ТЕСТ " : "TEST "} + static_cast<char>('A' + index);
-        cd::ui::draw_text(renderer, x + 7, 69, style, kDim);
+        cd::ui::draw_text(renderer, x + 7, 69,
+            engine_name(session.slots[static_cast<std::size_t>(index)].engine, ru(session)), kDim);
         scope(renderer, x + 8, 84, panel_width - 16, 103,
+            telemetry.slot_scope[static_cast<std::size_t>(index)],
             telemetry.slot_rms[static_cast<std::size_t>(index)],
-            telemetry.slot_peak[static_cast<std::size_t>(index)],
-            telemetry.pulse_phase, index);
-        const auto label = state.page == Page::perform
-            ? macro_name(parameter(state), ru(session))
-            : slot_name(parameter(state), session.locale);
-        cd::ui::draw_text(renderer, x + 7, 197, label, kDim);
-        cd::ui::draw_text(renderer, x + 7, 211,
-            state.page == Page::perform ? value_text(session, state) : value_text(session, state, index), kInk);
+            telemetry.slot_peak[static_cast<std::size_t>(index)]);
         const auto& slot = session.slots[static_cast<std::size_t>(index)];
-        for (int fx = 0; fx < 4; ++fx) {
-            const int y = 238 + fx * 25;
-            const auto& effect = slot.effects[static_cast<std::size_t>(fx)];
-            const SDL_Color color = react(kFxColors[static_cast<std::size_t>(fx)], activity);
-            cd::ui::draw_text(renderer, x + 7, y, effect_name(effect.kind, ru(session)), color);
-            bar(renderer, x + 7, y + 11, panel_width - 14, 7, effective_amount(session, effect), color);
+        const auto label = slot_name(parameter(state), slot, session.locale);
+        cd::ui::draw_text(renderer, x + 7, 197, label, kDim);
+        cd::ui::draw_text(renderer, x + 7, 211, value_text(session, state, index), kInk);
+        for (int character = 0; character < 4; ++character) {
+            const int y = 238 + character * 25;
+            const int slot_parameter = character + 2;
+            const SDL_Color color = react(kFxColors[static_cast<std::size_t>(character)], activity);
+            cd::ui::draw_text(renderer, x + 7, y, slot_name(slot_parameter, slot, session.locale), color);
+            bar(renderer, x + 7, y + 11, panel_width - 14, 7, slot_value(slot, slot_parameter), color);
         }
         if (!slot.enabled) {
             fill(renderer, {x, 48, panel_width, 306}, {0, 0, 0, 168});
@@ -429,8 +598,8 @@ void draw_effects(
     const cd::AudioTelemetry& telemetry,
     const UiState& state) {
     constexpr int panel_width = 117;
-    const int active_effect = parameter(state) / 3;
-    const int active_field = parameter(state) % 3;
+    const int active_effect = parameter(state);
+    const int active_field = state.effect_field;
     const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
     for (int index = 0; index < 4; ++index) {
         const int x = 10 + index * 125;
@@ -444,9 +613,9 @@ void draw_effects(
         cd::ui::draw_text(renderer, x + 7, 72, effect_name(effect.kind, ru(session)),
             kFxColors[static_cast<std::size_t>(index)]);
         scope(renderer, x + 8, 91, panel_width - 16, 78,
+            telemetry.slot_scope[static_cast<std::size_t>(state.slot)],
             telemetry.slot_rms[static_cast<std::size_t>(state.slot)],
-            telemetry.slot_peak[static_cast<std::size_t>(state.slot)],
-            telemetry.pulse_phase, state.slot + index);
+            telemetry.slot_peak[static_cast<std::size_t>(state.slot)]);
         for (int field = 0; field < 3; ++field) {
             const int y = 188 + field * 49;
             const bool selected = index == active_effect && field == active_field;
@@ -460,7 +629,8 @@ void draw_effects(
         }
     }
     const std::string hint = std::string{ru(session) ? "СЛОТ " : "SLOT "} + std::to_string(state.slot + 1) +
-        (ru(session) ? "  E/START: ТИП" : "  E/START: TYPE");
+        " · FX " + std::to_string(active_effect + 1) + " · " +
+        std::string{effect_field(active_field, ru(session))};
     cd::ui::draw_text(renderer, 12, 357, hint, kDim);
 }
 
@@ -468,23 +638,22 @@ void draw_master(
     SDL_Renderer* renderer,
     const cd::Session& session,
     const cd::AudioTelemetry& telemetry,
-    const UiState& state) {
+    const UiState& state,
+    float cpu_load) {
     fill(renderer, {10, 48, 492, 306}, kPanel);
-    cd::ui::draw_text(renderer, 24, 60, ru(session) ? "ИТОГОВЫЙ СИГНАЛ" : "MASTER SIGNAL", kDim);
-    bar(renderer, 24, 80, 464, 36, telemetry.master_rms * 3.3F, react(kInk, telemetry.master_rms * 5.0F));
-    const int peak_x = 24 + static_cast<int>(std::lround(std::clamp(telemetry.master_peak, 0.0F, 1.0F) * 464.0F));
-    SDL_SetRenderDrawColor(renderer, 226, 87, 104, 255);
-    SDL_RenderDrawLine(renderer, peak_x, 78, peak_x, 119);
+    cd::ui::draw_text(renderer, 24, 58, ru(session) ? "ИТОГОВЫЙ СИГНАЛ" : "MASTER SIGNAL", kDim);
+    cd::ui::draw_text(renderer, 316, 58, ru(session) ? "RMS БЕЖ. · ПИК КРАСН." : "RMS CREAM · PEAK RED", kDim);
+    scope(renderer, 24, 74, 464, 72, telemetry.master_scope, telemetry.master_rms, telemetry.master_peak);
     const std::array<std::string, 3> labels{
-        std::string{cd::tr(session.locale, cd::TextId::master)},
-        ru(session) ? "ТЕМП" : "TEMPO",
+        ru(session) ? "ОБЩАЯ ГРОМКОСТЬ" : "MASTER LEVEL",
+        ru(session) ? "ТЕМП ПУЛЬСА / СОБЫТИЙ" : "PULSE / EVENT TEMPO",
         ru(session) ? "ФЕЙД ВЫХОДА" : "OUTPUT FADE",
     };
     const std::array<float, 3> values{
         session.master_level, (session.tempo_bpm - 10.0F) / 290.0F, session.performance.fade};
     for (int index = 0; index < 3; ++index) {
-        const int y = 145 + index * 55;
-        const bool selected = index < 2 && parameter(state) == index;
+        const int y = 164 + index * 51;
+        const bool selected = parameter(state) == index;
         cd::ui::draw_text(renderer, 24, y, labels[static_cast<std::size_t>(index)], selected ? kInk : kDim);
         bar(renderer, 160, y, 328, 15, values[static_cast<std::size_t>(index)], selected ? kInk : kPurple);
         char number[24]{};
@@ -497,12 +666,57 @@ void draw_master(
         cd::ui::draw_text(renderer, 24, y + 20, number, kInk);
     }
     if (state.auto_fade) {
-        cd::ui::draw_text(renderer, 292, 286, ru(session) ? "АВТОФЕЙД" : "AUTO FADE", {91, 218, 179, 255});
+        cd::ui::draw_text(renderer, 372, 318,
+            state.fade_target > session.performance.fade
+                ? (ru(session) ? "ФЕЙД ↑" : "FADE IN ↑")
+                : (ru(session) ? "ФЕЙД ↓" : "FADE OUT ↓"),
+            {91, 218, 179, 255});
     }
+    char cpu[24]{};
+    std::snprintf(cpu, sizeof(cpu), "DSP %.1f%%", static_cast<double>(cpu_load * 100.0F));
+    cd::ui::draw_text(renderer, 24, 318, cpu, cpu_load < 0.75F ? kDim : kFxColors[0]);
     for (int slot = 0; slot < 4; ++slot) {
         const float value = telemetry.slot_rms[static_cast<std::size_t>(slot)] * 4.0F;
-        bar(renderer, 24 + slot * 116, 326, 104, 10, value, react(kFxColors[static_cast<std::size_t>(slot)], value));
+        bar(renderer, 24 + slot * 116, 336, 104, 8, value, react(kFxColors[static_cast<std::size_t>(slot)], value));
     }
+}
+
+void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiState& state, float cpu_load) {
+    fill(renderer, {10, 48, 492, 306}, kPanel);
+    const std::array<std::string, 3> labels{
+        std::string{cd::tr(session.locale, cd::TextId::language)},
+        ru(session) ? "СКОРОСТЬ ФЕЙДА ВВЕРХ" : "FADE-IN TIME",
+        ru(session) ? "СКОРОСТЬ ФЕЙДА ВНИЗ" : "FADE-OUT TIME",
+    };
+    for (int index = 0; index < 3; ++index) {
+        const int y = 72 + index * 70;
+        const bool selected = parameter(state) == index;
+        if (selected) fill(renderer, {22, y - 10, 466, 55}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, 32, y, labels[static_cast<std::size_t>(index)], selected ? kInk : kDim);
+        std::string shown_value;
+        if (index == 0) {
+            shown_value = session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
+        } else {
+            char seconds_text[16]{};
+            std::snprintf(seconds_text, sizeof(seconds_text), "%.2f s", static_cast<double>(
+                index == 1 ? session.fade_in_seconds : session.fade_out_seconds));
+            shown_value = seconds_text;
+        }
+        cd::ui::draw_text(renderer, 338, y, shown_value, selected ? kInk : kDim);
+        if (index > 0) {
+            const float seconds = index == 1 ? session.fade_in_seconds : session.fade_out_seconds;
+            bar(renderer, 32, y + 20, 436, 10, (seconds - 0.25F) / 29.75F,
+                selected ? kInk : kPurple);
+        }
+    }
+    char cpu[48]{};
+    std::snprintf(cpu, sizeof(cpu), "%s: %.1f%%", ru(session) ? "ЗАГРУЗКА DSP" : "DSP LOAD",
+        static_cast<double>(cpu_load * 100.0F));
+    cd::ui::draw_text(renderer, 32, 292, cpu, cpu_load < 0.75F ? kDim : kFxColors[0]);
+    cd::ui::draw_text(renderer, 32, 316,
+        ru(session) ? "A/D: ИЗМЕНИТЬ · НАСТРОЙКИ СОХРАНЯЮТСЯ АВТОМАТИЧЕСКИ"
+                    : "A/D: CHANGE · SETTINGS ARE SAVED AUTOMATICALLY",
+        kDim);
 }
 
 void draw(
@@ -510,21 +724,37 @@ void draw(
     const cd::Session& session,
     const cd::AudioTelemetry& telemetry,
     const UiState& state,
-    Uint32 now) {
+    Uint32 now,
+    float cpu_load) {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 8, 7, 12, 255);
     SDL_RenderClear(renderer);
-    draw_header(renderer, session, state.page);
-    if (state.page == Page::perform || state.page == Page::slot) {
+    draw_header(renderer, session, state);
+    if (state.page == Page::perform) {
+        draw_scene(renderer, session, telemetry, state);
+    } else if (state.page == Page::slot) {
         draw_tracks(renderer, session, telemetry, state);
     } else if (state.page == Page::effects) {
         draw_effects(renderer, session, telemetry, state);
+    } else if (state.page == Page::master) {
+        draw_master(renderer, session, telemetry, state, cpu_load);
     } else {
-        draw_master(renderer, session, telemetry, state);
+        draw_setup(renderer, session, state, cpu_load);
     }
-    const std::string help = ru(session)
-        ? "TAB ЭКРАН  A/D ЗНАЧ.  SPACE MUTE  F ФЕЙД  K KILL"
-        : "TAB PAGE  A/D VALUE  SPACE MUTE  F FADE  K KILL";
+    std::string help;
+    if (state.page == Page::effects) {
+        help = ru(session)
+            ? "↑/↓ FX  ←/→ ПОЛЕ  S СЛОТ  A/D ЗНАЧ.  E ТИП"
+            : "↑/↓ FX  ←/→ FIELD  S SLOT  A/D VALUE  E TYPE";
+    } else if (state.page == Page::master || state.page == Page::setup) {
+        help = ru(session)
+            ? "↑/↓ ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
+            : "↑/↓ PARAM  A/D VALUE  TAB PAGE  F FADE  K KILL";
+    } else {
+        help = ru(session)
+            ? "←/→ СЛОТ  ↑/↓ ПАРАМ.  A/D ЗНАЧ.  F ФЕЙД  K KILL"
+            : "←/→ SLOT  ↑/↓ PARAM  A/D VALUE  F FADE  K KILL";
+    }
     cd::ui::draw_text(renderer, 10, 370, help, kDim);
     if (state.held_direction != 0 && now - state.held_since >= 1'050U) {
         cd::ui::draw_text(renderer, 466, 357, now - state.held_since >= 2'200U ? ">>>" : ">>", {239, 169, 80, 255});
@@ -545,7 +775,9 @@ bool update_fade(cd::Session& session, UiState& state, float seconds) noexcept {
     if (!state.auto_fade) {
         return false;
     }
-    const float amount = std::clamp(seconds, 0.0F, 0.1F) * 0.25F;
+    const float duration = state.fade_target > session.performance.fade
+        ? session.fade_in_seconds : session.fade_out_seconds;
+    const float amount = std::clamp(seconds, 0.0F, 0.1F) / std::max(0.25F, duration);
     float& fade = session.performance.fade;
     fade = fade < state.fade_target
         ? std::min(state.fade_target, fade + amount)
@@ -561,7 +793,7 @@ void cycle_effect(cd::Session& session, const UiState& state) noexcept {
         return;
     }
     auto& kind = session.slots[static_cast<std::size_t>(state.slot)]
-        .effects[static_cast<std::size_t>(parameter(state) / 3)].kind;
+        .effects[static_cast<std::size_t>(parameter(state))].kind;
     kind = static_cast<cd::EffectKind>((static_cast<int>(kind) + 1) % 6);
 }
 
@@ -579,6 +811,9 @@ int main(int, char**) {
     SDL_Renderer* renderer = window != nullptr
         ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)
         : nullptr;
+    if (window != nullptr && renderer == nullptr) {
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    }
     if (window == nullptr || renderer == nullptr) {
         std::fprintf(stderr, "SDL video: %s\n", SDL_GetError());
         SDL_Quit();
@@ -587,6 +822,17 @@ int main(int, char**) {
     SDL_RenderSetLogicalSize(renderer, kWidth, kHeight);
 
     cd::Session session = cd::make_default_session();
+    std::filesystem::path autosave_path;
+    if (char* preference_path = SDL_GetPrefPath("myldy20", "cursed-drone")) {
+        autosave_path = std::filesystem::path{preference_path} / "autosave.cdrone";
+        SDL_free(preference_path);
+        if (std::filesystem::exists(autosave_path)) {
+            std::string load_error;
+            if (!cd::load_session(autosave_path, session, load_error)) {
+                std::fprintf(stderr, "autosave load: %s\n", load_error.c_str());
+            }
+        }
+    }
     AudioBridge audio{};
     SDL_AudioSpec desired{};
     SDL_AudioSpec obtained{};
@@ -606,6 +852,7 @@ int main(int, char**) {
         return 1;
     }
     audio.graph.prepare({static_cast<float>(obtained.freq), obtained.samples}, session);
+    audio.sample_rate = static_cast<float>(obtained.freq);
     SDL_PauseAudioDevice(device, 0);
 
     SDL_GameController* controller = nullptr;
@@ -618,6 +865,8 @@ int main(int, char**) {
 
     UiState state{};
     bool running = true;
+    bool save_pending = false;
+    Uint32 changed_at = 0;
     Uint32 previous_frame = SDL_GetTicks();
     update_title(window, session, state);
     while (running) {
@@ -630,8 +879,16 @@ int main(int, char**) {
             } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
                 switch (event.key.keysym.sym) {
                 case SDLK_ESCAPE: running = false; break;
-                case SDLK_LEFT: state.slot = (state.slot + 3) % 4; changed = true; break;
-                case SDLK_RIGHT: state.slot = (state.slot + 1) % 4; changed = true; break;
+                case SDLK_LEFT:
+                    if (state.page == Page::effects) state.effect_field = (state.effect_field + 2) % 3;
+                    else state.slot = (state.slot + 3) % 4;
+                    changed = true;
+                    break;
+                case SDLK_RIGHT:
+                    if (state.page == Page::effects) state.effect_field = (state.effect_field + 1) % 3;
+                    else state.slot = (state.slot + 1) % 4;
+                    changed = true;
+                    break;
                 case SDLK_UP:
                     parameter(state) = (parameter(state) + parameter_count(state.page) - 1) % parameter_count(state.page);
                     changed = true;
@@ -643,22 +900,25 @@ int main(int, char**) {
                 case SDLK_a: start_adjust(session, state, -1, now); changed = true; break;
                 case SDLK_d: start_adjust(session, state, 1, now); changed = true; break;
                 case SDLK_TAB:
-                    state.page = static_cast<Page>((page_index(state.page) + 1) % 4);
+                    state.page = static_cast<Page>((page_index(state.page) + 1) % 5);
                     changed = true;
                     break;
                 case SDLK_1: state.page = Page::perform; changed = true; break;
                 case SDLK_2: state.page = Page::slot; changed = true; break;
                 case SDLK_3: state.page = Page::effects; changed = true; break;
                 case SDLK_4: state.page = Page::master; changed = true; break;
+                case SDLK_5: state.page = Page::setup; changed = true; break;
+                case SDLK_s:
+                    if (state.page == Page::effects) {
+                        state.slot = (state.slot + 1) % 4;
+                        changed = true;
+                    }
+                    break;
                 case SDLK_e: cycle_effect(session, state); changed = true; break;
                 case SDLK_f: toggle_fade(session, state); changed = true; break;
                 case SDLK_k:
                     audio.graph.panic();
                     state.kill_flash_until = now + 700U;
-                    break;
-                case SDLK_l:
-                    session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
-                    changed = true;
                     break;
                 case SDLK_SPACE:
                     session.slots[static_cast<std::size_t>(state.slot)].enabled =
@@ -672,8 +932,16 @@ int main(int, char**) {
                 if (event.key.keysym.sym == SDLK_d) stop_adjust(state, 1);
             } else if (event.type == SDL_CONTROLLERBUTTONDOWN) {
                 switch (event.cbutton.button) {
-                case SDL_CONTROLLER_BUTTON_DPAD_LEFT: state.slot = (state.slot + 3) % 4; changed = true; break;
-                case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: state.slot = (state.slot + 1) % 4; changed = true; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                    if (state.page == Page::effects) state.effect_field = (state.effect_field + 2) % 3;
+                    else state.slot = (state.slot + 3) % 4;
+                    changed = true;
+                    break;
+                case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                    if (state.page == Page::effects) state.effect_field = (state.effect_field + 1) % 3;
+                    else state.slot = (state.slot + 1) % 4;
+                    changed = true;
+                    break;
                 case SDL_CONTROLLER_BUTTON_DPAD_UP:
                     parameter(state) = (parameter(state) + parameter_count(state.page) - 1) % parameter_count(state.page);
                     changed = true;
@@ -694,12 +962,14 @@ int main(int, char**) {
                     state.kill_flash_until = now + 700U;
                     break;
                 case SDL_CONTROLLER_BUTTON_X:
-                    state.page = static_cast<Page>((page_index(state.page) + 1) % 4);
+                    state.page = static_cast<Page>((page_index(state.page) + 1) % 5);
                     changed = true;
                     break;
                 case SDL_CONTROLLER_BUTTON_Y:
-                    session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
-                    changed = true;
+                    if (state.page == Page::effects) {
+                        state.slot = (state.slot + 1) % 4;
+                        changed = true;
+                    }
                     break;
                 case SDL_CONTROLLER_BUTTON_BACK: toggle_fade(session, state); changed = true; break;
                 case SDL_CONTROLLER_BUTTON_START: cycle_effect(session, state); changed = true; break;
@@ -717,11 +987,29 @@ int main(int, char**) {
         if (changed) {
             static_cast<void>(audio.graph.submit_session(session));
             update_title(window, session, state);
+            save_pending = true;
+            changed_at = now;
         }
-        draw(renderer, session, audio.graph.telemetry(), state, now);
+        if (save_pending && !autosave_path.empty() && now - changed_at >= 750U) {
+            std::string save_error;
+            if (cd::save_session(session, autosave_path, save_error)) {
+                save_pending = false;
+            } else {
+                std::fprintf(stderr, "autosave: %s\n", save_error.c_str());
+                changed_at = now;
+            }
+        }
+        draw(renderer, session, audio.graph.telemetry(), state, now,
+            audio.cpu_load.load(std::memory_order_relaxed));
         SDL_Delay(8);
     }
 
+    if (save_pending && !autosave_path.empty()) {
+        std::string save_error;
+        if (!cd::save_session(session, autosave_path, save_error)) {
+            std::fprintf(stderr, "autosave: %s\n", save_error.c_str());
+        }
+    }
     SDL_CloseAudioDevice(device);
     if (controller != nullptr) SDL_GameControllerClose(controller);
     SDL_DestroyRenderer(renderer);

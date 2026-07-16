@@ -66,14 +66,17 @@ struct PerformanceSettings {
     float pulse{0.12F};
     float chaos{0.08F};
     float space{0.20F};
+    float events{0.30F};
     float fade{1.0F};
 };
 
 struct Session {
-    unsigned schema_version{2};
+    unsigned schema_version{3};
     Locale locale{Locale::ru};
-    float tempo_bpm{60.0F};
-    float master_level{0.75F};
+    float tempo_bpm{45.0F};
+    float master_level{0.80F};
+    float fade_in_seconds{4.0F};
+    float fade_out_seconds{4.0F};
     PerformanceSettings performance{};
     std::array<SlotSettings, kSlotCount> slots{};
 };

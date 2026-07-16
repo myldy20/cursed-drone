@@ -1,5 +1,16 @@
 # Roadmap
 
+## 0.3 slice — distinct sources and a legible scene (done)
+
+- pinned vendored DaisySP subset with the full MIT notice;
+- four distinct default sources: `TONE`, `RESONATOR`, `GRAINLET`, and `PARTICLES`;
+- a Scene view without four copies of one global macro;
+- consistent Scene / Slots / FX / Master / Setup terminology;
+- a new Events macro, per-engine pulse ratios/depths, and tempo-scaled events;
+- captured waveform snapshots instead of decorative sine waves;
+- explicit RMS/peak behavior, DSP load, and global auto-fade indication;
+- separate fade-in/fade-out times and debounced schema 3 autosave.
+
 ## 0.2 slice — interface and autonomy (done)
 
 The prototype now includes a dependency-free Cyrillic/Latin bitmap renderer, Performance/Slot/FX/Master views, accelerated hold input, non-destructive Texture/Pulse/Chaos/Space/Fade macros, BPM pulses, smoothed random events, audio-reactive telemetry, tail-preserving mute, hard Kill/Panic, and backward-compatible session schema 2. This is an early M4/M5 slice shipped before product engines so the control model can be tested on hardware.
@@ -12,7 +23,7 @@ GPL-3.0-or-later project, dependency-light C++20 core, 4 slots × 4 effects × 4
 
 Build aarch64, verify SDL video/audio and every button, identify writable storage, measure callback sizes and xruns, map each supported firmware explicitly, verify the new Cyrillic/Latin font renderer on the physical display, and persist language/session.
 
-**Gate:** ten continuous minutes of the diagnostic patch with no underrun or memory growth.
+**Gate:** ten continuous minutes of the four-engine patch with no underrun or memory growth.
 
 ## M2 — DSP benchmark harness
 
@@ -20,9 +31,9 @@ Measure engine/effect cost, run 4-engine/16-effect scenarios at available CPU fr
 
 **Gate:** a useful four-slot patch at 1008 MHz with at least 25% block headroom.
 
-## M3 — product engines
+## M3 — product engines (started in 0.3)
 
-1. `PARTICLE`: selected DaisySP noise/particle algorithms.
+1. `PARTICLE`: a lightweight DaisySP Oscillator/Dust/Particle/ClockedNoise/Grainlet set is complete.
 2. `MACRO`: audited MIT STM32 macro-oscillator DSP under a neutral product label.
 3. `BODY`: resonator and physical-model DSP.
 4. `GRAIN`: circular stereo capture and granular processing.

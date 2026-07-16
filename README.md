@@ -8,7 +8,7 @@
 
 Главная целевая консоль — **TrimUI Brick**. Архитектура не привязана к одной прошивке: SDL2-оболочка и компактное C++-ядро рассчитаны также на Anbernic, PortMaster-совместимые устройства и обычный Linux desktop.
 
-> Статус: интерактивный прототип `0.2.0`. В окне есть полноценные RU/EN-подписи, performance/slot/FX/master-экраны, реактивные метры, нелинейное ускорение кнопок и первые глобальные макросы управляемого хаоса. Текущий источник всё ещё диагностический; продуктовые движки DaisySP/Mutable Instruments остаются следующим крупным DSP-этапом.
+> Статус: интерактивный прототип `0.3.0`. Четыре стартовых слота теперь используют разные MIT-лицензированные механизмы DaisySP: морфируемый тон, модальный резонатор, grainlet и резонансные частицы. Интерфейс разделён на `Сцена / Слоты / FX / Мастер / Настр.`, осциллограммы показывают настоящий сигнал, а не декоративную синусоиду.
 
 ## Идея
 
@@ -37,10 +37,12 @@
 - CLI offline-render в stereo 48 kHz float WAV;
 - SDL2-прототип с логическим разрешением 512×384, масштабируемым до 1024×768;
 - встроенный public-domain bitmap-шрифт 8×8 с латиницей и кириллицей, без SDL_ttf;
-- четыре интерфейсных экрана: performance, детальные параметры слотов, FX и master;
-- глобальные недеструктивные макросы `Texture`, `Pulse`, `Chaos`, `Space`, `Fade`;
-- четырёхсекундный auto-fade и отдельный `KILL`, очищающий голоса и хвосты эффектов;
-- RMS/peak telemetry из аудиопотока для реактивных метров и анимации;
+- пять интерфейсных экранов: `Сцена`, `Слоты`, `FX`, `Мастер`, `Настр.`;
+- глобальные недеструктивные макросы `Texture`, `Pulse`, `Chaos`, `Space`, `Events`;
+- отдельные времена fade-in/fade-out, сквозная индикация автофейда и `KILL`, очищающий голоса и хвосты;
+- RMS/peak и реальные waveform snapshots из аудиопотока для понятных реактивных индикаторов;
+- оценка загрузки DSP callback на экранах `Мастер` и `Настр.`;
+- debounce-autosave текущей сессии, включая язык и скорости фейда;
 - ускорение изменения значения после 1,05 и 2,2 секунды удержания;
 - тесты очереди, локализации, аудиографа и round-trip сессии.
 
@@ -93,20 +95,22 @@ ctest --test-dir build --output-on-failure
 
 | Действие | Клавиатура | Планируемая кнопка консоли |
 | --- | --- | --- |
-| выбрать слот | ← / → | D-pad ← / → |
-| выбрать параметр | ↑ / ↓ | D-pad ↑ / ↓ |
+| выбрать слот (кроме FX) | ← / → | D-pad ← / → |
+| выбрать параметр / FX | ↑ / ↓ | D-pad ↑ / ↓ |
 | изменить значение | A / D | L / R |
-| следующий экран | Tab или 1…4 | X |
+| следующий экран | Tab или 1…5 | X |
 | mute слота | Space | A |
-| плавный fade in/out (4 с) | F | Select / Back |
+| плавный fade in/out | F | Select / Back |
 | очистить голоса и FX-хвосты | K | B |
 | сменить тип выбранного FX | E | Start |
-| RU / EN | L | Y |
+| на экране FX: поле amount/tone/feedback | ← / → | D-pad ← / → |
+| на экране FX: следующий слот | S | Y |
+| RU / EN | экран `Настр.`, A / D | экран `Настр.`, L / R |
 | выход | Esc | Menu |
 
 Одиночное нажатие меняет обычный параметр на 1%. После 1,05 секунды удержания шаги идут вдвое быстрее, после 2,2 секунды — резко ускоряются. Mute прекращает новый сигнал, но намеренно оставляет музыкальный delay-tail; `KILL` очищает и источники, и память эффектов.
 
-Performance-макросы не перезаписывают детальные параметры:
+Макросы экрана `Сцена` не перезаписывают детальные параметры:
 
 | Макрос | Что меняет в аудиографе |
 | --- | --- |
@@ -114,26 +118,27 @@ Performance-макросы не перезаписывают детальные 
 | `Pulse` | BPM-синхронную нелинейную огибающую уровня и дополнительную глубину tremolo |
 | `Chaos` | сглаженные случайные события pitch/level/pan/texture с растущей частотой |
 | `Space` | amount, feedback и время/тон delay |
-| `Fade` | отдельный сглаженный слой над master level |
+| `Events` | частоту и нерегулярность ударов, пачек, пауз и частиц; общий tempo задаёт масштаб времени |
 
-## Продуктовые движки
+`Fade` теперь является состоянием мастер-выхода, а не творческим макросом. В `Настр.` независимо задаются времена открытия и закрытия.
 
-План первой версии:
+## Текущие движки `0.3.0`
 
 | Имя в Cursed Drone | Основа | Роль |
 | --- | --- | --- |
-| `MACRO` | Plaits DSP | широкий макро-осциллятор |
-| `BODY` | Elements/Rings DSP | физическое моделирование и резонанс |
-| `GRAIN` | Clouds DSP | гранулярная память, freeze и перезапись других слотов |
-| `PARTICLE` | DaisySP Dust/Particle/ClockedNoise/Grainlet | шум, частицы и нестабильные импульсы |
+| `TONE` / `ТОН` | DaisySP Oscillator + ClockedNoise | тонкий непрерывный фон, морфинг формы, биения и шумовой край |
+| `RESONATOR` / `РЕЗОНАТОР` | DaisySP ModalVoice/Resonator | возбуждаемое физическое тело: удары, металл, псевдо-струнные призвуки |
+| `GRAINLET` / `ЗЕРНО` | DaisySP GrainletOscillator | формантные крупинки, пачки и рассыпающиеся средние частоты |
+| `PARTICLES` / `ЧАСТИЦЫ` | DaisySP Particle | случайные импульсы через резонансный фильтр |
 
-Мы не называем продукт или движки именем **Mutable Instruments** и не используем оригинальные названия модулей как торговые имена. Это соответствует опубликованным правилам автора исходного DSP.
+Это первые лёгкие движки, уже пригодные для проверки характера устройства на Mac и Brick. Полная гранулярная память и более глубокие физические модели остаются следующими DSP-этапами. Мы не используем названия оригинальных модулей как торговые имена.
 
 ## Документация
 
 - [Архитектура](docs/architecture.ru.md) · [Architecture](docs/architecture.en.md)
 - [Исследование проектов и DSP](docs/research.ru.md) · [Research](docs/research.en.md)
 - [Дорожная карта](docs/roadmap.ru.md) · [Roadmap](docs/roadmap.en.md)
+- [Разбор звукового референса](docs/reference-sound.ru.md) · [Sound reference analysis](docs/reference-sound.en.md)
 - [TrimUI Brick и портирование](docs/trimui-brick.ru.md) · [TrimUI Brick and porting](docs/trimui-brick.en.md)
 - [Тестирование на macOS](docs/testing-macos.ru.md) · [Testing on macOS](docs/testing-macos.en.md)
 - [Лицензии и сторонний код](THIRD_PARTY_NOTICES.md)
@@ -150,11 +155,11 @@ Performance-макросы не перезаписывают детальные 
 
 The primary target is the **TrimUI Brick**, while the SDL2 shell and compact C++ core are intended to remain portable to Anbernic devices, PortMaster systems and desktop Linux.
 
-> Status: interactive prototype `0.2.0`. It now has in-window RU/EN text, performance/slot/FX/master views, reactive meters, accelerated hold input, four-second fades, a hard kill action, and non-destructive Texture/Pulse/Chaos/Space macros. The source remains diagnostic; DaisySP and permissively licensed Mutable Instruments DSP adapters come next.
+> Status: interactive prototype `0.3.0`. Its four default slots now run distinct MIT-licensed DaisySP mechanisms: a morphing tone, modal resonator, grainlet source, and resonant particles. The UI is organized as Scene / Slots / FX / Master / Setup, and scopes render captured audio rather than decorative sine waves.
 
 Each of four independent slots contains one engine, four serial effects and four free modulation lanes. The mixer ends in DC removal and a soft master limiter. There is a shared sense of time, but no notes table, transport or tracker sequencing.
 
-Keyboard controls: Left/Right selects a slot, Up/Down selects a parameter, A/D changes it, Tab (or 1–4) changes page, Space mutes with effect tails, F runs a four-second fade, K kills all voices/tails, E changes the selected FX type, L toggles RU/EN, and Escape exits.
+Keyboard controls: Left/Right selects a slot, Up/Down selects a parameter, A/D changes it, Tab (or 1–5) changes page, Space mutes with effect tails, F runs the configured fade, K kills all voices/tails, and Escape exits. On the FX page, Up/Down selects FX, Left/Right selects amount/tone/feedback, S selects the slot, and E changes the algorithm. Language and separate fade times live on Setup.
 
 ### Build
 

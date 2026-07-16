@@ -13,6 +13,8 @@
 
 namespace cursed_drone {
 
+inline constexpr std::size_t kScopePointCount = 64;
+
 struct StereoFrame {
     float left{0.0F};
     float right{0.0F};
@@ -28,6 +30,8 @@ struct AudioConfig {
 struct AudioTelemetry {
     std::array<float, kSlotCount> slot_rms{};
     std::array<float, kSlotCount> slot_peak{};
+    std::array<std::array<float, kScopePointCount>, kSlotCount> slot_scope{};
+    std::array<float, kScopePointCount> master_scope{};
     float master_rms{0.0F};
     float master_peak{0.0F};
     float pulse_phase{0.0F};

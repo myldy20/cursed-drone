@@ -139,29 +139,53 @@ bool parse_enum_value(
 
 Session make_default_session() {
     Session session{};
-    constexpr std::array frequencies{32.70F, 48.99F, 73.42F, 110.0F};
+    constexpr std::array engines{
+        EngineKind::macro, EngineKind::body, EngineKind::grain, EngineKind::particle};
+    constexpr std::array frequencies{64.60F, 48.99F, 129.20F, 96.90F};
     constexpr std::array pans{-0.55F, -0.18F, 0.18F, 0.55F};
+    constexpr std::array levels{0.30F, 0.38F, 0.25F, 0.32F};
 
     for (std::size_t index = 0; index < kSlotCount; ++index) {
         auto& slot = session.slots[index];
+        slot.engine = engines[index];
         slot.frequency_hz = frequencies[index];
         slot.pan = pans[index];
         slot.timbre = 0.25F + static_cast<float>(index) * 0.13F;
         slot.color = 0.18F + static_cast<float>(index) * 0.17F;
         slot.motion = 0.18F + static_cast<float>(index) * 0.08F;
         slot.texture = 0.12F + static_cast<float>(index) * 0.10F;
-        slot.level = 0.23F;
-
-        slot.effects[0] = {EffectKind::drive, 0.12F + 0.05F * static_cast<float>(index), 0.5F, 0.0F};
-        slot.effects[1] = {EffectKind::lowpass, 0.35F, 0.28F + 0.10F * static_cast<float>(index), 0.0F};
-        slot.effects[2] = {EffectKind::tremolo, 0.16F, 0.08F + 0.04F * static_cast<float>(index), 0.0F};
-        slot.effects[3] = {EffectKind::delay, 0.20F, 0.30F + 0.10F * static_cast<float>(index), 0.42F};
+        slot.level = levels[index];
 
         slot.modulators[0] = {true, ModWave::sine, ModDestination::timbre, 0.027F + 0.011F * static_cast<float>(index), 0.18F, 0.0F};
         slot.modulators[1] = {true, ModWave::random_walk, ModDestination::pan, 0.07F + 0.02F * static_cast<float>(index), 0.16F, 0.0F};
         slot.modulators[2] = {true, ModWave::triangle, ModDestination::fx3, 0.11F + 0.03F * static_cast<float>(index), 0.12F, 0.0F};
         slot.modulators[3] = {true, ModWave::sample_hold, ModDestination::texture, 0.13F + 0.05F * static_cast<float>(index), 0.10F, 0.0F};
     }
+
+    session.slots[0].effects = {{
+        {EffectKind::lowpass, 0.20F, 0.48F, 0.0F},
+        {EffectKind::drive, 0.08F, 0.50F, 0.0F},
+        {EffectKind::tremolo, 0.06F, 0.18F, 0.0F},
+        {EffectKind::delay, 0.14F, 0.28F, 0.34F},
+    }};
+    session.slots[1].effects = {{
+        {EffectKind::drive, 0.11F, 0.45F, 0.0F},
+        {EffectKind::lowpass, 0.18F, 0.56F, 0.0F},
+        {EffectKind::delay, 0.16F, 0.36F, 0.38F},
+        {EffectKind::bypass, 0.0F, 0.50F, 0.0F},
+    }};
+    session.slots[2].effects = {{
+        {EffectKind::lowpass, 0.16F, 0.64F, 0.0F},
+        {EffectKind::crusher, 0.08F, 0.24F, 0.0F},
+        {EffectKind::tremolo, 0.10F, 0.31F, 0.0F},
+        {EffectKind::delay, 0.23F, 0.44F, 0.46F},
+    }};
+    session.slots[3].effects = {{
+        {EffectKind::crusher, 0.10F, 0.18F, 0.0F},
+        {EffectKind::lowpass, 0.22F, 0.52F, 0.0F},
+        {EffectKind::delay, 0.18F, 0.30F, 0.42F},
+        {EffectKind::bypass, 0.0F, 0.50F, 0.0F},
+    }};
     return session;
 }
 
@@ -177,10 +201,13 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
     output << "locale=" << to_string(session.locale) << '\n';
     output << "tempo_bpm=" << session.tempo_bpm << '\n';
     output << "master_level=" << session.master_level << '\n';
+    output << "fade_in_seconds=" << session.fade_in_seconds << '\n';
+    output << "fade_out_seconds=" << session.fade_out_seconds << '\n';
     output << "performance.texture=" << session.performance.texture << '\n';
     output << "performance.pulse=" << session.performance.pulse << '\n';
     output << "performance.chaos=" << session.performance.chaos << '\n';
     output << "performance.space=" << session.performance.space << '\n';
+    output << "performance.events=" << session.performance.events << '\n';
     output << "performance.fade=" << session.performance.fade << '\n';
     for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
         const auto& slot = session.slots[slot_index];
@@ -241,7 +268,8 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
 
     const auto schema = values.find("cursed_drone_session");
-    if (schema == values.end() || (schema->second != "1" && schema->second != "2")) {
+    if (schema == values.end() ||
+        (schema->second != "1" && schema->second != "2" && schema->second != "3")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -254,10 +282,13 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
     if (!parse_float(values, "tempo_bpm", loaded.tempo_bpm) ||
         !parse_float(values, "master_level", loaded.master_level) ||
+        !parse_float(values, "fade_in_seconds", loaded.fade_in_seconds) ||
+        !parse_float(values, "fade_out_seconds", loaded.fade_out_seconds) ||
         !parse_float(values, "performance.texture", loaded.performance.texture) ||
         !parse_float(values, "performance.pulse", loaded.performance.pulse) ||
         !parse_float(values, "performance.chaos", loaded.performance.chaos) ||
         !parse_float(values, "performance.space", loaded.performance.space) ||
+        !parse_float(values, "performance.events", loaded.performance.events) ||
         !parse_float(values, "performance.fade", loaded.performance.fade)) {
         error = "invalid master value";
         return false;
@@ -303,12 +334,15 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
 
     loaded.tempo_bpm = std::clamp(loaded.tempo_bpm, 10.0F, 300.0F);
     loaded.master_level = std::clamp(loaded.master_level, 0.0F, 1.0F);
+    loaded.fade_in_seconds = std::clamp(loaded.fade_in_seconds, 0.25F, 30.0F);
+    loaded.fade_out_seconds = std::clamp(loaded.fade_out_seconds, 0.25F, 30.0F);
     loaded.performance.texture = std::clamp(loaded.performance.texture, 0.0F, 1.0F);
     loaded.performance.pulse = std::clamp(loaded.performance.pulse, 0.0F, 1.0F);
     loaded.performance.chaos = std::clamp(loaded.performance.chaos, 0.0F, 1.0F);
     loaded.performance.space = std::clamp(loaded.performance.space, 0.0F, 1.0F);
+    loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
-    loaded.schema_version = 2;
+    loaded.schema_version = 3;
     session = loaded;
     return true;
 }

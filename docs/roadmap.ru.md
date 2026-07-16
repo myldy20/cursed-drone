@@ -1,5 +1,16 @@
 # Дорожная карта
 
+## Срез 0.3 — разные источники и понятная сцена (готово)
+
+- vendored DaisySP subset на pinned commit и с полным MIT notice;
+- четыре разных стартовых источника: `TONE`, `RESONATOR`, `GRAINLET`, `PARTICLES`;
+- экран `Сцена` без четырёх копий одного макропараметра;
+- единая терминология `Сцена / Слоты / FX / Мастер / Настр.`;
+- новый макрос `Events`, разные pulse-ratio/depth для движков и tempo-синхронизация событий;
+- реальные waveform snapshots вместо декоративной синусоиды;
+- явные RMS/peak, DSP load, глобальная индикация автофейда;
+- разные fade-in/fade-out и debounce-autosave schema 3.
+
 ## Срез 0.2 — интерфейс и автономность (готово)
 
 - встроенный RU/EN bitmap renderer без SDL_ttf;
@@ -33,7 +44,7 @@
 - проверить встроенный bitmap/font renderer с кириллицей и английским на реальном дисплее;
 - сохранить language/session после перезапуска.
 
-**Критерий:** 10 минут непрерывного diagnostic patch без underrun и утечки памяти.
+**Критерий:** 10 минут непрерывного четырёхдвижкового patch без underrun и утечки памяти.
 
 ## M2 — DSP benchmark harness
 
@@ -45,9 +56,9 @@
 
 **Критерий:** рабочая конфигурация четырёх слотов при 1008 MHz с запасом не менее 25% блока.
 
-## M3 — первые продуктовые движки
+## M3 — первые продуктовые движки (начато в 0.3)
 
-1. `PARTICLE`: DaisySP Dust, Particle, ClockedNoise, FractalNoise, Grainlet.
+1. `PARTICLE`: лёгкий набор DaisySP Oscillator, Dust, Particle, ClockedNoise и Grainlet готов.
 2. `MACRO`: audited MIT STM32 DSP из Plaits под нейтральным продуктовым именем.
 3. `BODY`: resonator/physical modelling из Rings/Elements.
 4. `GRAIN`: circular stereo memory и granular DSP из Clouds.

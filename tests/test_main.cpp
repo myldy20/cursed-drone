@@ -48,8 +48,36 @@ void test_queue() {
 }
 
 void test_audio() {
+    const auto default_session = cd::make_default_session();
+    expect(default_session.slots[0].engine == cd::EngineKind::macro, "slot 1 should use the tone engine");
+    expect(default_session.slots[1].engine == cd::EngineKind::body, "slot 2 should use the resonator engine");
+    expect(default_session.slots[2].engine == cd::EngineKind::grain, "slot 3 should use the grainlet engine");
+    expect(default_session.slots[3].engine == cd::EngineKind::particle, "slot 4 should use the particle engine");
+    for (std::size_t active = 0; active < cd::kSlotCount; ++active) {
+        auto solo = default_session;
+        for (std::size_t slot = 0; slot < cd::kSlotCount; ++slot) {
+            solo.slots[slot].enabled = slot == active;
+            for (auto& effect : solo.slots[slot].effects) {
+                effect.kind = cd::EffectKind::bypass;
+            }
+        }
+        cd::AudioGraph solo_graph;
+        solo_graph.prepare({48'000.0F, 256U}, solo);
+        std::array<cd::StereoFrame, 256> solo_block{};
+        double solo_energy = 0.0;
+        for (int block_index = 0; block_index < 128; ++block_index) {
+            solo_graph.process(solo_block);
+            for (const auto frame : solo_block) {
+                solo_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
+            }
+        }
+        if (solo_energy <= 0.01) {
+            std::cerr << "engine " << active << " solo energy: " << solo_energy << '\n';
+        }
+        expect(solo_energy > 0.01, "every default engine should produce a non-silent solo output");
+    }
     cd::AudioGraph graph;
-    graph.prepare({48'000.0F, 256U}, cd::make_default_session());
+    graph.prepare({48'000.0F, 256U}, default_session);
     std::array<cd::StereoFrame, 256> block{};
     float peak = 0.0F;
     double energy = 0.0;
@@ -66,6 +94,11 @@ void test_audio() {
     const auto telemetry = graph.telemetry();
     expect(telemetry.master_rms > 0.0F, "master telemetry should react to audio");
     expect(telemetry.slot_rms[0] > 0.0F, "slot telemetry should react to audio");
+    float scope_peak = 0.0F;
+    for (const float sample : telemetry.master_scope) {
+        scope_peak = std::max(scope_peak, std::abs(sample));
+    }
+    expect(scope_peak > 0.0F, "master scope should contain real audio samples");
 
     graph.panic();
     graph.process(block);
@@ -86,7 +119,10 @@ void test_session_roundtrip() {
     original.performance.pulse = 0.643F;
     original.performance.chaos = 0.522F;
     original.performance.space = 0.407F;
+    original.performance.events = 0.467F;
     original.performance.fade = 0.381F;
+    original.fade_in_seconds = 2.75F;
+    original.fade_out_seconds = 8.25F;
     std::string error;
     expect(cd::save_session(original, path, error), "session should save");
     cd::Session loaded{};
@@ -97,7 +133,10 @@ void test_session_roundtrip() {
     expect(std::abs(loaded.performance.pulse - 0.643F) < 0.0001F, "pulse macro should roundtrip");
     expect(std::abs(loaded.performance.chaos - 0.522F) < 0.0001F, "chaos macro should roundtrip");
     expect(std::abs(loaded.performance.space - 0.407F) < 0.0001F, "space macro should roundtrip");
+    expect(std::abs(loaded.performance.events - 0.467F) < 0.0001F, "events macro should roundtrip");
     expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "fade macro should roundtrip");
+    expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
+    expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
 }
