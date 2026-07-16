@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <span>
 #include <type_traits>
 
 namespace cursed_drone {
@@ -21,6 +20,26 @@ struct StereoFrame {
 };
 
 static_assert(sizeof(StereoFrame) == sizeof(float) * 2U);
+
+// A deliberately tiny std::span equivalent. The Brick/PortMaster build uses
+// GCC 9 on Ubuntu 20.04 for an old glibc baseline; that standard library does
+// not ship <span>, even though the compiler accepts the rest of our C++20.
+template <typename T>
+class BufferView {
+public:
+    constexpr BufferView(T* data, std::size_t size) noexcept : data_(data), size_(size) {}
+
+    [[nodiscard]] constexpr T* data() const noexcept { return data_; }
+    [[nodiscard]] constexpr std::size_t size() const noexcept { return size_; }
+    [[nodiscard]] constexpr bool empty() const noexcept { return size_ == 0U; }
+    [[nodiscard]] constexpr T* begin() const noexcept { return data_; }
+    [[nodiscard]] constexpr T* end() const noexcept { return data_ + size_; }
+    [[nodiscard]] constexpr T& operator[](std::size_t index) const noexcept { return data_[index]; }
+
+private:
+    T* data_{nullptr};
+    std::size_t size_{0U};
+};
 
 struct AudioConfig {
     float sample_rate{48'000.0F};
@@ -87,7 +106,7 @@ public:
     [[nodiscard]] bool submit_session(const Session& session) noexcept;
 
     // Audio thread. No allocation, file access, locks, or exceptions.
-    void process(std::span<StereoFrame> output) noexcept;
+    void process(BufferView<StereoFrame> output) noexcept;
 
     // UI thread. Atomically snapshots meters produced by the audio callback.
     [[nodiscard]] AudioTelemetry telemetry() const noexcept;

@@ -11,14 +11,13 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <numbers>
 #include <utility>
 #include <vector>
 
 namespace cursed_drone {
 namespace {
 
-constexpr float kPi = std::numbers::pi_v<float>;
+constexpr float kPi = 3.14159265358979323846F;
 constexpr float kTwoPi = kPi * 2.0F;
 
 float clamp01(float value) noexcept {
@@ -580,7 +579,7 @@ public:
         return result;
     }
 
-    void process(std::span<StereoFrame> output) noexcept {
+    void process(BufferView<StereoFrame> output) noexcept {
         std::fill(output.begin(), output.end(), StereoFrame{});
         if (!prepared_ || output.empty()) {
             return;
@@ -926,7 +925,7 @@ void AudioGraph::prepare(const AudioConfig& config, const Session& initial_sessi
 
 void AudioGraph::reset() noexcept { impl_->reset(); }
 bool AudioGraph::submit_session(const Session& session) noexcept { return impl_->submit_session(session); }
-void AudioGraph::process(std::span<StereoFrame> output) noexcept { impl_->process(output); }
+void AudioGraph::process(BufferView<StereoFrame> output) noexcept { impl_->process(output); }
 AudioTelemetry AudioGraph::telemetry() const noexcept { return impl_->telemetry(); }
 void AudioGraph::panic() noexcept { impl_->panic(); }
 float AudioGraph::sample_rate() const noexcept { return impl_->sample_rate(); }

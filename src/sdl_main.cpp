@@ -13,7 +13,6 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
-#include <span>
 #include <string>
 #include <string_view>
 

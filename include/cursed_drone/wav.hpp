@@ -4,14 +4,13 @@
 #include "cursed_drone/audio.hpp"
 
 #include <filesystem>
-#include <span>
 #include <string>
 
 namespace cursed_drone {
 
 [[nodiscard]] bool write_wav_f32(
     const std::filesystem::path& path,
-    std::span<const StereoFrame> frames,
+    BufferView<const StereoFrame> frames,
     unsigned sample_rate,
     std::string& error);
 

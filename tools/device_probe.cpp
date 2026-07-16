@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
-#include <span>
 #include <string>
 #include <vector>
 
@@ -27,7 +26,7 @@ void audio_callback(void* userdata, Uint8* bytes, int byte_count) {
     auto& bridge = *static_cast<AudioBridge*>(userdata);
     auto* frames = reinterpret_cast<cd::StereoFrame*>(bytes);
     const auto count = static_cast<std::size_t>(byte_count) / sizeof(cd::StereoFrame);
-    bridge.graph.process(std::span<cd::StereoFrame>{frames, count});
+    bridge.graph.process(cd::BufferView<cd::StereoFrame>{frames, count});
 }
 
 void log_sdl_error(const char* operation) {

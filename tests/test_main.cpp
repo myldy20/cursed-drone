@@ -66,7 +66,7 @@ void test_audio() {
         std::array<cd::StereoFrame, 256> solo_block{};
         double solo_energy = 0.0;
         for (int block_index = 0; block_index < 128; ++block_index) {
-            solo_graph.process(solo_block);
+            solo_graph.process({solo_block.data(), solo_block.size()});
             for (const auto frame : solo_block) {
                 solo_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
             }
@@ -82,7 +82,7 @@ void test_audio() {
     float peak = 0.0F;
     double energy = 0.0;
     for (int iteration = 0; iteration < 200; ++iteration) {
-        graph.process(block);
+        graph.process({block.data(), block.size()});
         for (const auto frame : block) {
             expect(std::isfinite(frame.left) && std::isfinite(frame.right), "audio must remain finite");
             peak = std::max(peak, std::max(std::abs(frame.left), std::abs(frame.right)));
@@ -101,7 +101,7 @@ void test_audio() {
     expect(scope_peak > 0.0F, "master scope should contain real audio samples");
 
     graph.panic();
-    graph.process(block);
+    graph.process({block.data(), block.size()});
     float panic_peak = 0.0F;
     for (const auto frame : block) {
         panic_peak = std::max(panic_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
