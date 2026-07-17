@@ -21,9 +21,9 @@ jobs:
         run: |
           set +e
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_ASSET_DIR="$PWD/assets/branding" CURSED_DRONE_HANDHELD=1 \
             timeout 3s build/cursed-drone-sdl
           status=$?
-          set -e
           test "$status" -eq 0 -o "$status" -eq 124
       - name: Render soundscape previews
         run: |
@@ -67,8 +67,8 @@ jobs:
           cp build-macos/cursed-drone-render dist/cursed-drone-macos/
           cp README.md LICENSE THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
           cp assets/branding/cursed-drone-splash.bmp dist/cursed-drone-macos/assets/branding/
-          cp assets/branding/cursed-drone-banner.png dist/cursed-drone-macos/assets/branding/
-          cp docs/install.en.md docs/install.ru.md dist/cursed-drone-macos/docs/
+          cp assets/branding/cursed-drone-banner.svg dist/cursed-drone-macos/assets/branding/
+          cp docs/install.en.md docs/install.ru.md docs/effects.en.md docs/effects.ru.md dist/cursed-drone-macos/docs/
           cp third_party/font512/LICENSE dist/cursed-drone-macos/font512-UNLICENSE.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -99,10 +99,10 @@ jobs:
       - name: Inspect binaries and package
         run: |
           file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/package-list.txt
-          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package-list.txt
-          grep -q 'curseddrone/docs/install.en.md' /tmp/package-list.txt
-          grep -q 'curseddrone/docs/install.ru.md' /tmp/package-list.txt
+          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/package.txt
+          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package.txt
+          grep -q 'curseddrone/docs/install.en.md' /tmp/package.txt
+          grep -q 'curseddrone/docs/install.ru.md' /tmp/package.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-portmaster-aarch64
