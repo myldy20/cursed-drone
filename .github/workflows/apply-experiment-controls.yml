@@ -1,0 +1,50 @@
+name: experimental-control-redesign
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/apply_experiment_controls.py
+      - .github/workflows/apply-experiment-controls.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/plaits-performance-lab
+          fetch-depth: 0
+      - name: Apply control redesign
+        run: python3 tools/apply_experiment_controls.py
+      - name: Check generated diff
+        run: git diff --check
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - name: Build and test
+        run: |
+          cmake -S . -B build-experiment -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-experiment --parallel 2
+          ctest --test-dir build-experiment --output-on-failure
+      - name: Startup smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            timeout 3s build-experiment/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+      - name: Restore temporary files
+        run: |
+          rm -rf build-experiment
+          git checkout HEAD -- tools/apply_experiment_controls.py .github/workflows/apply-experiment-controls.yml
+      - name: Commit control redesign
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sdl_main.cpp
+          git commit -m "experiment: simplify handheld controls and splash"
+          git push origin HEAD:experiment/plaits-performance-lab
