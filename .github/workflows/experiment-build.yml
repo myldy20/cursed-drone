@@ -19,6 +19,10 @@ on:
       - .gitmodules
   workflow_dispatch:
 
+concurrency:
+  group: experiment-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-latest
