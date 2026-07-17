@@ -3,10 +3,10 @@
   <game>
     <path>./Cursed Drone.sh</path>
     <name>Cursed Drone</name>
-    <desc>Procedural derelict, factory and wasteland soundscapes with four controllable actors.</desc>
-    <releasedate>20260716T000000</releasedate>
-    <developer>Cursed Drone contributors</developer>
-    <publisher>Cursed Drone contributors</publisher>
+    <desc>Procedural drone synth with ten controllable environmental and bass-first soundscapes.</desc>
+    <releasedate>20260717T000000</releasedate>
+    <developer>Myldy design</developer>
+    <publisher>Myldy design</publisher>
     <genre>Music</genre>
   </game>
 </gameList>
