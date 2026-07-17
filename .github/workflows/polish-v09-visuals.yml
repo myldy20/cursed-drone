@@ -1,0 +1,42 @@
+name: polish-v09-effect-visuals
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/polish_v09_visuals.py
+      - .github/workflows/polish-v09-visuals.yml
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.9-effects-branding
+          fetch-depth: 0
+      - name: Apply effect visual polish
+        run: python3 tools/polish_v09_visuals.py
+      - name: Validate diff
+        run: git diff --check
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - name: Build and test
+        run: |
+          cmake -S . -B build-polish -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-polish --parallel 2
+          ctest --test-dir build-polish --output-on-failure
+      - name: Restore temporary integration files
+        run: |
+          rm -rf build-polish
+          git checkout HEAD -- tools/polish_v09_visuals.py .github/workflows/polish-v09-visuals.yml
+      - name: Commit visual source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sdl_main.cpp
+          git commit -m "Polish v0.9 effect visualizations"
+          git push origin HEAD:agent/v0.9-effects-branding
