@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "cursed_drone/audio.hpp"
+#include "soundscape.hpp"
+
+#include "Noise/clockednoise.h"
+#include "Noise/grainlet.h"
+#include "Noise/particle.h"
+#include "PhysicalModeling/drip.h"
+#include "PhysicalModeling/modalvoice.h"
+#include "Synthesis/oscillator.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <numbers>
 #include <utility>
 #include <vector>
 
 namespace cursed_drone {
 namespace {
 
-constexpr float kPi = std::numbers::pi_v<float>;
+constexpr float kPi = 3.14159265358979323846F;
 constexpr float kTwoPi = kPi * 2.0F;
 
 float clamp01(float value) noexcept {
@@ -157,6 +164,173 @@ private:
     std::uint32_t random_state_{0xC801'3EA4U};
 };
 
+class ProductEngine {
+public:
+    void prepare(float sample_rate, std::size_t slot_index) noexcept {
+        sample_rate_ = sample_rate;
+        slot_index_ = slot_index;
+        random_state_ = 0x91E1'0DA5U ^ (0x9E37'79B9U * static_cast<std::uint32_t>(slot_index + 1U));
+        reset();
+    }
+
+    void reset() noexcept {
+        diagnostic_.prepare(slot_index_);
+        fundamental_.Init(sample_rate_);
+        overtone_.Init(sample_rate_);
+        fundamental_.SetAmp(1.0F);
+        overtone_.SetAmp(1.0F);
+        body_.Init(sample_rate_);
+        grain_.Init(sample_rate_);
+        particle_.Init(sample_rate_);
+        drip_.Init(sample_rate_, 0.72F);
+        clocked_noise_.Init(sample_rate_);
+        soundscape_.prepare(sample_rate_, slot_index_);
+        event_phase_ = 1.0F;
+        event_period_ = 1.0F;
+        grain_envelope_ = 0.0F;
+        drift_phase_ = 0.0F;
+        soundscape_.reset();
+    }
+
+    float next(
+        EngineKind kind,
+        float frequency,
+        float timbre,
+        float color,
+        float motion,
+        float texture,
+        float tempo_bpm,
+        float pulse,
+        float chaos,
+        float events) noexcept {
+        frequency = std::clamp(frequency, 8.0F, sample_rate_ * 0.2F);
+        timbre = clamp01(timbre);
+        color = clamp01(color);
+        motion = clamp01(motion);
+        texture = clamp01(texture);
+        events = clamp01(events);
+
+        const float beat_hz = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
+        const float event_rate = beat_hz * (0.08F + events * events * 2.9F) * (0.65F + motion * 1.25F);
+        event_phase_ += event_rate / sample_rate_;
+        bool trigger = false;
+        if (event_phase_ >= event_period_) {
+            event_phase_ -= event_period_;
+            const float random_unit = next_noise(random_state_) * 0.5F + 0.5F;
+            const float irregularity = (0.18F + chaos * 0.72F) * (1.0F - pulse * 0.72F);
+            event_period_ = std::clamp(1.0F + (random_unit * 2.0F - 1.0F) * irregularity, 0.35F, 1.8F);
+            trigger = true;
+            grain_envelope_ = 1.0F;
+        }
+
+        drift_phase_ += (0.007F + motion * motion * 0.19F) / sample_rate_;
+        drift_phase_ -= std::floor(drift_phase_);
+        const float drift = std::sin(drift_phase_ * kTwoPi) * (0.0005F + motion * 0.018F);
+
+        switch (kind) {
+        case EngineKind::diagnostic:
+            return diagnostic_.next(frequency, timbre, color, motion, texture, sample_rate_);
+        case EngineKind::macro: {
+            fundamental_.SetFreq(frequency * (1.0F + drift));
+            fundamental_.SetWaveform(daisysp::Oscillator::WAVE_SIN);
+            overtone_.SetFreq(frequency * (1.001F + color * 0.021F - drift * 0.5F));
+            overtone_.SetPw(0.08F + color * 0.84F);
+            overtone_.SetWaveform(color < 0.55F
+                    ? daisysp::Oscillator::WAVE_POLYBLEP_SAW
+                    : daisysp::Oscillator::WAVE_POLYBLEP_SQUARE);
+            clocked_noise_.SetFreq(frequency * (2.0F + texture * 38.0F));
+            const float clean = fundamental_.Process();
+            const float edged = overtone_.Process();
+            const float noise = clocked_noise_.Process();
+            return clean * (0.92F - timbre * 0.58F) + edged * (0.08F + timbre * 0.50F) +
+                noise * texture * texture * 0.16F;
+        }
+        case EngineKind::body:
+            body_.SetFreq(frequency);
+            body_.SetAccent(0.28F + texture * 0.72F);
+            body_.SetStructure(timbre);
+            body_.SetBrightness(color * 0.72F + texture * 0.28F);
+            body_.SetDamping(std::clamp(0.28F + (1.0F - motion) * 0.58F, 0.0F, 1.0F));
+            body_.SetSustain(texture > 0.92F);
+            return body_.Process(trigger) * 2.4F;
+        case EngineKind::grain: {
+            grain_.SetFreq(frequency * (1.0F + drift * 2.0F));
+            grain_.SetFormantFreq(std::min(sample_rate_ * 0.22F, frequency * (1.5F + color * 30.0F)));
+            grain_.SetShape(timbre * 2.85F);
+            grain_.SetBleed(0.03F + texture * 0.92F);
+            clocked_noise_.SetFreq(frequency * (1.0F + texture * 52.0F));
+            const float decay = std::exp(-1.0F / (sample_rate_ * (0.025F + (1.0F - motion) * 0.48F)));
+            grain_envelope_ *= decay;
+            const float gate = 0.12F + grain_envelope_ * (0.42F + events * 0.46F);
+            return grain_.Process() * gate * 1.7F + clocked_noise_.Process() * texture * 0.12F;
+        }
+        case EngineKind::particle:
+            particle_.SetFreq(frequency * (1.0F + drift * 3.0F));
+            particle_.SetResonance(0.52F + timbre * 0.47F);
+            particle_.SetDensity(std::clamp(0.015F + texture * texture * 0.78F + events * 0.18F, 0.0F, 1.0F));
+            particle_.SetGain(0.72F);
+            particle_.SetSpread(1.0F + color * 38.0F);
+            particle_.SetRandomFreq(0.15F + motion * motion * 12.0F);
+            particle_.SetSync(trigger);
+            return particle_.Process() * 2.2F;
+        case EngineKind::water_drip:
+            drip_.SetFrequency(std::clamp(frequency, 120.0F, 1'800.0F) * (0.78F + color * 0.64F));
+            drip_.SetDamping(0.08F + timbre * 0.52F);
+            drip_.SetDensity(0.12F + texture * 0.72F);
+            return drip_.Process(trigger) * (4.2F + texture * 2.8F);
+        case EngineKind::derelict_bed:
+        case EngineKind::footsteps:
+        case EngineKind::door:
+        case EngineKind::pipe:
+        case EngineKind::motor:
+        case EngineKind::machinery:
+        case EngineKind::crowd:
+        case EngineKind::metal:
+        case EngineKind::wind:
+        case EngineKind::birds:
+        case EngineKind::insects:
+        case EngineKind::signal:
+        case EngineKind::cave_air:
+        case EngineKind::water_flow:
+        case EngineKind::stone:
+        case EngineKind::metro_traction:
+        case EngineKind::rail_joint:
+        case EngineKind::brake:
+        case EngineKind::carriage:
+        case EngineKind::music_box:
+        case EngineKind::toy_voice:
+        case EngineKind::toy_gears:
+        case EngineKind::lullaby:
+        case EngineKind::sub_drone:
+        case EngineKind::tape_drone:
+        case EngineKind::bowed_metal:
+        case EngineKind::earth_rumble:
+            return soundscape_.next(
+                kind, frequency, timbre, color, motion, texture,
+                tempo_bpm, pulse, chaos, events);
+        }
+        return 0.0F;
+    }
+
+private:
+    float sample_rate_{48'000.0F};
+    std::size_t slot_index_{0U};
+    std::uint32_t random_state_{0x91E1'0DA5U};
+    float event_phase_{1.0F};
+    float event_period_{1.0F};
+    float grain_envelope_{0.0F};
+    float drift_phase_{0.0F};
+    DiagnosticEngine diagnostic_{};
+    daisysp::Oscillator fundamental_{};
+    daisysp::Oscillator overtone_{};
+    daisysp::ModalVoice body_{};
+    daisysp::GrainletOscillator grain_{};
+    daisysp::Particle particle_{};
+    daisysp::Drip drip_{};
+    daisysp::ClockedNoise clocked_noise_{};
+    detail::SoundscapeVoice soundscape_{};
+};
+
 class EffectRuntime {
 public:
     void prepare(float sample_rate) {
@@ -168,7 +342,9 @@ public:
 
     void reset() noexcept {
         lowpass_ = {};
+        highpass_low_ = {};
         tremolo_phase_ = 0.0F;
+        ring_phase_ = 0.0F;
         delay_write_ = 0U;
         crusher_counter_ = 0U;
         crusher_held_ = {};
@@ -187,12 +363,20 @@ public:
             return drive(input, amount);
         case EffectKind::lowpass:
             return lowpass(input, amount, tone);
+        case EffectKind::highpass:
+            return highpass(input, amount, tone);
         case EffectKind::tremolo:
             return tremolo(input, amount, tone);
         case EffectKind::delay:
             return delay(input, amount, tone, feedback);
         case EffectKind::crusher:
             return crusher(input, amount, tone);
+        case EffectKind::wavefolder:
+            return wavefolder(input, amount, tone);
+        case EffectKind::ringmod:
+            return ringmod(input, amount, tone);
+        case EffectKind::comb:
+            return comb(input, amount, tone, feedback);
         }
         return input;
     }
@@ -219,6 +403,18 @@ private:
         return {
             input.left + (lowpass_.left - input.left) * amount,
             input.right + (lowpass_.right - input.right) * amount,
+        };
+    }
+
+    StereoFrame highpass(StereoFrame input, float amount, float tone) noexcept {
+        const float cutoff = 20.0F * std::pow(500.0F, tone);
+        const float coefficient = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
+        highpass_low_.left += (input.left - highpass_low_.left) * coefficient;
+        highpass_low_.right += (input.right - highpass_low_.right) * coefficient;
+        const StereoFrame wet{input.left - highpass_low_.left, input.right - highpass_low_.right};
+        return {
+            input.left + (wet.left - input.left) * amount,
+            input.right + (wet.right - input.right) * amount,
         };
     }
 
@@ -269,9 +465,56 @@ private:
         };
     }
 
+    static float fold_sample(float input) noexcept {
+        const float wrapped = std::fmod(input + 1.0F, 4.0F);
+        const float positive = wrapped < 0.0F ? wrapped + 4.0F : wrapped;
+        return 1.0F - std::abs(positive - 2.0F);
+    }
+
+    static StereoFrame wavefolder(StereoFrame input, float amount, float tone) noexcept {
+        const float gain = 1.0F + amount * (2.0F + tone * 14.0F);
+        const StereoFrame wet{fold_sample(input.left * gain), fold_sample(input.right * gain)};
+        return {
+            input.left + (wet.left - input.left) * amount,
+            input.right + (wet.right - input.right) * amount,
+        };
+    }
+
+    StereoFrame ringmod(StereoFrame input, float amount, float tone) noexcept {
+        const float frequency = 0.35F * std::pow(5'000.0F, tone);
+        ring_phase_ += frequency / sample_rate_;
+        ring_phase_ -= std::floor(ring_phase_);
+        const float carrier = std::sin(ring_phase_ * kTwoPi);
+        return {
+            input.left * (1.0F - amount + carrier * amount),
+            input.right * (1.0F - amount + carrier * amount),
+        };
+    }
+
+    StereoFrame comb(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        if (delay_.empty()) return input;
+        const float seconds = 0.0012F * std::pow(32.0F, tone);
+        const auto delay_frames = std::clamp(
+            static_cast<std::size_t>(seconds * sample_rate_), std::size_t{1}, delay_.size() - 1U);
+        const auto read = (delay_write_ + delay_.size() - delay_frames) % delay_.size();
+        const StereoFrame wet = delay_[read];
+        const float regeneration = 0.12F + feedback * 0.82F;
+        delay_[delay_write_] = {
+            input.left + wet.left * regeneration,
+            input.right + wet.right * regeneration,
+        };
+        delay_write_ = (delay_write_ + 1U) % delay_.size();
+        return {
+            input.left + wet.left * amount,
+            input.right + wet.right * amount,
+        };
+    }
+
     float sample_rate_{48'000.0F};
     StereoFrame lowpass_{};
+    StereoFrame highpass_low_{};
     float tremolo_phase_{0.0F};
+    float ring_phase_{0.0F};
     std::vector<StereoFrame> delay_{};
     std::size_t delay_write_{0U};
     unsigned crusher_counter_{0U};
@@ -279,7 +522,7 @@ private:
 };
 
 struct SlotRuntime {
-    DiagnosticEngine diagnostic{};
+    ProductEngine engine{};
     std::array<EffectRuntime, kEffectsPerSlot> effects{};
     std::array<ModulatorRuntime, kModulatorsPerSlot> modulators{};
     SmoothedValue frequency{};
@@ -294,7 +537,7 @@ struct SlotRuntime {
     std::array<SmoothedValue, kEffectsPerSlot> effect_feedback{};
 
     void prepare(float sample_rate, const SlotSettings& settings, std::size_t slot_index) {
-        diagnostic.prepare(slot_index);
+        engine.prepare(sample_rate, slot_index);
         frequency.prepare(settings.frequency_hz, sample_rate);
         timbre.prepare(settings.timbre, sample_rate);
         color.prepare(settings.color, sample_rate);
@@ -326,7 +569,7 @@ struct SlotRuntime {
     }
 
     void reset() noexcept {
-        diagnostic.reset();
+        engine.reset();
         for (auto& effect : effects) {
             effect.reset();
         }
@@ -395,6 +638,7 @@ public:
         performance_pulse_.prepare(session_.performance.pulse, config_.sample_rate, 80.0F);
         performance_chaos_.prepare(session_.performance.chaos, config_.sample_rate, 120.0F);
         performance_space_.prepare(session_.performance.space, config_.sample_rate, 100.0F);
+        performance_events_.prepare(session_.performance.events, config_.sample_rate, 100.0F);
         for (std::size_t index = 0; index < kSlotCount; ++index) {
             slots_[index].prepare(config_.sample_rate, session_.slots[index], index);
         }
@@ -407,6 +651,8 @@ public:
         dc_output_ = {};
         pulse_phase_ = 0.0F;
         chaos_phase_ = 0.0F;
+        scope_publish_counter_ = 0U;
+        pulse_phases_.fill(0.0F);
         chaos_current_.fill(0.0F);
         chaos_target_.fill(0.0F);
         master_.snap();
@@ -414,6 +660,7 @@ public:
         performance_pulse_.snap();
         performance_chaos_.snap();
         performance_space_.snap();
+        performance_events_.snap();
         for (auto& slot : slots_) {
             slot.reset();
         }
@@ -429,6 +676,13 @@ public:
         for (std::size_t index = 0; index < kSlotCount; ++index) {
             result.slot_rms[index] = slot_rms_[index].load(std::memory_order_relaxed);
             result.slot_peak[index] = slot_peak_[index].load(std::memory_order_relaxed);
+            for (std::size_t point = 0; point < kScopePointCount; ++point) {
+                result.slot_scope[index][point] =
+                    slot_scope_[index][point].load(std::memory_order_relaxed);
+            }
+        }
+        for (std::size_t point = 0; point < kScopePointCount; ++point) {
+            result.master_scope[point] = master_scope_[point].load(std::memory_order_relaxed);
         }
         result.master_rms = master_rms_.load(std::memory_order_relaxed);
         result.master_peak = master_peak_.load(std::memory_order_relaxed);
@@ -437,7 +691,7 @@ public:
         return result;
     }
 
-    void process(std::span<StereoFrame> output) noexcept {
+    void process(BufferView<StereoFrame> output) noexcept {
         std::fill(output.begin(), output.end(), StereoFrame{});
         if (!prepared_ || output.empty()) {
             return;
@@ -455,6 +709,7 @@ public:
             performance_pulse_.set(clamp01(session_.performance.pulse));
             performance_chaos_.set(clamp01(session_.performance.chaos));
             performance_space_.set(clamp01(session_.performance.space));
+            performance_events_.set(clamp01(session_.performance.events));
             for (std::size_t index = 0; index < kSlotCount; ++index) {
                 slots_[index].update_targets(session_.slots[index]);
             }
@@ -470,15 +725,24 @@ public:
         double master_energy = 0.0;
         float master_peak = 0.0F;
         float last_chaos_activity = 0.0F;
+        std::array<std::array<float, kScopePointCount>, kSlotCount> scope_frames{};
+        std::array<float, kScopePointCount> master_scope_frame{};
+        const bool capture_scope = ++scope_publish_counter_ >= 4U;
+        if (capture_scope) scope_publish_counter_ = 0U;
 
-        for (auto& frame : output) {
+        for (std::size_t frame_index = 0; frame_index < output.size(); ++frame_index) {
+            auto& frame = output[frame_index];
+            const std::size_t scope_index = capture_scope
+                ? std::min(kScopePointCount - 1U, frame_index * kScopePointCount / output.size())
+                : 0U;
             const float texture_macro = macro_curve(performance_texture_.next());
             const float pulse_macro = macro_curve(performance_pulse_.next());
             const float chaos_macro = macro_curve(performance_chaos_.next());
             const float space_macro = macro_curve(performance_space_.next());
+            const float events_macro = macro_curve(performance_events_.next());
 
             const float pulse_rate = std::clamp(session_.tempo_bpm, 10.0F, 300.0F) / 60.0F *
-                (1.0F + pulse_macro * 3.0F);
+                (0.5F + pulse_macro * 3.5F);
             pulse_phase_ += pulse_rate / config_.sample_rate;
             pulse_phase_ -= std::floor(pulse_phase_);
 
@@ -527,35 +791,157 @@ public:
 
                 const float chaos_value = chaos_current_[slot_index] * chaos_macro;
                 parameters.frequency *= std::pow(2.0F, chaos_value * 0.36F);
-                parameters.timbre += texture_macro * (0.24F + 0.05F * static_cast<float>(slot_index));
-                parameters.color += texture_macro * (slot_index % 2U == 0U ? 0.24F : -0.16F);
-                parameters.motion += texture_macro * 0.30F + std::abs(chaos_value) * 0.28F;
-                parameters.texture += texture_macro * 0.68F + std::abs(chaos_value) * 0.32F;
+                switch (settings.engine) {
+                case EngineKind::diagnostic:
+                    parameters.timbre += texture_macro * 0.24F;
+                    parameters.motion += texture_macro * 0.30F;
+                    parameters.texture += texture_macro * 0.68F;
+                    break;
+                case EngineKind::macro:
+                    parameters.timbre += texture_macro * 0.34F;
+                    parameters.color += texture_macro * 0.12F;
+                    parameters.motion += chaos_macro * 0.18F;
+                    parameters.texture += texture_macro * 0.48F;
+                    break;
+                case EngineKind::body:
+                    parameters.timbre += texture_macro * 0.18F;
+                    parameters.color += texture_macro * 0.48F;
+                    parameters.motion += events_macro * 0.42F;
+                    parameters.texture += texture_macro * 0.36F + events_macro * 0.12F;
+                    break;
+                case EngineKind::grain:
+                    parameters.timbre += texture_macro * 0.46F;
+                    parameters.color += chaos_macro * 0.15F;
+                    parameters.motion += events_macro * 0.38F + chaos_macro * 0.16F;
+                    parameters.texture += texture_macro * 0.76F;
+                    break;
+                case EngineKind::particle:
+                    parameters.timbre += texture_macro * 0.20F;
+                    parameters.color += chaos_macro * 0.36F;
+                    parameters.motion += events_macro * 0.58F + chaos_macro * 0.24F;
+                    parameters.texture += texture_macro * 0.62F + events_macro * 0.30F;
+                    break;
+                case EngineKind::derelict_bed:
+                case EngineKind::motor:
+                case EngineKind::wind:
+                    parameters.timbre += texture_macro * 0.18F;
+                    parameters.color += texture_macro * 0.24F;
+                    parameters.motion += events_macro * 0.25F + chaos_macro * 0.18F;
+                    parameters.texture += texture_macro * 0.46F;
+                    break;
+                case EngineKind::sub_drone:
+                case EngineKind::tape_drone:
+                case EngineKind::bowed_metal:
+                case EngineKind::earth_rumble:
+                    parameters.timbre += texture_macro * 0.12F;
+                    parameters.color += texture_macro * 0.10F;
+                    parameters.motion += events_macro * 0.12F + chaos_macro * 0.08F;
+                    parameters.texture += texture_macro * 0.30F;
+                    break;
+                case EngineKind::footsteps:
+                case EngineKind::machinery:
+                case EngineKind::birds:
+                case EngineKind::insects:
+                case EngineKind::signal:
+                case EngineKind::water_drip:
+                case EngineKind::water_flow:
+                case EngineKind::stone:
+                case EngineKind::rail_joint:
+                case EngineKind::brake:
+                case EngineKind::music_box:
+                case EngineKind::toy_voice:
+                case EngineKind::lullaby:
+                    parameters.color += texture_macro * 0.18F;
+                    parameters.motion += pulse_macro * 0.38F + events_macro * 0.22F;
+                    parameters.texture += texture_macro * 0.58F + chaos_macro * 0.12F;
+                    break;
+                case EngineKind::door:
+                case EngineKind::pipe:
+                case EngineKind::metal:
+                case EngineKind::crowd:
+                case EngineKind::cave_air:
+                case EngineKind::metro_traction:
+                case EngineKind::carriage:
+                case EngineKind::toy_gears:
+                    parameters.timbre += texture_macro * 0.22F;
+                    parameters.color += chaos_macro * 0.22F;
+                    parameters.motion += events_macro * 0.30F;
+                    parameters.texture += texture_macro * 0.64F + chaos_macro * 0.18F;
+                    break;
+                }
+                parameters.motion += std::abs(chaos_value) * 0.28F;
+                parameters.texture += std::abs(chaos_value) * 0.32F;
                 parameters.pan += chaos_value * 0.38F;
 
-                float slot_pulse_phase = pulse_phase_ + static_cast<float>(slot_index) * chaos_macro * 0.11F;
+                float pulse_ratio = 1.0F;
+                float pulse_depth = 0.72F;
+                switch (settings.engine) {
+                case EngineKind::macro: pulse_ratio = 0.5F; pulse_depth = 0.38F; break;
+                case EngineKind::body: pulse_ratio = 1.0F; pulse_depth = 0.22F; break;
+                case EngineKind::grain: pulse_ratio = 2.0F; pulse_depth = 0.88F; break;
+                case EngineKind::particle: pulse_ratio = 0.75F; pulse_depth = 0.58F; break;
+                case EngineKind::derelict_bed: pulse_ratio = 0.25F; pulse_depth = 0.08F; break;
+                case EngineKind::footsteps: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::door: pulse_ratio = 0.37F; pulse_depth = 0.0F; break;
+                case EngineKind::pipe: pulse_ratio = 0.31F; pulse_depth = 0.06F; break;
+                case EngineKind::motor: pulse_ratio = 0.5F; pulse_depth = 0.09F; break;
+                case EngineKind::machinery: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::crowd: pulse_ratio = 0.2F; pulse_depth = 0.05F; break;
+                case EngineKind::metal: pulse_ratio = 0.43F; pulse_depth = 0.0F; break;
+                case EngineKind::wind: pulse_ratio = 0.17F; pulse_depth = 0.04F; break;
+                case EngineKind::birds: pulse_ratio = 0.67F; pulse_depth = 0.0F; break;
+                case EngineKind::insects: pulse_ratio = 2.0F; pulse_depth = 0.06F; break;
+                case EngineKind::signal: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::cave_air: pulse_ratio = 0.13F; pulse_depth = 0.03F; break;
+                case EngineKind::water_drip: pulse_ratio = 0.71F; pulse_depth = 0.0F; break;
+                case EngineKind::water_flow: pulse_ratio = 0.29F; pulse_depth = 0.04F; break;
+                case EngineKind::stone: pulse_ratio = 0.37F; pulse_depth = 0.0F; break;
+                case EngineKind::metro_traction: pulse_ratio = 0.25F; pulse_depth = 0.05F; break;
+                case EngineKind::rail_joint: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::brake: pulse_ratio = 0.41F; pulse_depth = 0.0F; break;
+                case EngineKind::carriage: pulse_ratio = 0.5F; pulse_depth = 0.04F; break;
+                case EngineKind::music_box: pulse_ratio = 0.5F; pulse_depth = 0.0F; break;
+                case EngineKind::toy_voice: pulse_ratio = 0.67F; pulse_depth = 0.06F; break;
+                case EngineKind::toy_gears: pulse_ratio = 1.0F; pulse_depth = 0.08F; break;
+                case EngineKind::lullaby: pulse_ratio = 0.25F; pulse_depth = 0.0F; break;
+                case EngineKind::sub_drone: pulse_ratio = 0.125F; pulse_depth = 0.025F; break;
+                case EngineKind::tape_drone: pulse_ratio = 0.17F; pulse_depth = 0.035F; break;
+                case EngineKind::bowed_metal: pulse_ratio = 0.21F; pulse_depth = 0.04F; break;
+                case EngineKind::earth_rumble: pulse_ratio = 0.10F; pulse_depth = 0.02F; break;
+                case EngineKind::diagnostic: break;
+                }
+                pulse_phases_[slot_index] += pulse_rate * pulse_ratio / config_.sample_rate;
+                pulse_phases_[slot_index] -= std::floor(pulse_phases_[slot_index]);
+                float slot_pulse_phase = pulse_phases_[slot_index] + chaos_value * 0.08F;
                 slot_pulse_phase -= std::floor(slot_pulse_phase);
                 const float pulse_wave = 0.5F + 0.5F * std::sin(slot_pulse_phase * kTwoPi - kPi * 0.5F);
                 const float pulse_envelope = std::pow(pulse_wave, 1.0F + pulse_macro * 10.0F);
-                const float pulse_gain = 1.0F - pulse_macro * 0.92F * (1.0F - pulse_envelope);
+                const float pulse_gain = 1.0F - pulse_macro * pulse_depth * (1.0F - pulse_envelope);
                 parameters.level *= pulse_gain * std::clamp(1.0F + chaos_value * 0.72F, 0.16F, 1.65F);
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
                     switch (settings.effects[effect_index].kind) {
                     case EffectKind::drive:
                     case EffectKind::crusher:
+                    case EffectKind::wavefolder:
                         parameters.effect_amount[effect_index] += texture_macro * 0.42F;
                         break;
                     case EffectKind::lowpass:
+                    case EffectKind::highpass:
                         parameters.effect_tone[effect_index] += texture_macro * 0.16F;
                         break;
                     case EffectKind::tremolo:
                         parameters.effect_amount[effect_index] += pulse_macro * 0.20F;
                         break;
                     case EffectKind::delay:
+                    case EffectKind::comb:
                         parameters.effect_amount[effect_index] += space_macro * 0.58F;
                         parameters.effect_feedback[effect_index] += space_macro * 0.46F;
                         parameters.effect_tone[effect_index] += space_macro * 0.13F;
+                        break;
+                    case EffectKind::ringmod:
+                        parameters.effect_amount[effect_index] += chaos_macro * 0.34F;
+                        parameters.effect_tone[effect_index] += pulse_macro * 0.12F;
                         break;
                     case EffectKind::bypass:
                         break;
@@ -573,14 +959,18 @@ public:
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
 
                 float mono = 0.0F;
-                if (settings.enabled && settings.engine == EngineKind::diagnostic) {
-                    mono = runtime.diagnostic.next(
+                if (settings.enabled) {
+                    mono = runtime.engine.next(
+                        settings.engine,
                         parameters.frequency,
                         parameters.timbre,
                         parameters.color,
                         parameters.motion,
                         parameters.texture,
-                        config_.sample_rate);
+                        session_.tempo_bpm,
+                        pulse_macro,
+                        chaos_macro,
+                        events_macro);
                 }
                 const float left_pan = std::sqrt(0.5F * (1.0F - parameters.pan));
                 const float right_pan = std::sqrt(0.5F * (1.0F + parameters.pan));
@@ -597,6 +987,9 @@ public:
                         parameters.effect_tone[effect_index],
                         parameters.effect_feedback[effect_index]);
                 }
+                if (capture_scope) {
+                    scope_frames[slot_index][scope_index] = 0.5F * (slot_frame.left + slot_frame.right);
+                }
                 mix.left += slot_frame.left;
                 mix.right += slot_frame.right;
                 const float slot_power = 0.5F * (slot_frame.left * slot_frame.left + slot_frame.right * slot_frame.right);
@@ -604,10 +997,6 @@ public:
                 slot_peak[slot_index] = std::max(
                     slot_peak[slot_index], std::max(std::abs(slot_frame.left), std::abs(slot_frame.right)));
             }
-
-            const float master = master_.next();
-            mix.left *= master;
-            mix.right *= master;
 
             constexpr float dc_coefficient = 0.995F;
             const StereoFrame dc_removed{
@@ -617,11 +1006,13 @@ public:
             dc_input_ = mix;
             dc_output_ = dc_removed;
 
-            constexpr float limiter_drive = 1.35F;
+            constexpr float limiter_drive = 1.85F;
+            const float master = master_.next();
             frame = {
-                std::tanh(dc_removed.left * limiter_drive),
-                std::tanh(dc_removed.right * limiter_drive),
+                std::tanh(dc_removed.left * limiter_drive) * master,
+                std::tanh(dc_removed.right * limiter_drive) * master,
             };
+            if (capture_scope) master_scope_frame[scope_index] = 0.5F * (frame.left + frame.right);
             const float master_power = 0.5F * (frame.left * frame.left + frame.right * frame.right);
             master_energy += static_cast<double>(master_power);
             master_peak = std::max(master_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
@@ -632,6 +1023,16 @@ public:
             publish_meter(slot_rms_[index], slot_rms_smooth_[index],
                 std::sqrt(static_cast<float>(slot_energy[index]) / frame_count), 0.18F);
             publish_peak(slot_peak_[index], slot_peak_smooth_[index], slot_peak[index]);
+            if (capture_scope) {
+                for (std::size_t point = 0; point < kScopePointCount; ++point) {
+                    slot_scope_[index][point].store(scope_frames[index][point], std::memory_order_relaxed);
+                }
+            }
+        }
+        if (capture_scope) {
+            for (std::size_t point = 0; point < kScopePointCount; ++point) {
+                master_scope_[point].store(master_scope_frame[point], std::memory_order_relaxed);
+            }
         }
         publish_meter(master_rms_, master_rms_smooth_,
             std::sqrt(static_cast<float>(master_energy) / frame_count), 0.20F);
@@ -664,6 +1065,12 @@ private:
         for (std::size_t index = 0; index < kSlotCount; ++index) {
             slot_rms_[index].store(0.0F, std::memory_order_relaxed);
             slot_peak_[index].store(0.0F, std::memory_order_relaxed);
+            for (auto& point : slot_scope_[index]) {
+                point.store(0.0F, std::memory_order_relaxed);
+            }
+        }
+        for (auto& point : master_scope_) {
+            point.store(0.0F, std::memory_order_relaxed);
         }
         master_rms_smooth_ = 0.0F;
         master_peak_smooth_ = 0.0F;
@@ -682,15 +1089,20 @@ private:
     SmoothedValue performance_pulse_{};
     SmoothedValue performance_chaos_{};
     SmoothedValue performance_space_{};
+    SmoothedValue performance_events_{};
     StereoFrame dc_input_{};
     StereoFrame dc_output_{};
     std::array<float, kSlotCount> chaos_current_{};
     std::array<float, kSlotCount> chaos_target_{};
+    std::array<float, kSlotCount> pulse_phases_{};
     float pulse_phase_{0.0F};
     float chaos_phase_{0.0F};
+    unsigned scope_publish_counter_{0U};
     std::uint32_t chaos_random_state_{0xD00D'F00DU};
     std::array<std::atomic<float>, kSlotCount> slot_rms_{};
     std::array<std::atomic<float>, kSlotCount> slot_peak_{};
+    std::array<std::array<std::atomic<float>, kScopePointCount>, kSlotCount> slot_scope_{};
+    std::array<std::atomic<float>, kScopePointCount> master_scope_{};
     std::atomic<float> master_rms_{0.0F};
     std::atomic<float> master_peak_{0.0F};
     std::atomic<float> pulse_meter_{0.0F};
@@ -714,7 +1126,7 @@ void AudioGraph::prepare(const AudioConfig& config, const Session& initial_sessi
 
 void AudioGraph::reset() noexcept { impl_->reset(); }
 bool AudioGraph::submit_session(const Session& session) noexcept { return impl_->submit_session(session); }
-void AudioGraph::process(std::span<StereoFrame> output) noexcept { impl_->process(output); }
+void AudioGraph::process(BufferView<StereoFrame> output) noexcept { impl_->process(output); }
 AudioTelemetry AudioGraph::telemetry() const noexcept { return impl_->telemetry(); }
 void AudioGraph::panic() noexcept { impl_->panic(); }
 float AudioGraph::sample_rate() const noexcept { return impl_->sample_rate(); }

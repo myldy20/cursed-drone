@@ -1,8 +1,16 @@
 # Сторонний код / Third-party notices
 
-На стадии `0.2.0` репозиторий **не содержит импортированного DSP-кода**. Исполняемый прототип использует стандартную библиотеку C++, системный SDL2 (когда он доступен), собственный диагностический генератор и public-domain bitmap-шрифт. Генератор предназначен для проверки аудиографа и будет скрыт из пользовательского списка после подключения продуктовых движков.
+Начиная с `0.3.0`, репозиторий содержит проверенный поднабор DaisySP. Он собирается непосредственно в core. В 0.6 прежние четыре источника сохранены для экспертного режима, SVF используется процедурными актёрами, а модель `Drip` создаёт капли мокрой пещеры. Старый диагностический генератор оставлен только для обратной совместимости.
 
-At `0.2.0`, the repository contains **no imported DSP implementation**. The executable prototype uses the C++ standard library, system SDL2 when present, an original diagnostic signal generator, and a public-domain bitmap font. The diagnostic source will be hidden from the product engine list once real engines land.
+Starting with `0.3.0`, the repository contains an audited DaisySP subset built directly into the core. In 0.6 the original four sources remain available in expert mode, SVF filters procedural actors, and the `Drip` model creates the Wet Cave drops. The diagnostic generator remains only for backward compatibility.
+
+## DaisySP DSP subset / Поднабор DaisySP
+
+| Project | Files | Pinned commit | License | Local use |
+| --- | --- | --- | --- | --- |
+| [electro-smith/DaisySP](https://github.com/electro-smith/DaisySP) | `third_party/daisysp/Source/{Utility,Filters,Noise,PhysicalModeling,Synthesis}`; exact list in the local README | `599511b740f8f3a9b8db72a0642aa45b8a23c3a3` | MIT; full text in `third_party/daisysp/LICENSE` | `TONE/RESONATOR/GRAINLET/PARTICLES`, SVF material filters and Perry Cook/Soundpipe `Drip` water model |
+
+The local `Drip` copy has a documented two-line resonator correction and three parameter setters; details are in the subset README. Other vendored upstream files remain unmodified. Product glue, macro mapping, event scheduling and the audio graph live in `src/audio.cpp` and `src/soundscape.cpp` under this repository's GPL-3.0-or-later license. The Designing Sound, STK and Faust links in the research documents are references only.
 
 ## Vendored UI font / Встроенный UI-шрифт
 
@@ -16,7 +24,6 @@ The unmodified upstream initializer data and full license text are stored beside
 
 | Project | Intended use | Upstream license | Integration rule |
 | --- | --- | --- | --- |
-| [DaisySP](https://github.com/electro-smith/DaisySP) | particle/noise DSP, filters and lightweight effects | MIT | vendor pinned commit; retain copyright/license |
 | [Mutable Instruments eurorack](https://github.com/pichenettes/eurorack) | macro, physical-model and granular engines | STM32 code: MIT; AVR areas: GPL-3.0 | import only audited files; preserve notices; follow naming guidelines |
 | [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) | optional heavy pitch/time effect | MIT | optional build feature and CPU warning |
 | [Airwindows](https://github.com/airwindows/airwindows) | selectively audited effects | MIT | import individual effects, not the entire collection |

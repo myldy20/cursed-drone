@@ -32,6 +32,10 @@ void test_i18n() {
     }
     expect(cd::tr(cd::Locale::ru, cd::TextId::app_name) != cd::tr(cd::Locale::en, cd::TextId::app_name),
         "localized app names should differ");
+    cd::SceneKind scene{};
+    expect(cd::parse_scene("factory", scene) && scene == cd::SceneKind::factory,
+        "scene names should parse");
+    expect(!cd::parse_scene("buzz", scene), "unknown scene names should fail");
 }
 
 void test_queue() {
@@ -48,13 +52,53 @@ void test_queue() {
 }
 
 void test_audio() {
+    auto default_session = cd::make_default_session();
+    expect(default_session.locale == cd::Locale::en, "English should be the default language");
+    expect(default_session.scene == cd::SceneKind::derelict, "the derelict landscape should be the default");
+    expect(default_session.slots[0].engine == cd::EngineKind::derelict_bed, "slot 1 should be the room bed");
+    expect(default_session.slots[1].engine == cd::EngineKind::footsteps, "slot 2 should be footsteps");
+    expect(default_session.slots[2].engine == cd::EngineKind::door, "slot 3 should be the door gesture");
+    expect(default_session.slots[3].engine == cd::EngineKind::pipe, "slot 4 should be the pipe layer");
+    constexpr std::array scenes{
+        cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
+        cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery,
+        cd::SceneKind::bunker, cd::SceneKind::power_grid, cd::SceneKind::deep_water,
+        cd::SceneKind::ash_field};
+    for (const auto scene : scenes) {
+        auto landscape = default_session;
+        cd::apply_scene_recipe(landscape, scene);
+        for (std::size_t active = 0; active < cd::kSlotCount; ++active) {
+            auto solo = landscape;
+            for (std::size_t slot = 0; slot < cd::kSlotCount; ++slot) {
+                solo.slots[slot].enabled = slot == active;
+                for (auto& effect : solo.slots[slot].effects) {
+                    effect.kind = cd::EffectKind::bypass;
+                }
+            }
+            cd::AudioGraph solo_graph;
+            solo_graph.prepare({48'000.0F, 256U}, solo);
+            std::array<cd::StereoFrame, 256> solo_block{};
+            double solo_energy = 0.0;
+            for (int block_index = 0; block_index < 750; ++block_index) {
+                solo_graph.process({solo_block.data(), solo_block.size()});
+                for (const auto frame : solo_block) {
+                    solo_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
+                }
+            }
+            if (solo_energy <= 0.01) {
+                std::cerr << "scene " << static_cast<int>(scene) << " actor " << active
+                          << " solo energy: " << solo_energy << '\n';
+            }
+            expect(solo_energy > 0.01, "every landscape actor should produce a non-silent solo output");
+        }
+    }
     cd::AudioGraph graph;
-    graph.prepare({48'000.0F, 256U}, cd::make_default_session());
+    graph.prepare({48'000.0F, 256U}, default_session);
     std::array<cd::StereoFrame, 256> block{};
     float peak = 0.0F;
     double energy = 0.0;
     for (int iteration = 0; iteration < 200; ++iteration) {
-        graph.process(block);
+        graph.process({block.data(), block.size()});
         for (const auto frame : block) {
             expect(std::isfinite(frame.left) && std::isfinite(frame.right), "audio must remain finite");
             peak = std::max(peak, std::max(std::abs(frame.left), std::abs(frame.right)));
@@ -66,38 +110,150 @@ void test_audio() {
     const auto telemetry = graph.telemetry();
     expect(telemetry.master_rms > 0.0F, "master telemetry should react to audio");
     expect(telemetry.slot_rms[0] > 0.0F, "slot telemetry should react to audio");
+    float scope_peak = 0.0F;
+    for (const float sample : telemetry.master_scope) {
+        scope_peak = std::max(scope_peak, std::abs(sample));
+    }
+    expect(scope_peak > 0.0F, "master scope should contain real audio samples");
 
     graph.panic();
-    graph.process(block);
+    graph.process({block.data(), block.size()});
     float panic_peak = 0.0F;
     for (const auto frame : block) {
         panic_peak = std::max(panic_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
     }
     expect(panic_peak == 0.0F, "panic should clear output and effect tails");
     expect(graph.telemetry().master_peak == 0.0F, "panic should clear telemetry");
+
+    auto restrained = default_session;
+    cd::apply_scene_recipe(restrained, cd::SceneKind::factory);
+    restrained.performance.texture = 0.05F;
+    restrained.performance.pulse = 0.05F;
+    restrained.performance.chaos = 0.05F;
+    restrained.performance.space = 0.05F;
+    restrained.performance.events = 0.05F;
+    auto extreme = restrained;
+    extreme.performance.texture = 0.92F;
+    extreme.performance.pulse = 0.88F;
+    extreme.performance.chaos = 0.84F;
+    extreme.performance.space = 0.90F;
+    extreme.performance.events = 0.86F;
+    cd::AudioGraph restrained_graph;
+    cd::AudioGraph extreme_graph;
+    restrained_graph.prepare({48'000.0F, 256U}, restrained);
+    extreme_graph.prepare({48'000.0F, 256U}, extreme);
+    std::array<cd::StereoFrame, 256> restrained_block{};
+    std::array<cd::StereoFrame, 256> extreme_block{};
+    double macro_difference = 0.0;
+    for (int iteration = 0; iteration < 500; ++iteration) {
+        restrained_graph.process({restrained_block.data(), restrained_block.size()});
+        extreme_graph.process({extreme_block.data(), extreme_block.size()});
+        for (std::size_t index = 0; index < restrained_block.size(); ++index) {
+            macro_difference += std::abs(static_cast<double>(
+                restrained_block[index].left - extreme_block[index].left));
+            macro_difference += std::abs(static_cast<double>(
+                restrained_block[index].right - extreme_block[index].right));
+        }
+    }
+    expect(macro_difference > 100.0, "scene macros should produce a materially different waveform");
+
+    const auto render_master_rms = [](float master_level) {
+        cd::Session controlled{};
+        controlled.master_level = master_level;
+        controlled.performance = {};
+        controlled.performance.fade = 1.0F;
+        controlled.slots[0].engine = cd::EngineKind::macro;
+        controlled.slots[0].frequency_hz = 82.41F;
+        controlled.slots[0].level = 1.0F;
+        controlled.slots[0].timbre = 0.0F;
+        controlled.slots[0].texture = 0.0F;
+        for (std::size_t index = 1; index < cd::kSlotCount; ++index) controlled.slots[index].enabled = false;
+        cd::AudioGraph controlled_graph;
+        controlled_graph.prepare({48'000.0F, 256U}, controlled);
+        std::array<cd::StereoFrame, 256> controlled_block{};
+        double controlled_energy = 0.0;
+        std::size_t samples = 0U;
+        for (int iteration = 0; iteration < 240; ++iteration) {
+            controlled_graph.process({controlled_block.data(), controlled_block.size()});
+            if (iteration < 40) continue;
+            for (const auto frame : controlled_block) {
+                controlled_energy += static_cast<double>(
+                    0.5F * (frame.left * frame.left + frame.right * frame.right));
+                ++samples;
+            }
+        }
+        return std::sqrt(controlled_energy / static_cast<double>(samples));
+    };
+    const double rms_10 = render_master_rms(0.10F);
+    const double rms_50 = render_master_rms(0.50F);
+    const double rms_100 = render_master_rms(1.0F);
+    expect(rms_10 < rms_50 * 0.24, "10% master should be much quieter than 50%");
+    expect(rms_50 < rms_100 * 0.56, "50% master should remain quieter than 100% after limiting");
+    expect(rms_50 > rms_100 * 0.44, "master control should be approximately linear after limiting");
+
+    constexpr std::array effects{
+        cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass,
+        cd::EffectKind::highpass, cd::EffectKind::tremolo, cd::EffectKind::delay,
+        cd::EffectKind::crusher, cd::EffectKind::wavefolder, cd::EffectKind::ringmod,
+        cd::EffectKind::comb};
+    for (const auto effect : effects) {
+        auto effected = default_session;
+        for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) effected.slots[slot].enabled = false;
+        for (auto& slot_effect : effected.slots[0].effects) slot_effect.kind = cd::EffectKind::bypass;
+        effected.slots[0].effects[0] = {effect, 0.72F, 0.57F, 0.61F};
+        cd::AudioGraph effect_graph;
+        effect_graph.prepare({48'000.0F, 256U}, effected);
+        std::array<cd::StereoFrame, 256> effect_block{};
+        double effect_energy = 0.0;
+        for (int iteration = 0; iteration < 300; ++iteration) {
+            effect_graph.process({effect_block.data(), effect_block.size()});
+            for (const auto frame : effect_block) {
+                expect(std::isfinite(frame.left) && std::isfinite(frame.right),
+                    "every effect should keep the audio finite");
+                effect_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
+            }
+        }
+        expect(effect_energy > 0.001, "every effect should preserve or produce audible output");
+    }
 }
 
 void test_session_roundtrip() {
     const auto path = std::filesystem::temp_directory_path() / "cursed-drone-test.cdrone";
     auto original = cd::make_default_session();
     original.locale = cd::Locale::en;
+    cd::apply_scene_recipe(original, cd::SceneKind::nursery);
+    original.slots[2].effects[1].kind = cd::EffectKind::ringmod;
     original.slots[2].effects[1].amount = 0.731F;
     original.performance.texture = 0.812F;
     original.performance.pulse = 0.643F;
     original.performance.chaos = 0.522F;
     original.performance.space = 0.407F;
+    original.performance.events = 0.467F;
     original.performance.fade = 0.381F;
+    original.fade_in_seconds = 2.75F;
+    original.fade_out_seconds = 8.25F;
+    original.scene_modified = true;
     std::string error;
     expect(cd::save_session(original, path, error), "session should save");
     cd::Session loaded{};
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
+    expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
+    expect(loaded.schema_version == 7, "session should upgrade to schema 7");
+    expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
+    expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
+        "new effect kinds should roundtrip");
     expect(std::abs(loaded.performance.texture - 0.812F) < 0.0001F, "texture macro should roundtrip");
     expect(std::abs(loaded.performance.pulse - 0.643F) < 0.0001F, "pulse macro should roundtrip");
     expect(std::abs(loaded.performance.chaos - 0.522F) < 0.0001F, "chaos macro should roundtrip");
     expect(std::abs(loaded.performance.space - 0.407F) < 0.0001F, "space macro should roundtrip");
+    expect(std::abs(loaded.performance.events - 0.467F) < 0.0001F, "events macro should roundtrip");
     expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "fade macro should roundtrip");
+    expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
+    expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
+    cd::apply_scene_recipe(loaded, cd::SceneKind::wasteland);
+    expect(!loaded.scene_modified, "loading a landscape recipe should clear the modified marker");
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
 }

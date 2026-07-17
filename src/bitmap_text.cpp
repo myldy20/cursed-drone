@@ -60,6 +60,26 @@ std::uint16_t glyph_index(std::uint32_t codepoint) noexcept {
     if (codepoint == 0x0451U) {
         return 0x089U;
     }
+    // The compact font has no typographic punctuation or arrow block. Keep
+    // interface copy readable instead of rendering a field of question marks.
+    switch (codepoint) {
+    case 0x00ABU: return static_cast<std::uint16_t>('<');
+    case 0x00BBU: return static_cast<std::uint16_t>('>');
+    case 0x00B7U: return static_cast<std::uint16_t>('.');
+    case 0x00D7U: return static_cast<std::uint16_t>('x');
+    case 0x2013U:
+    case 0x2014U:
+    case 0x2212U:
+    case 0x2500U: return static_cast<std::uint16_t>('-');
+    case 0x2026U: return static_cast<std::uint16_t>('.');
+    case 0x2190U: return static_cast<std::uint16_t>('<');
+    case 0x2191U: return static_cast<std::uint16_t>('^');
+    case 0x2192U: return static_cast<std::uint16_t>('>');
+    case 0x2193U: return static_cast<std::uint16_t>('v');
+    case 0x2514U:
+    case 0x251CU: return static_cast<std::uint16_t>('+');
+    default: break;
+    }
     if (codepoint >= 0x0410U && codepoint <= 0x042FU) {
         return kCyrillicUpper[codepoint - 0x0410U];
     }

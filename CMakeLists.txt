@@ -1,20 +1,43 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.16)
 
-project(cursed_drone VERSION 0.2.0 LANGUAGES CXX)
+project(cursed_drone VERSION 0.7.0 LANGUAGES CXX)
 
 option(CURSED_DRONE_BUILD_SDL "Build the SDL2 handheld/desktop frontend" ON)
 option(CURSED_DRONE_BUILD_TESTS "Build the test executable" ON)
+
+add_library(cursed_drone_daisysp STATIC
+    third_party/daisysp/Source/Filters/svf.cpp
+    third_party/daisysp/Source/Noise/clockednoise.cpp
+    third_party/daisysp/Source/Noise/grainlet.cpp
+    third_party/daisysp/Source/Noise/particle.cpp
+    third_party/daisysp/Source/PhysicalModeling/drip.cpp
+    third_party/daisysp/Source/PhysicalModeling/modalvoice.cpp
+    third_party/daisysp/Source/PhysicalModeling/resonator.cpp
+    third_party/daisysp/Source/Synthesis/oscillator.cpp
+)
+target_include_directories(cursed_drone_daisysp SYSTEM PUBLIC
+    third_party/daisysp/Source
+    third_party/daisysp/Source/Filters
+    third_party/daisysp/Source/Noise
+    third_party/daisysp/Source/PhysicalModeling
+    third_party/daisysp/Source/Synthesis
+    third_party/daisysp/Source/Utility
+)
+target_compile_features(cursed_drone_daisysp PUBLIC cxx_std_20)
 
 add_library(cursed_drone_core
     src/audio.cpp
     src/i18n.cpp
     src/session.cpp
+    src/soundscape.cpp
     src/wav.cpp
 )
+target_include_directories(cursed_drone_core PRIVATE src)
 target_include_directories(cursed_drone_core PUBLIC include)
 target_compile_features(cursed_drone_core PUBLIC cxx_std_20)
 target_compile_options(cursed_drone_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion)
+target_link_libraries(cursed_drone_core PRIVATE cursed_drone_daisysp)
 
 add_executable(cursed-drone src/main.cpp)
 target_link_libraries(cursed-drone PRIVATE cursed_drone_core)

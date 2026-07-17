@@ -5,7 +5,7 @@
 Это тестовый пакет, а не готовый релиз PortMaster. При первом запуске он:
 
 1. открывает SDL2 fullscreen;
-2. проигрывает текущий четырёхслотовый гудёж;
+2. проигрывает текущий процедурный ландшафт;
 3. показывает четыре пульсирующие панели;
 4. записывает video/audio/input параметры и все нажатые кнопки;
 5. после нажатия Start запускает основной прототип.
@@ -16,12 +16,23 @@
 
 | Button | Action |
 | --- | --- |
-| D-pad Left/Right | slot / слот |
-| D-pad Up/Down | parameter / параметр |
+| D-pad Left/Right | slot, or FX field / слот или поле FX |
+| D-pad Up/Down | parameter or FX cell / параметр или ячейка FX |
 | L1/R1 | decrease/increase / изменить значение |
 | A | mute slot / заглушить слот |
-| Y | RU/EN |
-| Start | finish first-run probe |
+| B | kill voices and FX tails / сбросить голоса и хвосты FX |
+| X | next screen / следующий экран |
+| Y | next slot on FX screen / следующий слот на экране FX |
+| Select/Back | auto-fade in/out / автофейд входа/выхода |
+| Start | change landscape on Scene or FX type on FX / сменить ландшафт или тип FX |
+
+Language and separate fade-in/fade-out times are changed on the `SETUP / НАСТР.` screen with L1/R1.
+
+Язык и отдельные скорости fade-in/fade-out меняются на экране `SETUP / НАСТР.` кнопками L1/R1.
+
+During the first-run probe, Start still finishes input capture and opens the main program.
+
+Во время первого диагностического запуска Start по-прежнему завершает сбор кнопок и открывает основную программу.
 
 ## EN
 

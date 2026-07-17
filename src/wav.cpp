@@ -33,7 +33,7 @@ void write_u32(std::ostream& output, std::uint32_t value) {
 
 bool write_wav_f32(
     const std::filesystem::path& path,
-    std::span<const StereoFrame> frames,
+    BufferView<const StereoFrame> frames,
     unsigned sample_rate,
     std::string& error) {
     constexpr std::uint16_t channels = 2U;
@@ -93,9 +93,10 @@ bool render_session_to_wav(
     constexpr std::size_t block_size = 512U;
     for (std::size_t offset = 0; offset < frame_count; offset += block_size) {
         const auto count = std::min(block_size, frame_count - offset);
-        graph.process(std::span<StereoFrame>{frames.data() + offset, count});
+        graph.process(BufferView<StereoFrame>{frames.data() + offset, count});
     }
-    return write_wav_f32(path, frames, sample_rate, error);
+    return write_wav_f32(
+        path, BufferView<const StereoFrame>{frames.data(), frames.size()}, sample_rate, error);
 }
 
 } // namespace cursed_drone
