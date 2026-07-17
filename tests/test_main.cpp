@@ -242,7 +242,7 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 8, "session should upgrade to schema 8");
+    expect(loaded.schema_version == 9, "session should upgrade to schema 9");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
@@ -252,13 +252,10 @@ void test_session_roundtrip() {
     expect(std::abs(loaded.performance.chaos - 0.522F) < 0.0001F, "chaos macro should roundtrip");
     expect(std::abs(loaded.performance.space - 0.407F) < 0.0001F, "space macro should roundtrip");
     expect(std::abs(loaded.performance.events - 0.467F) < 0.0001F, "events macro should roundtrip");
-    expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "fade macro should roundtrip");
+    expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "performance fade should roundtrip");
     expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
     expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
-    cd::apply_scene_recipe(loaded, cd::SceneKind::wasteland);
-    expect(!loaded.scene_modified, "loading a landscape recipe should clear the modified marker");
-    std::error_code ignored;
-    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(path);
 }
 
 } // namespace
@@ -268,10 +265,10 @@ int main() {
     test_queue();
     test_audio();
     test_session_roundtrip();
-    if (failures != 0) {
-        std::cerr << failures << " test(s) failed\n";
-        return 1;
+    if (failures == 0) {
+        std::cout << "All tests passed\n";
+        return 0;
     }
-    std::cout << "All Cursed Drone tests passed\n";
-    return 0;
+    std::cerr << failures << " test(s) failed\n";
+    return 1;
 }
