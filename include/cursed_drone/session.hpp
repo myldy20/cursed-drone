@@ -13,7 +13,7 @@ inline constexpr std::size_t kEffectsPerSlot = 4;
 inline constexpr std::size_t kModulatorsPerSlot = 4;
 
 enum class Locale { ru, en };
-enum class SceneKind { derelict, factory, wasteland, wet_cave, metro, nursery };
+enum class SceneKind { derelict, factory, wasteland, wet_cave, metro, nursery, bunker, power_grid, deep_water, ash_field };
 enum class EngineKind {
     diagnostic,
     macro,
@@ -43,7 +43,11 @@ enum class EngineKind {
     music_box,
     toy_voice,
     toy_gears,
-    lullaby
+    lullaby,
+    sub_drone,
+    tape_drone,
+    bowed_metal,
+    earth_rumble
 };
 enum class EffectKind {
     bypass,
@@ -113,7 +117,7 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{6};
+    unsigned schema_version{7};
     Locale locale{Locale::en};
     SceneKind scene{SceneKind::derelict};
     bool scene_modified{false};

@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/runner/work/cursed-drone/cursed-drone/tools/apply_v07_patch.py", line 646, in <module>
-    replace("README.md", "| выход | Escape | Menu / системная кнопка |",
-  File "/home/runner/work/cursed-drone/cursed-drone/tools/apply_v07_patch.py", line 18, in replace
-    raise RuntimeError(f"{path}: expected {expected} copies, found {count}: {old[:80]!r}")
-RuntimeError: README.md: expected 1 copies, found 0: '| выход | Escape | Menu / системная кнопка |'

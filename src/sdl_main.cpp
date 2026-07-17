@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -57,6 +58,8 @@ struct UiState {
     Uint32 kill_flash_until{0};
     int displayed_cpu_percent{0};
     Uint32 cpu_display_updated_at{0};
+    bool start_held{false};
+    bool select_held{false};
 };
 
 void audio_callback(void* userdata, Uint8* bytes, int byte_count) {
@@ -74,6 +77,11 @@ void audio_callback(void* userdata, Uint8* bytes, int byte_count) {
 }
 
 bool ru(const cd::Session& session) noexcept { return session.locale == cd::Locale::ru; }
+
+bool handheld() noexcept {
+    const char* value = std::getenv("CURSED_DRONE_HANDHELD");
+    return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
 
 std::string_view page_name(Page page, bool russian) noexcept {
     switch (page) {
@@ -102,6 +110,10 @@ std::string_view scene_name(cd::SceneKind scene, bool russian) noexcept {
     case cd::SceneKind::wet_cave: return russian ? "МОКРАЯ ПЕЩЕРА" : "WET CAVE";
     case cd::SceneKind::metro: return russian ? "ВАГОН МЕТРО" : "METRO CAR";
     case cd::SceneKind::nursery: return russian ? "СЛОМАННАЯ ДЕТСКАЯ" : "BROKEN NURSERY";
+    case cd::SceneKind::bunker: return russian ? "БУНКЕР" : "BUNKER";
+    case cd::SceneKind::power_grid: return russian ? "ПОДСТАНЦИЯ" : "POWER GRID";
+    case cd::SceneKind::deep_water: return russian ? "ГЛУБИНА" : "DEEP WATER";
+    case cd::SceneKind::ash_field: return russian ? "ПЕПЕЛ" : "ASH FIELD";
     }
     return {};
 }
@@ -137,6 +149,10 @@ std::string_view engine_name(cd::EngineKind kind, bool russian) noexcept {
     case cd::EngineKind::toy_voice: return russian ? "ГОЛОС" : "TOY VOICE";
     case cd::EngineKind::toy_gears: return russian ? "ШЕСТЕРНИ" : "GEARS";
     case cd::EngineKind::lullaby: return russian ? "КОЛЫБЕЛЬ" : "LULLABY";
+    case cd::EngineKind::sub_drone: return russian ? "САБ-ДРОН" : "SUB DRONE";
+    case cd::EngineKind::tape_drone: return russian ? "ЛЕНТА" : "TAPE DRONE";
+    case cd::EngineKind::bowed_metal: return russian ? "СМЫЧОК" : "BOWED METAL";
+    case cd::EngineKind::earth_rumble: return russian ? "ГУД ЗЕМЛИ" : "EARTH RUMBLE";
     }
     return {};
 }
@@ -289,6 +305,26 @@ std::string_view slot_name(int index, const cd::SlotSettings& slot, cd::Locale l
         constexpr std::array<std::string_view, 4> e{"STRING", "GLASS", "PACE", "DECAY"};
         return (russian ? r : e)[static_cast<std::size_t>(character)];
     }
+    case cd::EngineKind::sub_drone: {
+        constexpr std::array<std::string_view, 4> r{"ТЕЛО", "ОБЕРТОН", "ДЫХАНИЕ", "ВОЗДУХ"};
+        constexpr std::array<std::string_view, 4> e{"BODY", "OVERTONE", "BREATH", "AIR"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::tape_drone: {
+        constexpr std::array<std::string_view, 4> r{"ЛЕНТА", "ТОН", "ПЛАВАНИЕ", "ИЗНОС"};
+        constexpr std::array<std::string_view, 4> e{"TAPE", "TONE", "WOW", "WEAR"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::bowed_metal: {
+        constexpr std::array<std::string_view, 4> r{"КОРПУС", "МОДЫ", "СМЫЧОК", "ТРЕНИЕ"};
+        constexpr std::array<std::string_view, 4> e{"BODY", "MODES", "BOW", "FRICTION"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::earth_rumble: {
+        constexpr std::array<std::string_view, 4> r{"МАССА", "ПОРОДА", "СДВИГ", "УДАРЫ"};
+        constexpr std::array<std::string_view, 4> e{"MASS", "GROUND", "HEAVE", "IMPACTS"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
     case cd::EngineKind::diagnostic:
         break;
     }
@@ -356,7 +392,7 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
     return {};
 }
 
-constexpr std::array<std::array<cd::EngineKind, 4>, 7> kEngineGroups{{
+constexpr std::array<std::array<cd::EngineKind, 4>, 8> kEngineGroups{{
     {cd::EngineKind::macro, cd::EngineKind::body, cd::EngineKind::grain, cd::EngineKind::particle},
     {cd::EngineKind::derelict_bed, cd::EngineKind::footsteps, cd::EngineKind::door, cd::EngineKind::pipe},
     {cd::EngineKind::motor, cd::EngineKind::machinery, cd::EngineKind::crowd, cd::EngineKind::metal},
@@ -364,6 +400,7 @@ constexpr std::array<std::array<cd::EngineKind, 4>, 7> kEngineGroups{{
     {cd::EngineKind::cave_air, cd::EngineKind::water_drip, cd::EngineKind::water_flow, cd::EngineKind::stone},
     {cd::EngineKind::metro_traction, cd::EngineKind::rail_joint, cd::EngineKind::brake, cd::EngineKind::carriage},
     {cd::EngineKind::music_box, cd::EngineKind::toy_voice, cd::EngineKind::toy_gears, cd::EngineKind::lullaby},
+    {cd::EngineKind::sub_drone, cd::EngineKind::tape_drone, cd::EngineKind::bowed_metal, cd::EngineKind::earth_rumble},
 }};
 
 constexpr std::array<cd::EffectKind, 10> kEffectKinds{
@@ -371,17 +408,19 @@ constexpr std::array<cd::EffectKind, 10> kEffectKinds{
     cd::EffectKind::tremolo, cd::EffectKind::delay, cd::EffectKind::crusher, cd::EffectKind::wavefolder,
     cd::EffectKind::ringmod, cd::EffectKind::comb};
 
-constexpr std::array<cd::SceneKind, 6> kScenes{
+constexpr std::array<cd::SceneKind, 10> kScenes{
     cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
-    cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery};
+    cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery,
+    cd::SceneKind::bunker, cd::SceneKind::power_grid, cd::SceneKind::deep_water,
+    cd::SceneKind::ash_field};
 
 int parameter(const UiState& state) noexcept;
 
 std::string_view engine_group_name(int group, bool russian) noexcept {
-    constexpr std::array<std::string_view, 7> r{
-        "ОБЩИЕ", "ЗАБРОШЕННОЕ", "ЦЕХ", "ПУСТОШЬ", "ПЕЩЕРА", "МЕТРО", "ДЕТСКАЯ"};
-    constexpr std::array<std::string_view, 7> e{
-        "GENERAL", "DERELICT", "FACTORY", "WASTELAND", "CAVE", "METRO", "NURSERY"};
+    constexpr std::array<std::string_view, 8> r{
+        "ОБЩИЕ", "ЗАБРОШЕННОЕ", "ЦЕХ", "ПУСТОШЬ", "ПЕЩЕРА", "МЕТРО", "ДЕТСКАЯ", "ДРОНЫ"};
+    constexpr std::array<std::string_view, 8> e{
+        "GENERAL", "DERELICT", "FACTORY", "WASTELAND", "CAVE", "METRO", "NURSERY", "DRONES"};
     return (russian ? r : e)[static_cast<std::size_t>(group)];
 }
 
@@ -551,7 +590,7 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
         }
         const float value = slot_value(session.slots[static_cast<std::size_t>(slot)], selected);
         if (selected == 1) {
-            std::snprintf(result, sizeof(result), "%.1f Hz", static_cast<double>(value));
+            std::snprintf(result, sizeof(result), "%.1f HZ", static_cast<double>(value));
         } else if (selected == 7) {
             std::snprintf(result, sizeof(result), "%+.2f", static_cast<double>(value));
         } else {
@@ -581,7 +620,7 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
         if (selected == 0) {
             return session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
         }
-        std::snprintf(result, sizeof(result), "%.2f s", static_cast<double>(
+        std::snprintf(result, sizeof(result), "%.2f S", static_cast<double>(
             selected == 1 ? session.fade_in_seconds : session.fade_out_seconds));
         break;
     }
@@ -785,25 +824,48 @@ void scope(
     SDL_RenderDrawLine(renderer, peak_x, meter_y - 1, peak_x, meter_y + meter_height - 1);
 }
 
+
+void segmented_output_meter(SDL_Renderer* renderer, int x, int y, int width, int height,
+    float rms, float peak) {
+    constexpr int segments = 10;
+    constexpr int gap = 2;
+    const int segment_width = (width - gap * (segments - 1)) / segments;
+    const float level = std::clamp(rms * 4.0F, 0.0F, 1.0F);
+    const float peak_level = std::clamp(peak * 1.8F, 0.0F, 1.0F);
+    for (int index = 0; index < segments; ++index) {
+        const float threshold = static_cast<float>(index + 1) / static_cast<float>(segments);
+        SDL_Color color = threshold > 0.82F ? SDL_Color{225, 77, 96, 255}
+            : (threshold > 0.62F ? SDL_Color{224, 154, 63, 255} : SDL_Color{80, 169, 154, 255});
+        if (level < threshold) color = {38, 33, 48, 255};
+        fill(renderer, {x + index * (segment_width + gap), y, segment_width, height}, color);
+        if (peak_level >= threshold && peak_level < threshold + 0.1F) {
+            outline(renderer, {x + index * (segment_width + gap), y, segment_width, height}, kInk);
+        }
+    }
+}
+
 void draw_header(
     SDL_Renderer* renderer,
     const cd::Session& session,
     const cd::AudioTelemetry& telemetry,
     const UiState& state) {
     cd::ui::draw_text(renderer, 10, 5, cd::tr(session.locale, cd::TextId::app_name), kInk, 2);
-    char live_status[32]{};
-    std::snprintf(live_status, sizeof(live_status), "DSP %d  OUT %d",
-        state.displayed_cpu_percent,
-        static_cast<int>(std::lround(std::clamp(telemetry.master_peak, 0.0F, 1.0F) * 100.0F)));
-    std::string status{live_status};
+    std::string status;
     SDL_Color status_color = kDim;
     if (state.auto_fade) {
         status = std::string{ru(session) ? "ФЕЙД " : "FADE "} +
             (state.fade_target > session.performance.fade ? "IN " : "OUT ") +
             std::to_string(static_cast<int>(std::lround(session.performance.fade * 100.0F))) + "%";
         status_color = {91, 218, 179, 255};
+    } else {
+        status = "DSP " + std::to_string(state.displayed_cpu_percent) + "%";
+        if (state.displayed_cpu_percent >= 75) status_color = kFxColors[0];
     }
-    cd::ui::draw_text(renderer, kWidth - 10 - cd::ui::text_width(status), 9, status, status_color);
+    const int meter_width = 80;
+    const int meter_x = kWidth - 10 - meter_width;
+    cd::ui::draw_text(renderer, meter_x - 12 - cd::ui::text_width(status), 9, status, status_color);
+    segmented_output_meter(renderer, meter_x, 8, meter_width, 9,
+        telemetry.master_rms, telemetry.master_peak);
     constexpr std::array<Page, 5> pages{
         Page::perform, Page::slot, Page::effects, Page::master, Page::setup};
     for (int index = 0; index < 5; ++index) {
@@ -865,9 +927,12 @@ void draw_scene(
         cd::ui::draw_text(renderer, 484 - cd::ui::text_width(high), y + 13, high, selected ? kInk : kDim);
     }
 
-    cd::ui::draw_text(renderer, 22, 250,
-        ru(session) ? "ДОРОЖКИ  </> ВЫБОР  A/D УРОВЕНЬ  SPACE MUTE" :
-                      "TRACKS  </> SELECT  A/D LEVEL  SPACE MUTE",
+    const char* track_help = handheld()
+        ? (ru(session) ? "ДОРОЖКИ  </> ВЫБОР  L/R УРОВЕНЬ  B MUTE"
+                       : "TRACKS  </> SELECT  L/R LEVEL  B MUTE")
+        : (ru(session) ? "ДОРОЖКИ  </> ВЫБОР  A/D УРОВЕНЬ  SPACE MUTE"
+                       : "TRACKS  </> SELECT  A/D LEVEL  SPACE MUTE");
+    cd::ui::draw_text(renderer, 22, 250, track_help,
         state.scene_track_focus ? kInk : kDim);
     for (int index = 0; index < 4; ++index) {
         const int x = 18 + index * 119;
@@ -1155,8 +1220,9 @@ void draw_master(
         state.auto_fade ? SDL_Color{91, 218, 179, 255} : kPurple);
     char next_fade[64]{};
     const bool will_open = session.performance.fade <= 0.5F;
-    std::snprintf(next_fade, sizeof(next_fade), "%s F: %s %.1fS",
-        ru(session) ? "КНОПКА" : "BUTTON",
+    const char* fade_button = handheld() ? "SELECT" : "F";
+    std::snprintf(next_fade, sizeof(next_fade), "%s %s: %s %.1fS",
+        ru(session) ? "КНОПКА" : "BUTTON", fade_button,
         will_open ? (ru(session) ? "ОТКРЫТЬ ЗА" : "OPEN IN")
                   : (ru(session) ? "ЗАКРЫТЬ ЗА" : "CLOSE IN"),
         static_cast<double>(will_open ? session.fade_in_seconds : session.fade_out_seconds));
@@ -1187,7 +1253,7 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
             shown_value = session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
         } else {
             char seconds_text[16]{};
-            std::snprintf(seconds_text, sizeof(seconds_text), "%.2f s", static_cast<double>(
+            std::snprintf(seconds_text, sizeof(seconds_text), "%.2f S", static_cast<double>(
                 index == 1 ? session.fade_in_seconds : session.fade_out_seconds));
             shown_value = seconds_text;
         }
@@ -1203,8 +1269,10 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
         state.displayed_cpu_percent);
     cd::ui::draw_text(renderer, 32, 292, cpu, state.displayed_cpu_percent < 75 ? kDim : kFxColors[0]);
     cd::ui::draw_text(renderer, 32, 316,
-        ru(session) ? "A/D: ИЗМЕНИТЬ / НАСТРОЙКИ СОХРАНЯЮТСЯ АВТОМАТИЧЕСКИ"
-                    : "A/D: CHANGE / SETTINGS ARE SAVED AUTOMATICALLY",
+        handheld()
+            ? (ru(session) ? "L/R: ИЗМЕНИТЬ / АВТОСОХРАНЕНИЕ" : "L/R: CHANGE / AUTOSAVE")
+            : (ru(session) ? "A/D: ИЗМЕНИТЬ / НАСТРОЙКИ СОХРАНЯЮТСЯ АВТОМАТИЧЕСКИ"
+                           : "A/D: CHANGE / SETTINGS ARE SAVED AUTOMATICALLY"),
         kDim);
 }
 
@@ -1215,12 +1283,15 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
         cd::ui::draw_text(renderer, 92, 66,
             ru(session) ? "ЦЕЛЕВОЙ ЛАНДШАФТ" : "TARGET LANDSCAPE", kInk, 2);
         for (int item = 0; item < static_cast<int>(kScenes.size()); ++item) {
-            const int y = 104 + item * 34;
+            const int column = item / 5;
+            const int row = item % 5;
+            const int x = 92 + column * 164;
+            const int y = 110 + row * 42;
             const bool selected = item == state.picker_item;
-            if (selected) fill(renderer, {92, y - 5, 328, 24}, {73, 46, 104, 255});
+            if (selected) fill(renderer, {x, y - 5, 154, 24}, {73, 46, 104, 255});
             const std::string label = std::to_string(item + 1) + "  " +
                 std::string{scene_name(kScenes[static_cast<std::size_t>(item)], ru(session))};
-            cd::ui::draw_text(renderer, 102, y, label, selected ? kInk : kDim);
+            cd::ui::draw_text(renderer, x + 8, y, label, selected ? kInk : kDim);
         }
         cd::ui::draw_text(renderer, 92, 334,
             ru(session) ? "^/V ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
@@ -1292,24 +1363,36 @@ void draw(
         draw_picker(renderer, session, state);
     }
     std::string help;
-    if (state.picker != Picker::none) {
+    if (handheld()) {
+        if (state.picker != Picker::none) {
+            help = ru(session) ? "B ВЫБРАТЬ  A НАЗАД" : "B SELECT  A BACK";
+        } else if (state.page == Page::effects) {
+            help = ru(session) ? "</> FX  ^/V ПАРАМ.  Y ДОРОЖКА  L/R ЗНАЧ.  START ТИП"
+                               : "</> FX  ^/V PARAM  Y TRACK  L/R VALUE  START TYPE";
+        } else if (state.page == Page::perform) {
+            help = ru(session) ? "^/V РУЧКА/УРОВ.  </> ДОРОЖКА  B MUTE  START ЛАНДШАФТ"
+                               : "^/V MACRO/LEVEL  </> TRACK  B MUTE  START LANDSCAPE";
+        } else if (state.page == Page::master || state.page == Page::setup) {
+            help = ru(session) ? "^/V ПАРАМ.  L/R ЗНАЧ.  X ЭКРАН  SELECT ФЕЙД  A KILL"
+                               : "^/V PARAM  L/R VALUE  X PAGE  SELECT FADE  A KILL";
+        } else {
+            help = ru(session) ? "</> СЛОТ  ^/V ПАРАМ.  L/R ЗНАЧ.  START ВЫБОР  B MUTE"
+                               : "</> SLOT  ^/V PARAM  L/R VALUE  START CHOOSE  B MUTE";
+        }
+    } else if (state.picker != Picker::none) {
         help = ru(session) ? "E ВЫБРАТЬ  ESC НАЗАД" : "E SELECT  ESC BACK";
     } else if (state.page == Page::effects) {
-        help = ru(session)
-            ? "</> FX  ^/V ПАРАМ.  S ДОРОЖКА  A/D ЗНАЧ.  E ТИП"
-            : "</> FX  ^/V PARAM  S TRACK  A/D VALUE  E TYPE";
+        help = ru(session) ? "</> FX  ^/V ПАРАМ.  S ДОРОЖКА  A/D ЗНАЧ.  E ТИП"
+                           : "</> FX  ^/V PARAM  S TRACK  A/D VALUE  E TYPE";
     } else if (state.page == Page::perform) {
-        help = ru(session)
-            ? "^/V РУЧКА/УРОВ.  </> ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ"
-            : "^/V MACRO/LEVEL  </> TRACK  SPACE MUTE  E LANDSCAPE";
+        help = ru(session) ? "^/V РУЧКА/УРОВ.  </> ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ"
+                           : "^/V MACRO/LEVEL  </> TRACK  SPACE MUTE  E LANDSCAPE";
     } else if (state.page == Page::master || state.page == Page::setup) {
-        help = ru(session)
-            ? "^/V ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
-            : "^/V PARAM  A/D VALUE  TAB PAGE  F FADE  K KILL";
+        help = ru(session) ? "^/V ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
+                           : "^/V PARAM  A/D VALUE  TAB PAGE  F FADE  K KILL";
     } else {
-        help = ru(session)
-            ? "</> СЛОТ  ^/V ПАРАМ.  A/D ЗНАЧ.  E ВЫБОР  SPACE MUTE"
-            : "</> SLOT  ^/V PARAM  A/D VALUE  E CHOOSE  SPACE MUTE";
+        help = ru(session) ? "</> СЛОТ  ^/V ПАРАМ.  A/D ЗНАЧ.  E ВЫБОР  SPACE MUTE"
+                           : "</> SLOT  ^/V PARAM  A/D VALUE  E CHOOSE  SPACE MUTE";
     }
     cd::ui::draw_text(renderer, 10, 370, help, kDim);
     if (state.held_direction != 0 && now - state.held_since >= 1'050U) {
@@ -1526,6 +1609,12 @@ int main(int, char**) {
                 if (event.key.keysym.sym == SDLK_a) stop_adjust(state, -1);
                 if (event.key.keysym.sym == SDLK_d) stop_adjust(state, 1);
             } else if (event.type == SDL_CONTROLLERBUTTONDOWN) {
+                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_START) state.start_held = true;
+                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_BACK) state.select_held = true;
+                if (state.start_held && state.select_held) {
+                    running = false;
+                    continue;
+                }
                 if (state.picker != Picker::none) {
                     switch (event.cbutton.button) {
                     case SDL_CONTROLLER_BUTTON_DPAD_LEFT: move_picker(state, -1, 0); break;
@@ -1574,6 +1663,8 @@ int main(int, char**) {
                     }
                 }
             } else if (event.type == SDL_CONTROLLERBUTTONUP) {
+                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_START) state.start_held = false;
+                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_BACK) state.select_held = false;
                 if (event.cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER) stop_adjust(state, -1);
                 if (event.cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) stop_adjust(state, 1);
             }
@@ -1604,7 +1695,7 @@ int main(int, char**) {
         }
         update_title(window, session, state);
         draw(renderer, session, audio.graph.telemetry(), state, now);
-        SDL_Delay(8);
+        SDL_Delay(16);
     }
 
     if (save_pending && !autosave_path.empty()) {

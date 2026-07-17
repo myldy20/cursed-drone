@@ -61,7 +61,9 @@ void test_audio() {
     expect(default_session.slots[3].engine == cd::EngineKind::pipe, "slot 4 should be the pipe layer");
     constexpr std::array scenes{
         cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
-        cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery};
+        cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery,
+        cd::SceneKind::bunker, cd::SceneKind::power_grid, cd::SceneKind::deep_water,
+        cd::SceneKind::ash_field};
     for (const auto scene : scenes) {
         auto landscape = default_session;
         cd::apply_scene_recipe(landscape, scene);
@@ -237,7 +239,7 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 6, "session should upgrade to schema 6");
+    expect(loaded.schema_version == 7, "session should upgrade to schema 7");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,

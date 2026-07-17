@@ -301,6 +301,10 @@ public:
         case EngineKind::toy_voice:
         case EngineKind::toy_gears:
         case EngineKind::lullaby:
+        case EngineKind::sub_drone:
+        case EngineKind::tape_drone:
+        case EngineKind::bowed_metal:
+        case EngineKind::earth_rumble:
             return soundscape_.next(
                 kind, frequency, timbre, color, motion, texture,
                 tempo_bpm, pulse, chaos, events);
@@ -647,6 +651,7 @@ public:
         dc_output_ = {};
         pulse_phase_ = 0.0F;
         chaos_phase_ = 0.0F;
+        scope_publish_counter_ = 0U;
         pulse_phases_.fill(0.0F);
         chaos_current_.fill(0.0F);
         chaos_target_.fill(0.0F);
@@ -722,11 +727,14 @@ public:
         float last_chaos_activity = 0.0F;
         std::array<std::array<float, kScopePointCount>, kSlotCount> scope_frames{};
         std::array<float, kScopePointCount> master_scope_frame{};
+        const bool capture_scope = ++scope_publish_counter_ >= 4U;
+        if (capture_scope) scope_publish_counter_ = 0U;
 
         for (std::size_t frame_index = 0; frame_index < output.size(); ++frame_index) {
             auto& frame = output[frame_index];
-            const std::size_t scope_index = std::min(
-                kScopePointCount - 1U, frame_index * kScopePointCount / output.size());
+            const std::size_t scope_index = capture_scope
+                ? std::min(kScopePointCount - 1U, frame_index * kScopePointCount / output.size())
+                : 0U;
             const float texture_macro = macro_curve(performance_texture_.next());
             const float pulse_macro = macro_curve(performance_pulse_.next());
             const float chaos_macro = macro_curve(performance_chaos_.next());
@@ -821,6 +829,15 @@ public:
                     parameters.motion += events_macro * 0.25F + chaos_macro * 0.18F;
                     parameters.texture += texture_macro * 0.46F;
                     break;
+                case EngineKind::sub_drone:
+                case EngineKind::tape_drone:
+                case EngineKind::bowed_metal:
+                case EngineKind::earth_rumble:
+                    parameters.timbre += texture_macro * 0.12F;
+                    parameters.color += texture_macro * 0.10F;
+                    parameters.motion += events_macro * 0.12F + chaos_macro * 0.08F;
+                    parameters.texture += texture_macro * 0.30F;
+                    break;
                 case EngineKind::footsteps:
                 case EngineKind::machinery:
                 case EngineKind::birds:
@@ -887,6 +904,10 @@ public:
                 case EngineKind::toy_voice: pulse_ratio = 0.67F; pulse_depth = 0.06F; break;
                 case EngineKind::toy_gears: pulse_ratio = 1.0F; pulse_depth = 0.08F; break;
                 case EngineKind::lullaby: pulse_ratio = 0.25F; pulse_depth = 0.0F; break;
+                case EngineKind::sub_drone: pulse_ratio = 0.125F; pulse_depth = 0.025F; break;
+                case EngineKind::tape_drone: pulse_ratio = 0.17F; pulse_depth = 0.035F; break;
+                case EngineKind::bowed_metal: pulse_ratio = 0.21F; pulse_depth = 0.04F; break;
+                case EngineKind::earth_rumble: pulse_ratio = 0.10F; pulse_depth = 0.02F; break;
                 case EngineKind::diagnostic: break;
                 }
                 pulse_phases_[slot_index] += pulse_rate * pulse_ratio / config_.sample_rate;
@@ -966,7 +987,9 @@ public:
                         parameters.effect_tone[effect_index],
                         parameters.effect_feedback[effect_index]);
                 }
-                scope_frames[slot_index][scope_index] = 0.5F * (slot_frame.left + slot_frame.right);
+                if (capture_scope) {
+                    scope_frames[slot_index][scope_index] = 0.5F * (slot_frame.left + slot_frame.right);
+                }
                 mix.left += slot_frame.left;
                 mix.right += slot_frame.right;
                 const float slot_power = 0.5F * (slot_frame.left * slot_frame.left + slot_frame.right * slot_frame.right);
@@ -989,7 +1012,7 @@ public:
                 std::tanh(dc_removed.left * limiter_drive) * master,
                 std::tanh(dc_removed.right * limiter_drive) * master,
             };
-            master_scope_frame[scope_index] = 0.5F * (frame.left + frame.right);
+            if (capture_scope) master_scope_frame[scope_index] = 0.5F * (frame.left + frame.right);
             const float master_power = 0.5F * (frame.left * frame.left + frame.right * frame.right);
             master_energy += static_cast<double>(master_power);
             master_peak = std::max(master_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
@@ -1000,12 +1023,16 @@ public:
             publish_meter(slot_rms_[index], slot_rms_smooth_[index],
                 std::sqrt(static_cast<float>(slot_energy[index]) / frame_count), 0.18F);
             publish_peak(slot_peak_[index], slot_peak_smooth_[index], slot_peak[index]);
-            for (std::size_t point = 0; point < kScopePointCount; ++point) {
-                slot_scope_[index][point].store(scope_frames[index][point], std::memory_order_relaxed);
+            if (capture_scope) {
+                for (std::size_t point = 0; point < kScopePointCount; ++point) {
+                    slot_scope_[index][point].store(scope_frames[index][point], std::memory_order_relaxed);
+                }
             }
         }
-        for (std::size_t point = 0; point < kScopePointCount; ++point) {
-            master_scope_[point].store(master_scope_frame[point], std::memory_order_relaxed);
+        if (capture_scope) {
+            for (std::size_t point = 0; point < kScopePointCount; ++point) {
+                master_scope_[point].store(master_scope_frame[point], std::memory_order_relaxed);
+            }
         }
         publish_meter(master_rms_, master_rms_smooth_,
             std::sqrt(static_cast<float>(master_energy) / frame_count), 0.20F);
@@ -1070,6 +1097,7 @@ private:
     std::array<float, kSlotCount> pulse_phases_{};
     float pulse_phase_{0.0F};
     float chaos_phase_{0.0F};
+    unsigned scope_publish_counter_{0U};
     std::uint32_t chaos_random_state_{0xD00D'F00DU};
     std::array<std::atomic<float>, kSlotCount> slot_rms_{};
     std::array<std::atomic<float>, kSlotCount> slot_peak_{};

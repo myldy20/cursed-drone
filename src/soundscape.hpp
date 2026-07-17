@@ -78,6 +78,14 @@ private:
         float texture, float activity, float tension, float evolution) noexcept;
     float lullaby(float frequency, float timbre, float color, float motion,
         float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept;
+    float sub_drone(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float tape_drone(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float bowed_metal(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float earth_rumble(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
 
     float noise() noexcept;
     float sine(std::size_t index, float frequency) noexcept;

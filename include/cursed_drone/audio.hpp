@@ -12,7 +12,7 @@
 
 namespace cursed_drone {
 
-inline constexpr std::size_t kScopePointCount = 64;
+inline constexpr std::size_t kScopePointCount = 32;
 
 struct StereoFrame {
     float left{0.0F};

@@ -48,6 +48,10 @@ constexpr std::array kScenes{
     std::pair{SceneKind::wet_cave, std::string_view{"wet_cave"}},
     std::pair{SceneKind::metro, std::string_view{"metro"}},
     std::pair{SceneKind::nursery, std::string_view{"nursery"}},
+    std::pair{SceneKind::bunker, std::string_view{"bunker"}},
+    std::pair{SceneKind::power_grid, std::string_view{"power_grid"}},
+    std::pair{SceneKind::deep_water, std::string_view{"deep_water"}},
+    std::pair{SceneKind::ash_field, std::string_view{"ash_field"}},
 };
 
 constexpr std::array kEngines{
@@ -80,6 +84,10 @@ constexpr std::array kEngines{
     std::pair{EngineKind::toy_voice, std::string_view{"toy_voice"}},
     std::pair{EngineKind::toy_gears, std::string_view{"toy_gears"}},
     std::pair{EngineKind::lullaby, std::string_view{"lullaby"}},
+    std::pair{EngineKind::sub_drone, std::string_view{"sub_drone"}},
+    std::pair{EngineKind::tape_drone, std::string_view{"tape_drone"}},
+    std::pair{EngineKind::bowed_metal, std::string_view{"bowed_metal"}},
+    std::pair{EngineKind::earth_rumble, std::string_view{"earth_rumble"}},
 };
 
 constexpr std::array kEffects{
@@ -268,52 +276,76 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
 
     switch (scene) {
     case SceneKind::derelict:
-        set_actor(0U, EngineKind::derelict_bed, 41.2F, 0.22F, 0.32F, 0.18F, 0.20F, 0.28F, -0.12F);
-        set_actor(1U, EngineKind::footsteps, 58.0F, 0.50F, 0.34F, 0.34F, 0.48F, 0.38F, -0.28F);
-        set_actor(2U, EngineKind::door, 92.0F, 0.44F, 0.42F, 0.24F, 0.48F, 0.25F, 0.22F);
-        set_actor(3U, EngineKind::pipe, 73.0F, 0.48F, 0.38F, 0.27F, 0.42F, 0.25F, 0.45F);
+        set_actor(0U, EngineKind::derelict_bed, 34.0F, 0.20F, 0.24F, 0.14F, 0.17F, 0.34F, -0.12F);
+        set_actor(1U, EngineKind::footsteps, 48.0F, 0.46F, 0.28F, 0.25F, 0.36F, 0.26F, -0.30F);
+        set_actor(2U, EngineKind::door, 72.0F, 0.42F, 0.30F, 0.18F, 0.34F, 0.18F, 0.24F);
+        set_actor(3U, EngineKind::pipe, 54.0F, 0.44F, 0.26F, 0.19F, 0.31F, 0.17F, 0.44F);
         break;
     case SceneKind::factory:
-        set_actor(0U, EngineKind::motor, 34.0F, 0.44F, 0.42F, 0.58F, 0.42F, 0.31F, -0.42F);
-        set_actor(1U, EngineKind::machinery, 51.0F, 0.46F, 0.55F, 0.62F, 0.50F, 0.34F, 0.28F);
-        set_actor(2U, EngineKind::crowd, 118.0F, 0.36F, 0.50F, 0.34F, 0.56F, 0.22F, -0.10F);
-        set_actor(3U, EngineKind::metal, 76.0F, 0.64F, 0.70F, 0.30F, 0.66F, 0.28F, 0.48F);
+        set_actor(0U, EngineKind::motor, 30.0F, 0.40F, 0.32F, 0.42F, 0.30F, 0.34F, -0.42F);
+        set_actor(1U, EngineKind::machinery, 44.0F, 0.42F, 0.44F, 0.46F, 0.38F, 0.27F, 0.28F);
+        set_actor(2U, EngineKind::tape_drone, 38.0F, 0.36F, 0.26F, 0.20F, 0.24F, 0.24F, -0.08F);
+        set_actor(3U, EngineKind::metal, 61.0F, 0.56F, 0.48F, 0.20F, 0.46F, 0.18F, 0.48F);
         break;
     case SceneKind::wasteland:
-        set_actor(0U, EngineKind::wind, 46.0F, 0.38F, 0.52F, 0.42F, 0.40F, 0.30F, -0.18F);
-        set_actor(1U, EngineKind::birds, 760.0F, 0.42F, 0.62F, 0.36F, 0.32F, 0.22F, 0.46F);
-        set_actor(2U, EngineKind::insects, 1320.0F, 0.48F, 0.58F, 0.52F, 0.50F, 0.18F, -0.50F);
-        set_actor(3U, EngineKind::signal, 86.0F, 0.35F, 0.44F, 0.28F, 0.30F, 0.24F, 0.18F);
+        set_actor(0U, EngineKind::earth_rumble, 22.0F, 0.32F, 0.20F, 0.18F, 0.28F, 0.30F, -0.10F);
+        set_actor(1U, EngineKind::wind, 38.0F, 0.32F, 0.34F, 0.28F, 0.29F, 0.24F, 0.34F);
+        set_actor(2U, EngineKind::insects, 620.0F, 0.38F, 0.42F, 0.34F, 0.30F, 0.075F, -0.52F);
+        set_actor(3U, EngineKind::signal, 58.0F, 0.28F, 0.30F, 0.18F, 0.24F, 0.12F, 0.22F);
         break;
     case SceneKind::wet_cave:
-        set_actor(0U, EngineKind::cave_air, 31.0F, 0.24F, 0.28F, 0.18F, 0.38F, 0.28F, -0.18F);
-        set_actor(1U, EngineKind::water_drip, 510.0F, 0.48F, 0.62F, 0.22F, 0.34F, 0.34F, 0.34F);
-        set_actor(2U, EngineKind::water_flow, 96.0F, 0.42F, 0.54F, 0.36F, 0.58F, 0.24F, -0.42F);
-        set_actor(3U, EngineKind::stone, 67.0F, 0.62F, 0.38F, 0.20F, 0.44F, 0.24F, 0.46F);
+        set_actor(0U, EngineKind::earth_rumble, 20.0F, 0.34F, 0.22F, 0.12F, 0.30F, 0.28F, -0.18F);
+        set_actor(1U, EngineKind::water_drip, 320.0F, 0.44F, 0.48F, 0.17F, 0.25F, 0.16F, 0.38F);
+        set_actor(2U, EngineKind::water_flow, 72.0F, 0.38F, 0.40F, 0.28F, 0.44F, 0.25F, -0.42F);
+        set_actor(3U, EngineKind::stone, 48.0F, 0.54F, 0.28F, 0.14F, 0.34F, 0.16F, 0.46F);
         break;
     case SceneKind::metro:
-        set_actor(0U, EngineKind::metro_traction, 43.0F, 0.48F, 0.36F, 0.56F, 0.34F, 0.30F, -0.16F);
-        set_actor(1U, EngineKind::rail_joint, 72.0F, 0.58F, 0.52F, 0.60F, 0.42F, 0.30F, 0.34F);
-        set_actor(2U, EngineKind::brake, 190.0F, 0.52F, 0.64F, 0.34F, 0.62F, 0.20F, -0.44F);
-        set_actor(3U, EngineKind::carriage, 54.0F, 0.38F, 0.46F, 0.48F, 0.52F, 0.27F, 0.42F);
+        set_actor(0U, EngineKind::tape_drone, 31.0F, 0.36F, 0.22F, 0.24F, 0.24F, 0.31F, -0.18F);
+        set_actor(1U, EngineKind::rail_joint, 58.0F, 0.52F, 0.42F, 0.48F, 0.34F, 0.27F, 0.34F);
+        set_actor(2U, EngineKind::brake, 125.0F, 0.46F, 0.48F, 0.26F, 0.40F, 0.10F, -0.44F);
+        set_actor(3U, EngineKind::carriage, 42.0F, 0.34F, 0.34F, 0.38F, 0.42F, 0.27F, 0.42F);
         break;
     case SceneKind::nursery:
-        set_actor(0U, EngineKind::music_box, 220.0F, 0.56F, 0.70F, 0.22F, 0.28F, 0.26F, -0.34F);
-        set_actor(1U, EngineKind::toy_voice, 104.0F, 0.58F, 0.46F, 0.32F, 0.54F, 0.22F, 0.30F);
-        set_actor(2U, EngineKind::toy_gears, 38.0F, 0.46F, 0.30F, 0.48F, 0.52F, 0.24F, -0.48F);
-        set_actor(3U, EngineKind::lullaby, 294.0F, 0.42F, 0.62F, 0.18F, 0.32F, 0.20F, 0.46F);
+        set_actor(0U, EngineKind::tape_drone, 32.0F, 0.42F, 0.20F, 0.20F, 0.34F, 0.28F, -0.22F);
+        set_actor(1U, EngineKind::music_box, 178.0F, 0.48F, 0.52F, 0.17F, 0.20F, 0.15F, 0.32F);
+        set_actor(2U, EngineKind::toy_gears, 31.0F, 0.40F, 0.24F, 0.34F, 0.38F, 0.17F, -0.46F);
+        set_actor(3U, EngineKind::lullaby, 196.0F, 0.38F, 0.46F, 0.14F, 0.22F, 0.11F, 0.44F);
+        break;
+    case SceneKind::bunker:
+        set_actor(0U, EngineKind::sub_drone, 27.5F, 0.42F, 0.18F, 0.12F, 0.26F, 0.36F, -0.12F);
+        set_actor(1U, EngineKind::derelict_bed, 43.0F, 0.28F, 0.24F, 0.16F, 0.22F, 0.24F, 0.18F);
+        set_actor(2U, EngineKind::pipe, 49.0F, 0.38F, 0.22F, 0.17F, 0.24F, 0.13F, -0.42F);
+        set_actor(3U, EngineKind::machinery, 36.0F, 0.44F, 0.34F, 0.28F, 0.30F, 0.17F, 0.46F);
+        break;
+    case SceneKind::power_grid:
+        set_actor(0U, EngineKind::tape_drone, 30.0F, 0.48F, 0.24F, 0.22F, 0.28F, 0.34F, -0.18F);
+        set_actor(1U, EngineKind::motor, 42.0F, 0.36F, 0.30F, 0.30F, 0.25F, 0.23F, 0.26F);
+        set_actor(2U, EngineKind::bowed_metal, 52.0F, 0.54F, 0.38F, 0.24F, 0.40F, 0.18F, -0.44F);
+        set_actor(3U, EngineKind::earth_rumble, 18.0F, 0.34F, 0.20F, 0.16F, 0.32F, 0.26F, 0.42F);
+        break;
+    case SceneKind::deep_water:
+        set_actor(0U, EngineKind::earth_rumble, 16.0F, 0.46F, 0.18F, 0.12F, 0.42F, 0.34F, -0.18F);
+        set_actor(1U, EngineKind::water_flow, 54.0F, 0.34F, 0.28F, 0.24F, 0.52F, 0.22F, 0.32F);
+        set_actor(2U, EngineKind::cave_air, 24.0F, 0.30F, 0.20F, 0.14F, 0.38F, 0.24F, -0.40F);
+        set_actor(3U, EngineKind::bowed_metal, 38.0F, 0.48F, 0.26F, 0.18F, 0.34F, 0.14F, 0.44F);
+        break;
+    case SceneKind::ash_field:
+        set_actor(0U, EngineKind::sub_drone, 24.0F, 0.38F, 0.14F, 0.16F, 0.32F, 0.34F, -0.16F);
+        set_actor(1U, EngineKind::wind, 32.0F, 0.28F, 0.24F, 0.22F, 0.42F, 0.20F, 0.30F);
+        set_actor(2U, EngineKind::bowed_metal, 44.0F, 0.50F, 0.30F, 0.20F, 0.36F, 0.14F, -0.46F);
+        set_actor(3U, EngineKind::signal, 46.0F, 0.24F, 0.26F, 0.14F, 0.18F, 0.08F, 0.42F);
         break;
     }
 
     for (auto& slot : session.slots) {
-        slot.effects[0] = {EffectKind::lowpass, 0.08F, 0.72F, 0.0F};
-        slot.effects[1] = {EffectKind::drive, 0.025F, 0.50F, 0.0F};
-        slot.effects[2] = {EffectKind::delay, 0.08F, 0.18F, 0.22F};
+        slot.effects[0] = {EffectKind::lowpass, 0.16F, 0.52F, 0.0F};
+        slot.effects[1] = {EffectKind::drive, 0.012F, 0.44F, 0.0F};
+        slot.effects[2] = {EffectKind::delay, 0.055F, 0.20F, 0.18F};
         slot.effects[3] = {EffectKind::bypass, 0.0F, 0.50F, 0.0F};
     }
-    session.slots[0].effects[2].amount = 0.04F;
-    session.slots[2].effects[2] = {EffectKind::delay, 0.16F, 0.24F, 0.32F};
-    session.slots[3].effects[2] = {EffectKind::delay, 0.13F, 0.34F, 0.36F};
+    session.slots[0].effects[2].amount = 0.025F;
+    session.slots[2].effects[2] = {EffectKind::delay, 0.10F, 0.24F, 0.26F};
+    session.slots[3].effects[2] = {EffectKind::delay, 0.09F, 0.34F, 0.28F};
 
     if (scene == SceneKind::wet_cave) {
         session.slots[0].effects[0] = {EffectKind::lowpass, 0.24F, 0.42F, 0.0F};
@@ -326,10 +358,23 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
         session.slots[2].effects[0] = {EffectKind::highpass, 0.20F, 0.36F, 0.0F};
         session.slots[3].effects[1] = {EffectKind::drive, 0.06F, 0.50F, 0.0F};
     } else if (scene == SceneKind::nursery) {
-        session.slots[0].effects[2] = {EffectKind::delay, 0.27F, 0.48F, 0.52F};
-        session.slots[1].effects[1] = {EffectKind::ringmod, 0.16F, 0.23F, 0.0F};
-        session.slots[2].effects[1] = {EffectKind::crusher, 0.18F, 0.34F, 0.0F};
-        session.slots[3].effects[2] = {EffectKind::comb, 0.14F, 0.52F, 0.38F};
+        session.slots[0].effects[0] = {EffectKind::lowpass, 0.28F, 0.34F, 0.0F};
+        session.slots[1].effects[2] = {EffectKind::delay, 0.18F, 0.46F, 0.42F};
+        session.slots[2].effects[1] = {EffectKind::drive, 0.035F, 0.34F, 0.0F};
+        session.slots[3].effects[2] = {EffectKind::comb, 0.08F, 0.48F, 0.24F};
+    } else if (scene == SceneKind::bunker) {
+        session.slots[0].effects[0] = {EffectKind::lowpass, 0.30F, 0.30F, 0.0F};
+        session.slots[1].effects[2] = {EffectKind::delay, 0.08F, 0.62F, 0.38F};
+    } else if (scene == SceneKind::power_grid) {
+        session.slots[0].effects[1] = {EffectKind::drive, 0.035F, 0.44F, 0.0F};
+        session.slots[2].effects[2] = {EffectKind::comb, 0.08F, 0.28F, 0.22F};
+    } else if (scene == SceneKind::deep_water) {
+        session.slots[0].effects[0] = {EffectKind::lowpass, 0.38F, 0.24F, 0.0F};
+        session.slots[1].effects[0] = {EffectKind::lowpass, 0.22F, 0.42F, 0.0F};
+        session.slots[2].effects[2] = {EffectKind::delay, 0.14F, 0.70F, 0.48F};
+    } else if (scene == SceneKind::ash_field) {
+        session.slots[0].effects[0] = {EffectKind::lowpass, 0.32F, 0.28F, 0.0F};
+        session.slots[1].effects[2] = {EffectKind::delay, 0.11F, 0.66F, 0.40F};
     }
 }
 
@@ -416,7 +461,8 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     const auto schema = values.find("cursed_drone_session");
     if (schema == values.end() ||
         (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
-            schema->second != "4" && schema->second != "5" && schema->second != "6")) {
+            schema->second != "4" && schema->second != "5" && schema->second != "6" &&
+            schema->second != "7")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -497,10 +543,11 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     loaded.performance.space = std::clamp(loaded.performance.space, 0.0F, 1.0F);
     loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
-    if (schema->second != "4" && schema->second != "5" && schema->second != "6") {
+    if (schema->second != "4" && schema->second != "5" && schema->second != "6" &&
+        schema->second != "7") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 6;
+    loaded.schema_version = 7;
     session = loaded;
     return true;
 }

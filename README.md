@@ -8,7 +8,7 @@
 
 The primary target is the **TrimUI Brick**. The SDL2 frontend and compact C++ core are also intended for Anbernic devices, PortMaster-compatible systems, macOS and desktop Linux.
 
-> Status: experimental `0.6.0` development version. Six procedural landscapes and twenty-eight selectable engines work now. This iteration concentrates on different acoustic causes: water, stone, rail motion, braking, broken toys and sparse pseudo-musical objects rather than additional flavours of continuous drone.
+> Status: public test `0.7.0` version. Ten procedural landscapes and thirty-two selectable engines work now. This iteration concentrates on different acoustic causes: water, stone, rail motion, braking, broken toys and sparse pseudo-musical objects rather than additional flavours of continuous drone.
 
 ## Concept
 
@@ -27,8 +27,8 @@ Time exists as a shared process tempo, long cycles, envelopes, random walks and 
 ## What works
 
 - four simultaneous audio slots;
-- six landscape recipes: `Derelict`, `Factory`, `Wasteland`, `Wet Cave`, `Metro Car` and `Broken Nursery`;
-- twenty-four procedural actors with independent gesture, material and timing models;
+- ten landscape recipes, including four bass-first scenes: `Bunker`, `Power Grid`, `Deep Water` and `Ash Field`;
+- twenty-eight procedural actors, including four continuous low-frequency drone engines;
 - four general engines: tone, resonator, grainlet and particles;
 - four serial FX slots per actor: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb or empty;
 - four modulators per actor: sine, triangle, sample-and-hold and random walk;
@@ -60,7 +60,7 @@ The direction of navigation matches the screen: left/right selects a horizontal 
 | select next source track on FX | S | Y |
 | run output fade | F | Select / Back |
 | clear voices and effect tails | K | B outside a picker |
-| exit | Escape | Menu / OS action |
+| exit | Escape | hold Start, then press Select |
 
 A short value press changes most parameters by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds. On `Scene`, Down after the last macro focuses the track strip so A/D edits its level directly. Mute stops new source audio but keeps effect tails; `Kill` clears both source and effect memory.
 
@@ -127,7 +127,11 @@ The macOS autosave is stored under the SDL preference directory. A previous Russ
 | `Wasteland` | multi-rate wind, bird phrases, insect swarm, rising signal and bounded pause | airy high end, large gaps and isolated signals |
 | `Wet Cave` | cave pressure, MIT DaisySP physical drips, turbulent water and stone impacts | cold, deep, wet and strongly event-driven |
 | `Metro Car` | traction inverter, paired rail joints, braking scrape and carriage rattle | enclosed, accelerating and mechanically rhythmic |
-| `Broken Nursery` | music-box tines, bent toy voice, gears and sparse decaying lullaby notes | intimate, fragile, deliberately uncanny |
+| `Broken Nursery` | tape bed, quieter music box, gears and sparse decaying lullaby notes | intimate and uncanny without dominating the whole instrument |
+| `Bunker` | sub drone, room pressure, pipe resonance and distant machinery | heavy enclosed low end with sparse movement |
+| `Power Grid` | tape drone, motor, bowed metal and ground rumble | electrical mass, transformer vibration and restrained metal |
+| `Deep Water` | earth rumble, water flow, cave air and bowed body | slow pressure, depth and very little high-frequency ornament |
+| `Ash Field` | sub drone, low wind, bowed metal and distant signal | wide, dry and bass-led with rare foreground events |
 
 Recorded samples are not used. The current procedural layer combines a pinned DaisySP subset with project-specific excitation, material and event scheduling. The [synthesis catalogue](docs/synthesis-catalog.en.md) records the next audited engines and why preset assets require a separate licence check.
 
@@ -155,7 +159,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 
 Главная целевая консоль — **TrimUI Brick**. SDL2-интерфейс и компактное C++-ядро также рассчитаны на устройства Anbernic, PortMaster-совместимые системы, macOS и обычный Linux.
 
-> Статус: экспериментальная версия `0.6.0` в разработке. Уже работают шесть процедурных ландшафтов и двадцать восемь выбираемых движков. Эта итерация посвящена разным причинам звука: воде, камню, движению по рельсам, торможению, сломанным игрушкам и редким псевдомузыкальным объектам, а не новым сортам непрерывного гула.
+> Статус: публичная тестовая версия `0.7.0`. Работают десять процедурных ландшафтов и тридцать два выбираемых движка. Эта итерация посвящена разным причинам звука: воде, камню, движению по рельсам, торможению, сломанным игрушкам и редким псевдомузыкальным объектам, а не новым сортам непрерывного гула.
 
 ## Идея
 
@@ -174,8 +178,8 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 ## Что работает
 
 - четыре одновременно звучащих аудиослота;
-- шесть рецептов: `Заброшенное`, `Цех`, `Пустошь`, `Мокрая пещера`, `Вагон метро` и `Сломанная детская`;
-- двадцать четыре процедурных актёра с независимыми моделями жеста, материала и времени;
+- десять рецептов, включая четыре басовых сцены: `Бункер`, `Подстанция`, `Глубина` и `Пепел`;
+- двадцать восемь процедурных актёров, включая четыре непрерывных низкочастотных дроновых движка;
 - четыре общих движка: тон, резонатор, зерно и частицы;
 - четыре последовательных FX-слота на актёра: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb или пусто;
 - четыре модулятора на актёра: sine, triangle, sample-and-hold и random walk;
@@ -207,7 +211,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 | следующая исходная дорожка на FX | S | Y |
 | запустить фейд выхода | F | Select / Back |
 | очистить голоса и хвосты эффектов | K | B вне окна выбора |
-| выход | Escape | Menu / действие ОС |
+| выход | Escape | удерживать Start, затем нажать Select |
 
 Короткое нажатие меняет большинство параметров на один процент. Удержание ускоряется через 1,05 секунды и ещё раз через 2,2 секунды. На экране `Сцена` нажатие Down после последнего макроса переводит фокус на дорожки, и A/D напрямую меняет уровень выбранной. Mute прекращает новый сигнал, сохраняя хвосты эффектов; `Kill` очищает и источник, и память эффектов.
 
