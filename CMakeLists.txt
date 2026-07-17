@@ -41,6 +41,7 @@ if(CURSED_DRONE_ENABLE_PLAITS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_part
     target_compile_definitions(cursed_drone_plaits PUBLIC TEST=1)
     target_compile_features(cursed_drone_plaits PUBLIC cxx_std_20)
     target_compile_options(cursed_drone_plaits PRIVATE
+        -include cstdio
         -Wno-unused-variable -Wno-unused-local-typedefs -Wno-sign-compare)
     set(CURSED_DRONE_HAS_PLAITS 1)
     message(STATUS "Cursed Drone experiment: pinned upstream Plaits enabled")
