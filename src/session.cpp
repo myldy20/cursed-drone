@@ -294,10 +294,10 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
         set_actor(3U, EngineKind::signal, 58.0F, 0.28F, 0.30F, 0.18F, 0.24F, 0.12F, 0.22F);
         break;
     case SceneKind::wet_cave:
-        set_actor(0U, EngineKind::earth_rumble, 20.0F, 0.34F, 0.22F, 0.12F, 0.30F, 0.28F, -0.18F);
-        set_actor(1U, EngineKind::water_drip, 320.0F, 0.44F, 0.48F, 0.17F, 0.25F, 0.16F, 0.38F);
-        set_actor(2U, EngineKind::water_flow, 72.0F, 0.38F, 0.40F, 0.28F, 0.44F, 0.25F, -0.42F);
-        set_actor(3U, EngineKind::stone, 48.0F, 0.54F, 0.28F, 0.14F, 0.34F, 0.16F, 0.46F);
+        set_actor(0U, EngineKind::earth_rumble, 20.0F, 0.34F, 0.22F, 0.12F, 0.30F, 0.40F, -0.18F);
+        set_actor(1U, EngineKind::water_drip, 240.0F, 0.38F, 0.34F, 0.13F, 0.20F, 0.08F, 0.38F);
+        set_actor(2U, EngineKind::water_flow, 58.0F, 0.34F, 0.28F, 0.22F, 0.36F, 0.18F, -0.42F);
+        set_actor(3U, EngineKind::stone, 42.0F, 0.46F, 0.24F, 0.12F, 0.28F, 0.11F, 0.46F);
         break;
     case SceneKind::metro:
         set_actor(0U, EngineKind::tape_drone, 31.0F, 0.36F, 0.22F, 0.24F, 0.24F, 0.31F, -0.18F);
@@ -324,10 +324,10 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
         set_actor(3U, EngineKind::earth_rumble, 18.0F, 0.34F, 0.20F, 0.16F, 0.32F, 0.26F, 0.42F);
         break;
     case SceneKind::deep_water:
-        set_actor(0U, EngineKind::earth_rumble, 16.0F, 0.46F, 0.18F, 0.12F, 0.42F, 0.34F, -0.18F);
-        set_actor(1U, EngineKind::water_flow, 54.0F, 0.34F, 0.28F, 0.24F, 0.52F, 0.22F, 0.32F);
-        set_actor(2U, EngineKind::cave_air, 24.0F, 0.30F, 0.20F, 0.14F, 0.38F, 0.24F, -0.40F);
-        set_actor(3U, EngineKind::bowed_metal, 38.0F, 0.48F, 0.26F, 0.18F, 0.34F, 0.14F, 0.44F);
+        set_actor(0U, EngineKind::earth_rumble, 15.0F, 0.52F, 0.12F, 0.10F, 0.46F, 0.50F, -0.18F);
+        set_actor(1U, EngineKind::water_flow, 42.0F, 0.30F, 0.18F, 0.18F, 0.40F, 0.11F, 0.32F);
+        set_actor(2U, EngineKind::cave_air, 22.0F, 0.24F, 0.12F, 0.10F, 0.30F, 0.10F, -0.40F);
+        set_actor(3U, EngineKind::sub_drone, 30.0F, 0.34F, 0.10F, 0.12F, 0.24F, 0.12F, 0.44F);
         break;
     case SceneKind::ash_field:
         set_actor(0U, EngineKind::sub_drone, 24.0F, 0.38F, 0.14F, 0.16F, 0.32F, 0.34F, -0.16F);
@@ -371,7 +371,9 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
     } else if (scene == SceneKind::deep_water) {
         session.slots[0].effects[0] = {EffectKind::lowpass, 0.38F, 0.24F, 0.0F};
         session.slots[1].effects[0] = {EffectKind::lowpass, 0.22F, 0.42F, 0.0F};
-        session.slots[2].effects[2] = {EffectKind::delay, 0.14F, 0.70F, 0.48F};
+        session.slots[2].effects[0] = {EffectKind::lowpass, 0.34F, 0.22F, 0.0F};
+        session.slots[2].effects[2] = {EffectKind::delay, 0.08F, 0.70F, 0.34F};
+        session.slots[3].effects[0] = {EffectKind::lowpass, 0.30F, 0.26F, 0.0F};
     } else if (scene == SceneKind::ash_field) {
         session.slots[0].effects[0] = {EffectKind::lowpass, 0.32F, 0.28F, 0.0F};
         session.slots[1].effects[2] = {EffectKind::delay, 0.11F, 0.66F, 0.40F};
