@@ -6,12 +6,18 @@ on:
     paths:
       - tools/apply_v07_patch.py
       - .github/workflows/apply-v07.yml
+  pull_request:
+    branches: [agent/v0.6-sound-engines]
+    paths:
+      - tools/apply_v07_patch.py
+      - .github/workflows/apply-v07.yml
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,5 +35,3 @@ jobs:
           git add -A
           git commit -m "v0.7: production sound and Brick interface"
           git push origin HEAD:agent/v0.7-brick-production
-
-# This second push activates the newly added workflow.
