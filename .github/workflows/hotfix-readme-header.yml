@@ -1,0 +1,44 @@
+name: hotfix-readme-header
+
+on:
+  push:
+    branches: [hotfix/readme-header]
+    paths:
+      - assets/branding/cursed-drone-banner.svg
+      - .github/workflows/hotfix-readme-header.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/readme-header
+          fetch-depth: 0
+      - name: Replace broken header asset and badge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('README.md')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              'assets/branding/cursed-drone-banner.png': 'assets/branding/cursed-drone-banner.svg',
+              'https://img.shields.io/badge/version-0.8.0-public_test-eee2c5': 'https://img.shields.io/badge/version-0.8.0-eee2c5',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing expected README text: {old}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit README fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Fix README header rendering"
+          git push origin HEAD:hotfix/readme-header
