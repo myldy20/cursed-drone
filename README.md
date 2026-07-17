@@ -1,18 +1,55 @@
-# Cursed Drone / Проклятый гудёж
+<p align="center">
+  <img src="assets/branding/cursed-drone-banner.png" alt="Cursed Drone — developed by Myldy design" width="100%">
+</p>
 
-[![build](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg)](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml)
+<p align="center">
+  <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
+  <img src="https://img.shields.io/badge/version-0.8.0-public_test-eee2c5" alt="version 0.8.0">
+  <img src="https://img.shields.io/badge/verified-TrimUI_Brick-50a99a" alt="verified on TrimUI Brick">
+  <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
+</p>
 
-**English** · [Русский ниже](#русский)
+<p align="center">
+  <strong>English</strong> · <a href="#русский">Русский</a>
+</p>
 
-`Cursed Drone` is a native procedural soundscape instrument for small Linux handhelds. It creates environments, foreground gestures and controllable sonic disasters without a tracker grid or the need to program a conventional synthesizer.
+# Cursed Drone
 
-The primary target is the **TrimUI Brick**. The SDL2 frontend and compact C++ core are also intended for Anbernic devices, PortMaster-compatible systems, macOS and desktop Linux.
+**Cursed Drone** is a native procedural drone and soundscape instrument for small Linux handhelds. It generates continuous beds, mechanical movement, environmental events and controllable sonic disasters without samples, a tracker grid or conventional note programming.
 
-> Status: public test `0.7.0` version. Ten procedural landscapes and thirty-two selectable engines work now. This iteration concentrates on different acoustic causes: water, stone, rail motion, braking, broken toys and sparse pseudo-musical objects rather than additional flavours of continuous drone.
+> **Hardware status:** real-device testing has only been completed on a **TrimUI Brick running Knulli**. The PortMaster package is built for AArch64 and may work on other compatible handhelds, but those devices are currently **unverified**.
 
-## Concept
+## Install
 
-A landscape contains four actors with different jobs: a continuous bed, movement, a foreground gesture and a distant or textural layer. In detailed mode every actor remains a slot with four serial effects and four modulation lanes.
+- **[Detailed installation guide — English](docs/install.en.md)**
+- **[Подробная инструкция по установке — Русский](docs/install.ru.md)**
+
+### TrimUI Brick quick install
+
+1. Download the latest `cursed-drone-portmaster-aarch64` artifact from the latest successful [GitHub Actions build](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml).
+2. GitHub wraps artifacts in an outer ZIP. Open it and locate the inner `curseddrone-aarch64-test.zip` package.
+3. Extract the inner package into:
+
+```text
+/userdata/roms/ports/
+```
+
+The final layout must contain:
+
+```text
+/userdata/roms/ports/Cursed Drone.sh
+/userdata/roms/ports/curseddrone/cursed-drone-sdl.aarch64
+/userdata/roms/ports/curseddrone/assets/cursed-drone-splash.bmp
+```
+
+4. Refresh the game list or reboot, then open **Ports → Cursed Drone**.
+5. On the first launch, press **Start** after the hardware probe.
+
+To save and exit: **hold Start, then press Select**.
+
+## What it does
+
+A landscape contains four procedural actors with different roles: a continuous bed, movement, a foreground gesture and a distant or textural layer.
 
 ```text
 actor / engine -> FX 1 -> FX 2 -> FX 3 -> FX 4 -> level / pan
@@ -22,278 +59,181 @@ actor / engine -> FX 1 -> FX 2 -> FX 3 -> FX 4 -> level / pan
 four actors -> mixer -> DC blocker -> soft limiter -> master / fade -> SDL audio
 ```
 
-Time exists as a shared process tempo, long cycles, envelopes, random walks and bounded probabilistic events. There is no note table, transport or tracker sequence.
-
-## What works
+Current public-test features:
 
 - four simultaneous audio slots;
-- ten landscape recipes, including four bass-first scenes: `Bunker`, `Power Grid`, `Deep Water` and `Ash Field`;
-- twenty-eight procedural actors, including four continuous low-frequency drone engines;
-- four general engines: tone, resonator, grainlet and particles;
-- four serial FX slots per actor: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb or empty;
-- four modulators per actor: sine, triangle, sample-and-hold and random walk;
-- performance macros `Material`, `Activity`, `Tension`, `Distance` and `Evolution` that change several parts of the scene at once;
+- ten landscape recipes, including bass-first `Bunker`, `Power Grid`, `Deep Water` and `Ash Field`;
+- thirty-two selectable engines, including `Sub Drone`, `Tape Drone`, `Bowed Metal` and `Earth Rumble`;
+- four serial effects and four modulation lanes per actor;
+- performance macros for `Material`, `Activity`, `Tension`, `Distance` and `Evolution`;
 - separate fade-in and fade-out times, tail-preserving mute and hard `Kill`;
-- live per-slot and master waveform, RMS, peak and throttled DSP-load telemetry;
+- per-slot and master waveform, RMS, peak and throttled DSP telemetry;
 - readable `.cdrone` sessions with debounced autosave;
-- English and Russian UI; English is the default for a new installation;
-- SDL2 UI at logical `512×384`, scaling exactly to the Brick's `1024×768` display;
-- built-in Latin/Cyrillic bitmap font without SDL_ttf;
-- offline stereo 48 kHz float WAV rendering;
-- tests for localization, the lock-free queue, audio output, every landscape actor and session round-trips.
+- English and Russian UI;
+- logical `512×384` UI, scaling exactly to the Brick's `1024×768` screen;
+- no recorded samples.
 
-Existing autosaves preserve their selected language. Change it on `Setup`, or remove the autosave if a completely fresh English session is desired.
+## Handheld controls
 
-## Controls
+| Action | TrimUI Brick / handheld |
+| --- | --- |
+| select track, slot or FX column | D-pad Left / Right |
+| select parameter or FX row | D-pad Up / Down |
+| change value | L / R |
+| choose landscape, engine or effect | Start |
+| confirm / cancel picker | B / A |
+| next page | X |
+| mute selected track | B outside a picker |
+| hard Kill | A outside a picker |
+| next source track on FX page | Y |
+| output auto-fade | Select |
+| save and exit | hold Start, then press Select |
 
-The direction of navigation matches the screen: left/right selects a horizontal track or FX column; up/down selects a vertical row.
+A short L/R press changes most values by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds.
 
-| Action | Keyboard | Handheld mapping |
-| --- | --- | --- |
-| select track / FX column | Left / Right | D-pad Left / Right |
-| select parameter row | Up / Down | D-pad Up / Down |
-| change value | A / D | L / R |
-| open landscape, engine or effect picker | E | Start |
-| confirm / cancel picker | E or Enter / Escape | B / A |
-| next page | Tab or 1–5 | X |
-| mute selected track | Space | B outside a picker |
-| select next source track on FX | S | Y |
-| run output fade | F | Select / Back |
-| clear voices and effect tails | K | A outside a picker |
-| exit | Escape | hold Start, then press Select |
+## Runtime data and logs
 
-A short value press changes most parameters by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds. On `Scene`, Down after the last macro focuses the track strip so A/D edits its level directly. Mute stops new source audio but keeps effect tails; `Kill` clears both source and effect memory.
+The PortMaster package stores everything under:
 
-The `Scene` macro endpoints describe the audible direction rather than implementation details: smooth/rough, sparse/busy, stable/unstable, near/far and static/changing. Detailed edits mark the landscape as `Modified`; loading a landscape recipe restores its four actors and clears that marker.
-
-## Build and test
-
-The core needs C++20 and Make or CMake 3.16+. SDL2 is only required for the interactive frontend.
-
-```bash
-make -j2
-make test
-make render
-
-# with sdl2-config installed
-make sdl
-./build/cursed-drone-sdl
+```text
+<ports>/curseddrone/conf/
 ```
 
-Equivalent CMake build:
+Important files:
 
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j2
-ctest --test-dir build --output-on-failure
+```text
+autosave.cdrone       current autosave
+device-probe.log      first-launch hardware report
+cursed-drone.log      application output and startup errors
+probe-v1.complete     marker that skips the first-launch probe
 ```
 
-## macOS
-
-```bash
-brew install cmake sdl2
-git clone https://github.com/myldy20/cursed-drone.git
-cd cursed-drone
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j4
-ctest --test-dir build --output-on-failure
-./build/cursed-drone-sdl
-```
-
-The macOS autosave is stored under the SDL preference directory. A previous Russian autosave remains Russian until changed on `Setup`.
-
-## CLI and offline render
-
-```bash
-# help in English or Russian
-./build/cursed-drone --lang en
-./build/cursed-drone --lang ru
-
-# save the default session
-./build/cursed-drone --save-default default.cdrone
-
-# render a saved session or a landscape
-./build/cursed-drone --load default.cdrone --render drone.wav --seconds 30
-./build/cursed-drone --scene factory --render factory.wav --seconds 45
-./build/cursed-drone-render wet-cave.wav 45 wet_cave
-```
+The verified TrimUI Brick probe reported Mali/OpenGL ES 2 rendering, ALSA audio at 48 kHz stereo with a 512-sample buffer, and a correctly detected `TRIMUI Brick Controller`.
 
 ## Landscapes
 
-| Landscape | Four actors | Character |
-| --- | --- | --- |
-| `Derelict` | room bed, approaching footsteps, stick-slip door, pipe wind and knocks | low and sparse with rare close gestures |
-| `Factory` | rotor/brush motor, machine cycle, crowd-formant bed, moving metal scrape | dense mechanical spectrum with drifting load |
-| `Wasteland` | multi-rate wind, bird phrases, insect swarm, rising signal and bounded pause | airy high end, large gaps and isolated signals |
-| `Wet Cave` | cave pressure, MIT DaisySP physical drips, turbulent water and stone impacts | cold, deep, wet and strongly event-driven |
-| `Metro Car` | traction inverter, paired rail joints, braking scrape and carriage rattle | enclosed, accelerating and mechanically rhythmic |
-| `Broken Nursery` | tape bed, quieter music box, gears and sparse decaying lullaby notes | intimate and uncanny without dominating the whole instrument |
-| `Bunker` | sub drone, room pressure, pipe resonance and distant machinery | heavy enclosed low end with sparse movement |
-| `Power Grid` | tape drone, motor, bowed metal and ground rumble | electrical mass, transformer vibration and restrained metal |
-| `Deep Water` | earth rumble, water flow, cave air and bowed body | slow pressure, depth and very little high-frequency ornament |
-| `Ash Field` | sub drone, low wind, bowed metal and distant signal | wide, dry and bass-led with rare foreground events |
+| Landscape | Character |
+| --- | --- |
+| `Derelict` | low room pressure, footsteps, door friction and pipe resonance |
+| `Factory` | motors, machinery, tape mass and restrained metal |
+| `Wasteland` | low wind, sparse insects and isolated signals |
+| `Wet Cave` | ground pressure, physical drips, low water and stone impacts |
+| `Metro Car` | traction, rail joints, braking and carriage vibration |
+| `Broken Nursery` | tape bed, quiet music box, gears and rare lullaby fragments |
+| `Bunker` | enclosed sub pressure and distant machinery |
+| `Power Grid` | transformer-like mass, motors, bowed metal and ground rumble |
+| `Deep Water` | very low pressure, submerged motion and minimal high-frequency detail |
+| `Ash Field` | wide low drone, dry wind and distant signals |
 
-Recorded samples are not used. The current procedural layer combines a pinned DaisySP subset with project-specific excitation, material and event scheduling. The [synthesis catalogue](docs/synthesis-catalog.en.md) records the next audited engines and why preset assets require a separate licence check.
+## Build and test
 
-## Documentation
-
-- [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
-- [Research](docs/research.en.md) · [Исследование](docs/research.ru.md)
-- [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
-- [Procedural soundscapes](docs/soundscapes.en.md) · [Процедурные ландшафты](docs/soundscapes.ru.md)
-- [Sound reference analysis](docs/reference-sound.en.md) · [Разбор референса](docs/reference-sound.ru.md)
-- [Roadmap](docs/roadmap.en.md) · [Дорожная карта](docs/roadmap.ru.md)
-- [TrimUI Brick and porting](docs/trimui-brick.en.md) · [TrimUI Brick и портирование](docs/trimui-brick.ru.md)
-- [Testing on macOS](docs/testing-macos.en.md) · [Тестирование на macOS](docs/testing-macos.ru.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
-
-## Licence
-
-Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE). Third-party engines retain their own licences and notices; every import is audited separately.
-
----
-
-## Русский
-
-`Проклятый гудёж` — нативный генератор процедурных звуковых ландшафтов для маленьких Linux-консолей. Он создаёт среды, жесты переднего плана и управляемые звуковые катастрофы без трекерной сетки и необходимости программировать обычный синтезатор.
-
-Главная целевая консоль — **TrimUI Brick**. SDL2-интерфейс и компактное C++-ядро также рассчитаны на устройства Anbernic, PortMaster-совместимые системы, macOS и обычный Linux.
-
-> Статус: публичная тестовая версия `0.7.0`. Работают десять процедурных ландшафтов и тридцать два выбираемых движка. Эта итерация посвящена разным причинам звука: воде, камню, движению по рельсам, торможению, сломанным игрушкам и редким псевдомузыкальным объектам, а не новым сортам непрерывного гула.
-
-## Идея
-
-Ландшафт содержит четырёх актёров с разными задачами: непрерывный фон, движение, жест переднего плана и дальний или текстурный слой. В детальном режиме каждый актёр остаётся слотом с четырьмя последовательными эффектами и четырьмя линиями модуляции.
-
-```text
-актёр / движок -> FX 1 -> FX 2 -> FX 3 -> FX 4 -> уровень / панорама
-       ^           ^       ^       ^       ^
-                     четыре модулятора
-
-четыре актёра -> микшер -> DC blocker -> мягкий лимитер -> мастер / fade -> SDL audio
-```
-
-Время существует как общий темп процессов, длинные циклы, огибающие, случайные блуждания и ограниченные вероятностные события. Таблицы нот, транспорта и трекерной последовательности нет.
-
-## Что работает
-
-- четыре одновременно звучащих аудиослота;
-- десять рецептов, включая четыре басовых сцены: `Бункер`, `Подстанция`, `Глубина` и `Пепел`;
-- двадцать восемь процедурных актёров, включая четыре непрерывных низкочастотных дроновых движка;
-- четыре общих движка: тон, резонатор, зерно и частицы;
-- четыре последовательных FX-слота на актёра: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb или пусто;
-- четыре модулятора на актёра: sine, triangle, sample-and-hold и random walk;
-- исполнительские макросы `Материал`, `Активность`, `Напряжение`, `Дистанция` и `Развитие`, одновременно меняющие несколько частей сцены;
-- раздельные времена открытия и закрытия, mute с сохранением хвостов и жёсткий `Kill`;
-- живые waveform, RMS и peak по слотам и мастеру, а также замедленная индикация загрузки DSP;
-- читаемые `.cdrone`-сессии с debounce-autosave;
-- английский и русский интерфейс; для новой установки по умолчанию выбран английский;
-- SDL2-интерфейс в логическом разрешении `512×384`, ровно масштабируемый до экрана Brick `1024×768`;
-- встроенный bitmap-шрифт с латиницей и кириллицей без SDL_ttf;
-- offline-render в stereo 48 kHz float WAV;
-- тесты локализации, lock-free-очереди, аудиовыхода, каждого актёра и round-trip сессии.
-
-Существующий автосейв сохраняет выбранный язык. Его можно поменять на экране `Настр.` или удалить автосейв, если нужна полностью новая английская сессия.
-
-## Управление
-
-Направление навигации совпадает с экраном: влево/вправо выбирает горизонтальную дорожку или колонку FX, вверх/вниз — вертикальную строку.
-
-| Действие | Клавиатура | Кнопка консоли |
-| --- | --- | --- |
-| выбрать дорожку / колонку FX | Left / Right | D-pad Left / Right |
-| выбрать строку параметра | Up / Down | D-pad Up / Down |
-| изменить значение | A / D | L / R |
-| открыть выбор ландшафта, движка или эффекта | E | Start |
-| подтвердить / отменить выбор | E или Enter / Escape | B / A |
-| следующий экран | Tab или 1–5 | X |
-| mute выбранной дорожки | Space | B вне окна выбора |
-| следующая исходная дорожка на FX | S | Y |
-| запустить фейд выхода | F | Select / Back |
-| очистить голоса и хвосты эффектов | K | A вне окна выбора |
-| выход | Escape | удерживать Start, затем нажать Select |
-
-Короткое нажатие меняет большинство параметров на один процент. Удержание ускоряется через 1,05 секунды и ещё раз через 2,2 секунды. На экране `Сцена` нажатие Down после последнего макроса переводит фокус на дорожки, и A/D напрямую меняет уровень выбранной. Mute прекращает новый сигнал, сохраняя хвосты эффектов; `Kill` очищает и источник, и память эффектов.
-
-Крайние положения макросов `Сцены` описывают слышимое направление, а не внутреннюю реализацию: гладко/грубо, редко/плотно, спокойно/нестабильно, близко/далеко и статично/меняется. Детальное редактирование помечает ландшафт как `Изменён`; загрузка рецепта восстанавливает четырёх актёров и снимает эту отметку.
-
-## Сборка и тесты
-
-Ядру нужны C++20 и Make или CMake 3.16+. SDL2 требуется только интерактивному интерфейсу.
-
-```bash
-make -j2
-make test
-make render
-
-# если установлен sdl2-config
-make sdl
-./build/cursed-drone-sdl
-```
-
-Эквивалентная сборка CMake:
+The core needs C++20 and CMake 3.16+. SDL2 is required for the interactive frontend.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j2
 ctest --test-dir build --output-on-failure
-```
-
-## macOS
-
-```bash
-brew install cmake sdl2
-git clone https://github.com/myldy20/cursed-drone.git
-cd cursed-drone
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j4
-ctest --test-dir build --output-on-failure
 ./build/cursed-drone-sdl
 ```
 
-В macOS автосейв лежит в каталоге настроек SDL. Старый русский автосейв останется русским, пока язык не будет изменён на экране `Настр.`.
+The CI builds and tests Linux, macOS and Ubuntu 20.04 AArch64/PortMaster packages, and renders all ten soundscapes.
 
-## CLI и offline-render
+## Documentation
 
-```bash
-# справка на английском или русском
-./build/cursed-drone --lang en
-./build/cursed-drone --lang ru
-
-# сохранить стартовую сессию
-./build/cursed-drone --save-default default.cdrone
-
-# отрендерить сохранённую сессию или ландшафт
-./build/cursed-drone --load default.cdrone --render drone.wav --seconds 30
-./build/cursed-drone --scene factory --render factory.wav --seconds 45
-./build/cursed-drone-render wet-cave.wav 45 wet_cave
-```
-
-## Ландшафты
-
-| Ландшафт | Четыре актёра | Характер |
-| --- | --- | --- |
-| `Заброшенное` | комнатный фон, приближающиеся шаги, stick-slip двери, ветер и стуки в трубе | низкий и разреженный, с редкими близкими жестами |
-| `Цех` | rotor/brush-мотор, цикл станка, формантный фон толпы, движущийся скрежет металла | плотный механический спектр с плавающей нагрузкой |
-| `Пустошь` | многоскоростной ветер, фразы птиц, рой насекомых, повышающийся сигнал с ограниченной случайной паузой | воздушный верх, большие пустоты и отдельные сигналы |
-| `Мокрая пещера` | давление воздуха, физические капли MIT DaisySP, турбулентная вода и удары камня | холодный, глубокий, мокрый, событийный |
-| `Вагон метро` | тяговый инвертор, парные стыки, тормозной скрежет и дребезг кузова | закрытый, разгоняющийся, механически ритмичный |
-| `Сломанная детская` | язычки шкатулки, погнутый голос игрушки, шестерни и редкие распадающиеся ноты | близкий, хрупкий, намеренно жуткий |
-
-Записанные сэмплы не используются. Текущий процедурный слой объединяет закреплённый поднабор DaisySP с собственными моделями возбуждения, материала и событий. В [каталоге синтеза](docs/synthesis-catalog.ru.md) записаны следующие проверенные движки и причины, по которым лицензия пресетов проверяется отдельно.
-
-## Документация
-
+- [Installation — English](docs/install.en.md) · [Установка — Русский](docs/install.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
-- [Research](docs/research.en.md) · [Исследование](docs/research.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
 - [Procedural soundscapes](docs/soundscapes.en.md) · [Процедурные ландшафты](docs/soundscapes.ru.md)
-- [Sound reference analysis](docs/reference-sound.en.md) · [Разбор референса](docs/reference-sound.ru.md)
 - [Roadmap](docs/roadmap.en.md) · [Дорожная карта](docs/roadmap.ru.md)
 - [TrimUI Brick and porting](docs/trimui-brick.en.md) · [TrimUI Brick и портирование](docs/trimui-brick.ru.md)
-- [Testing on macOS](docs/testing-macos.en.md) · [Тестирование на macOS](docs/testing-macos.ru.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-## Лицензия
+## Credits and licence
 
-Код проекта распространяется по **GNU GPL v3.0 or later**. См. [LICENSE](LICENSE). Сторонние движки сохраняют собственные лицензии и уведомления; каждый импорт проверяется отдельно.
+Developed by **Myldy design** — [@myldy20](https://github.com/myldy20).
+
+Project code is licensed under **GNU GPL v3.0 or later**. Third-party components retain their own licences; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+# Русский
+
+**Проклятый гудёж** — нативный процедурный дрон-синтезатор и генератор звуковых ландшафтов для небольших Linux-консолей. Он создаёт непрерывные фоны, механическое движение, события среды и управляемые звуковые катастрофы без семплов, трекерной сетки и обычного программирования нот.
+
+> **Статус железа:** реальная проверка выполнена только на **TrimUI Brick с Knulli**. PortMaster-пакет собирается под AArch64 и может заработать на других совместимых консолях, но они пока **не проверены**.
+
+## Установка
+
+- **[Подробная инструкция на русском](docs/install.ru.md)**
+- **[Detailed guide in English](docs/install.en.md)**
+
+### Быстрая установка на TrimUI Brick
+
+1. Скачайте артефакт `cursed-drone-portmaster-aarch64` из последней успешной [сборки GitHub Actions](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml).
+2. GitHub заворачивает артефакт во внешний ZIP. Откройте его и найдите внутри `curseddrone-aarch64-test.zip`.
+3. Распакуйте внутренний архив в:
+
+```text
+/userdata/roms/ports/
+```
+
+В результате должны появиться:
+
+```text
+/userdata/roms/ports/Cursed Drone.sh
+/userdata/roms/ports/curseddrone/cursed-drone-sdl.aarch64
+/userdata/roms/ports/curseddrone/assets/cursed-drone-splash.bmp
+```
+
+4. Обновите список игр или перезагрузите консоль и откройте **Ports → Cursed Drone**.
+5. При первом запуске после диагностики нажмите **Start**.
+
+Чтобы сохранить состояние и выйти: **удерживайте Start и нажмите Select**.
+
+## Что уже работает
+
+- четыре одновременно звучащих процедурных слота;
+- десять ландшафтов, включая басовые `Бункер`, `Подстанция`, `Глубина` и `Пепел`;
+- тридцать два движка, включая саб-дрон, ленточный дрон, смычковый металл и гул земли;
+- четыре последовательных эффекта и четыре линии модуляции на каждый слот;
+- макросы `Материал`, `Активность`, `Напряжение`, `Дистанция` и `Развитие`;
+- раздельные fade-in/fade-out, mute с сохранением хвостов и жёсткий `Kill`;
+- waveform, RMS, peak и замедленная индикация загрузки DSP;
+- автосохранение читаемой `.cdrone`-сессии;
+- русский и английский интерфейс;
+- логическое разрешение `512×384`, точно масштабируемое до экрана Brick `1024×768`;
+- записанные семплы не используются.
+
+## Управление
+
+| Действие | Кнопка |
+| --- | --- |
+| выбрать дорожку, слот или колонку FX | D-pad влево / вправо |
+| выбрать параметр или строку FX | D-pad вверх / вниз |
+| изменить значение | L / R |
+| выбрать ландшафт, движок или эффект | Start |
+| подтвердить / отменить выбор | B / A |
+| следующий экран | X |
+| mute выбранной дорожки | B вне окна выбора |
+| жёсткий Kill | A вне окна выбора |
+| следующая исходная дорожка на экране FX | Y |
+| автофейд выхода | Select |
+| сохранить и выйти | удерживать Start, затем нажать Select |
+
+## Логи и сохранения
+
+Все данные PortMaster-версии находятся в:
+
+```text
+<ports>/curseddrone/conf/
+```
+
+Главные файлы: `autosave.cdrone`, `device-probe.log`, `cursed-drone.log` и `probe-v1.complete`.
+
+По логам проверенного TrimUI Brick приложение корректно использует Mali/OpenGL ES 2, ALSA 48 кГц stereo с буфером 512 сэмплов и контроллер `TRIMUI Brick Controller`.
+
+## Авторство и лицензия
+
+Разработано **Myldy design** — [@myldy20](https://github.com/myldy20).
+
+Код проекта распространяется по **GNU GPL v3.0 or later**. Лицензии сторонних компонентов перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
