@@ -1,11 +1,6 @@
 name: apply-v07-patch
 
 on:
-  push:
-    branches: [agent/v0.7-brick-production]
-    paths:
-      - tools/apply_v07_patch.py
-      - .github/workflows/apply-v07.yml
   pull_request:
     branches: [agent/v0.6-sound-engines]
     paths:
@@ -13,7 +8,7 @@ on:
       - .github/workflows/apply-v07.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   patch:
@@ -22,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: agent/v0.7-brick-production
+          fetch-depth: 0
       - name: Correct README selector
         run: |
           python3 - <<'PY'
@@ -34,16 +30,16 @@ jobs:
           PY
       - name: Apply production patch
         run: python3 tools/apply_v07_patch.py
-      - name: Check patch
-        run: git diff --check
-      - name: Remove patch diagnostics
-        run: rm -f docs/V07_PATCH_ERROR.txt
-      - name: Export patched source
+      - name: Restore helper files
         run: |
-          rm -rf .git
-          tar -czf /tmp/cursed-drone-v07-source.tar.gz .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cursed-drone-v07-patched-source
-          path: /tmp/cursed-drone-v07-source.tar.gz
-          if-no-files-found: error
+          git checkout HEAD -- tools/apply_v07_patch.py .github/workflows/apply-v07.yml
+          rm -f docs/V07_PATCH_ERROR.txt
+      - name: Validate generated source
+        run: git diff --check
+      - name: Commit generated source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "v0.7: production sound and Brick interface"
+          git push origin HEAD:agent/v0.7-brick-production
