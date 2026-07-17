@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.16)
 
-project(cursed_drone VERSION 0.7.0 LANGUAGES CXX)
+project(cursed_drone VERSION 0.8.0 LANGUAGES CXX)
 
 option(CURSED_DRONE_BUILD_SDL "Build the SDL2 handheld/desktop frontend" ON)
 option(CURSED_DRONE_BUILD_TESTS "Build the test executable" ON)
@@ -78,6 +78,6 @@ if(CURSED_DRONE_BUILD_SDL)
             target_link_libraries(cursed-drone-probe PRIVATE SDL2::SDL2main)
         endif()
     else()
-        message(STATUS "SDL2 development files not found; SDL frontend and device probe are disabled")
+        message(WARNING "SDL2 was not found; cursed-drone-sdl and cursed-drone-probe will not be built")
     endif()
 endif()
