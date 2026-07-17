@@ -215,6 +215,7 @@ Session make_default_session() {
 
 void apply_scene_recipe(Session& session, SceneKind scene) {
     session.scene = scene;
+    session.scene_modified = false;
 
     const auto set_actor = [&session](
                                std::size_t index,
@@ -289,6 +290,7 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
     output << "cursed_drone_session=" << session.schema_version << '\n';
     output << "locale=" << to_string(session.locale) << '\n';
     output << "scene=" << to_string(session.scene) << '\n';
+    output << "scene_modified=" << (session.scene_modified ? 1 : 0) << '\n';
     output << "tempo_bpm=" << session.tempo_bpm << '\n';
     output << "master_level=" << session.master_level << '\n';
     output << "fade_in_seconds=" << session.fade_in_seconds << '\n';
@@ -359,7 +361,8 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
 
     const auto schema = values.find("cursed_drone_session");
     if (schema == values.end() ||
-        (schema->second != "1" && schema->second != "2" && schema->second != "3" && schema->second != "4")) {
+        (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
+            schema->second != "4" && schema->second != "5")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -372,6 +375,10 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
     if (!parse_enum_value(values, "scene", loaded.scene, kScenes)) {
         error = "invalid scene";
+        return false;
+    }
+    if (!parse_bool(values, "scene_modified", loaded.scene_modified)) {
+        error = "invalid scene modification state";
         return false;
     }
     if (!parse_float(values, "tempo_bpm", loaded.tempo_bpm) ||
@@ -436,10 +443,10 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     loaded.performance.space = std::clamp(loaded.performance.space, 0.0F, 1.0F);
     loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
-    if (schema->second != "4") {
+    if (schema->second != "4" && schema->second != "5") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 4;
+    loaded.schema_version = 5;
     session = loaded;
     return true;
 }

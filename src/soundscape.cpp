@@ -334,10 +334,15 @@ float SoundscapeVoice::pipe(float frequency, float timbre, float color, float mo
 float SoundscapeVoice::motor(float frequency, float timbre, float color, float motion,
     float texture, float activity, float tension, float evolution) noexcept {
     const float load_cycle = 0.5F + 0.5F * sine(6U, 0.018F + evolution * 0.055F);
-    const float speed = std::clamp(frequency, 16.0F, 130.0F) *
-        (0.68F + activity * 0.62F + load_cycle * motion * 0.42F + slow_value_ * tension * 0.07F);
-    const float rotor = sine(0U, speed) * 0.55F + sine(1U, speed * 2.0F) * (0.18F + timbre * 0.18F) +
-        sine(2U, speed * (3.0F + color * 2.0F)) * texture * 0.14F;
+    // A loaded motor changes spectrum and amplitude much more than pitch. The
+    // previous broad speed sweep produced an accidental human "wah" gesture.
+    const float nominal_speed = std::clamp(frequency, 16.0F, 130.0F) * (0.78F + activity * 0.48F);
+    const float speed = nominal_speed * (1.0F + (load_cycle - 0.5F) * motion * 0.045F +
+        slow_value_ * tension * 0.012F);
+    const float load_harmonics = 0.72F + load_cycle * 0.38F;
+    const float rotor = sine(0U, speed) * 0.55F +
+        sine(1U, speed * 2.0F) * (0.13F + timbre * 0.20F) * load_harmonics +
+        sine(2U, speed * (3.0F + color * 2.0F)) * texture * 0.12F * load_harmonics;
     const float commutator = sine(3U, speed * (6.0F + timbre * 10.0F));
     const float raw = noise();
     if (control_tick()) {
@@ -345,8 +350,8 @@ float SoundscapeVoice::motor(float frequency, float timbre, float color, float m
     }
     filters_[0].Process(raw);
     const float brush = filters_[0].Band() * (0.08F + texture * 0.42F) * (0.6F + 0.4F * commutator);
-    const float sag = 0.58F + load_cycle * 0.36F + slow_value_ * tension * 0.08F;
-    return (rotor * sag + brush) * (0.62F + activity * 0.22F);
+    const float torque = 0.72F + load_cycle * 0.20F + slow_value_ * tension * 0.025F;
+    return (rotor * torque + brush) * (0.62F + activity * 0.22F);
 }
 
 float SoundscapeVoice::machinery(float frequency, float timbre, float color, float motion,

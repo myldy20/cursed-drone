@@ -53,6 +53,7 @@ void test_queue() {
 
 void test_audio() {
     auto default_session = cd::make_default_session();
+    expect(default_session.locale == cd::Locale::en, "English should be the default language");
     expect(default_session.scene == cd::SceneKind::derelict, "the derelict landscape should be the default");
     expect(default_session.slots[0].engine == cd::EngineKind::derelict_bed, "slot 1 should be the room bed");
     expect(default_session.slots[1].engine == cd::EngineKind::footsteps, "slot 2 should be footsteps");
@@ -168,12 +169,15 @@ void test_session_roundtrip() {
     original.performance.fade = 0.381F;
     original.fade_in_seconds = 2.75F;
     original.fade_out_seconds = 8.25F;
+    original.scene_modified = true;
     std::string error;
     expect(cd::save_session(original, path, error), "session should save");
     cd::Session loaded{};
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::factory, "scene should roundtrip");
+    expect(loaded.schema_version == 5, "session should upgrade to schema 5");
+    expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
     expect(std::abs(loaded.performance.texture - 0.812F) < 0.0001F, "texture macro should roundtrip");
     expect(std::abs(loaded.performance.pulse - 0.643F) < 0.0001F, "pulse macro should roundtrip");
@@ -183,6 +187,8 @@ void test_session_roundtrip() {
     expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "fade macro should roundtrip");
     expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
     expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
+    cd::apply_scene_recipe(loaded, cd::SceneKind::wasteland);
+    expect(!loaded.scene_modified, "loading a landscape recipe should clear the modified marker");
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
 }

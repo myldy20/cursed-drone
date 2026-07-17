@@ -31,7 +31,7 @@ constexpr Catalog kRussian{
     "Сессия загружена",
     "Рендер готов",
     "Управление",
-    "←/→ слот · ↑/↓ параметр · A/D значение · Tab экран · F фейд · K kill",
+    "</> слот / ^/V параметр / A/D значение / Tab экран / F фейд / K kill",
     "Диагностический тон проверяет тракт и не является продуктовым синтезатором.",
     "Ошибка",
 };
@@ -58,7 +58,7 @@ constexpr Catalog kEnglish{
     "Session loaded",
     "Render complete",
     "Controls",
-    "←/→ slot · ↑/↓ parameter · A/D value · Tab page · F fade · K kill",
+    "</> slot / ^/V parameter / A/D value / Tab page / F fade / K kill",
     "The diagnostic tone validates the signal path and is not a product synthesizer.",
     "Error",
 };

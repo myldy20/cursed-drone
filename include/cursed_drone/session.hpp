@@ -90,9 +90,10 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{4};
-    Locale locale{Locale::ru};
+    unsigned schema_version{5};
+    Locale locale{Locale::en};
     SceneKind scene{SceneKind::derelict};
+    bool scene_modified{false};
     float tempo_bpm{45.0F};
     float master_level{0.80F};
     float fade_in_seconds{4.0F};
