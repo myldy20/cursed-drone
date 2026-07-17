@@ -429,6 +429,16 @@ std::string_view effect_name(cd::EffectKind kind, bool russian) noexcept {
     case cd::EffectKind::wavefolder: return russian ? "ФОЛДЕР" : "FOLDER";
     case cd::EffectKind::ringmod: return russian ? "КОЛЬЦО" : "RING MOD";
     case cd::EffectKind::comb: return russian ? "ГРЕБЕНКА" : "COMB";
+    case cd::EffectKind::chorus: return russian ? "ХОРУС" : "CHORUS";
+    case cd::EffectKind::flanger: return russian ? "ФЛЭНЖЕР" : "FLANGER";
+    case cd::EffectKind::phaser: return russian ? "ФЕЙЗЕР" : "PHASER";
+    case cd::EffectKind::diffuser: return russian ? "ДИФФУЗОР" : "DIFFUSER";
+    case cd::EffectKind::ahdr: return "AHDR";
+    case cd::EffectKind::tape_void: return russian ? "ЛЕНТОПУСТОТА" : "TAPE VOID";
+    case cd::EffectKind::black_hole: return russian ? "ЧЕРНАЯ ДЫРА" : "BLACK HOLE";
+    case cd::EffectKind::ritual_gate: return russian ? "РИТУАЛЬНЫЙ ГЕЙТ" : "RITUAL GATE";
+    case cd::EffectKind::rust_cloud: return russian ? "ОБЛАКО РЖАВЧИНЫ" : "RUST CLOUD";
+    case cd::EffectKind::deep_sea: return russian ? "ГЛУБИНА" : "DEEP SEA";
     }
     return {};
 }
@@ -444,7 +454,17 @@ int effect_field_count(cd::EffectKind kind) noexcept {
     case cd::EffectKind::wavefolder:
     case cd::EffectKind::ringmod: return 2;
     case cd::EffectKind::delay:
-    case cd::EffectKind::comb: return 3;
+    case cd::EffectKind::comb:
+    case cd::EffectKind::chorus:
+    case cd::EffectKind::flanger:
+    case cd::EffectKind::phaser:
+    case cd::EffectKind::diffuser:
+    case cd::EffectKind::ahdr:
+    case cd::EffectKind::tape_void:
+    case cd::EffectKind::black_hole:
+    case cd::EffectKind::ritual_gate:
+    case cd::EffectKind::rust_cloud:
+    case cd::EffectKind::deep_sea: return 3;
     }
     return 0;
 }
@@ -454,7 +474,6 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
     case cd::EffectKind::bypass: return russian ? "НЕТ ПАРАМЕТРОВ" : "NO PARAMETERS";
     case cd::EffectKind::drive: return russian ? "ПЕРЕГРУЗ" : "DRIVE";
     case cd::EffectKind::lowpass:
-        return index == 0 ? (russian ? "ПОДМЕСЬ" : "MIX") : (russian ? "СРЕЗ" : "CUTOFF");
     case cd::EffectKind::highpass:
         return index == 0 ? (russian ? "ПОДМЕСЬ" : "MIX") : (russian ? "СРЕЗ" : "CUTOFF");
     case cd::EffectKind::tremolo:
@@ -473,6 +492,31 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
         if (index == 0) return russian ? "ПОДМЕСЬ" : "MIX";
         if (index == 1) return russian ? "РАЗМЕР" : "SIZE";
         return russian ? "РЕЗОНАНС" : "RESONANCE";
+    case cd::EffectKind::chorus:
+        if (index == 0) return russian ? "ПОДМЕСЬ" : "MIX";
+        if (index == 1) return russian ? "СКОРОСТЬ" : "RATE";
+        return russian ? "ГЛУБИНА" : "DEPTH";
+    case cd::EffectKind::flanger:
+    case cd::EffectKind::phaser:
+        if (index == 0) return russian ? "ПОДМЕСЬ" : "MIX";
+        if (index == 1) return russian ? "СКОРОСТЬ" : "RATE";
+        return russian ? "ОБР. СВЯЗЬ" : "FEEDBACK";
+    case cd::EffectKind::diffuser:
+        if (index == 0) return russian ? "ПОДМЕСЬ" : "MIX";
+        if (index == 1) return russian ? "РАЗМЕР" : "SIZE";
+        return russian ? "РАСПАД" : "DECAY";
+    case cd::EffectKind::ahdr:
+        if (index == 0) return russian ? "ГЛУБИНА" : "DEPTH";
+        if (index == 1) return russian ? "СКОРОСТЬ" : "RATE";
+        return russian ? "ФОРМА" : "SHAPE";
+    case cd::EffectKind::tape_void:
+    case cd::EffectKind::black_hole:
+    case cd::EffectKind::ritual_gate:
+    case cd::EffectKind::rust_cloud:
+    case cd::EffectKind::deep_sea:
+        if (index == 0) return russian ? "ИНТЕНСИВН." : "INTENSITY";
+        if (index == 1) return russian ? "ХАРАКТЕР" : "CHARACTER";
+        return russian ? "ДВИЖЕНИЕ" : "MOTION";
     }
     return {};
 }
@@ -488,10 +532,31 @@ constexpr std::array<std::array<cd::EngineKind, 4>, 8> kEngineGroups{{
     {cd::EngineKind::sub_drone, cd::EngineKind::tape_drone, cd::EngineKind::bowed_metal, cd::EngineKind::earth_rumble},
 }};
 
-constexpr std::array<cd::EffectKind, 10> kEffectKinds{
-    cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass, cd::EffectKind::highpass,
-    cd::EffectKind::tremolo, cd::EffectKind::delay, cd::EffectKind::crusher, cd::EffectKind::wavefolder,
-    cd::EffectKind::ringmod, cd::EffectKind::comb};
+constexpr std::array<cd::EffectKind, 15> kBasicEffects{
+    cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass,
+    cd::EffectKind::highpass, cd::EffectKind::tremolo, cd::EffectKind::delay,
+    cd::EffectKind::crusher, cd::EffectKind::wavefolder, cd::EffectKind::ringmod,
+    cd::EffectKind::comb, cd::EffectKind::chorus, cd::EffectKind::flanger,
+    cd::EffectKind::phaser, cd::EffectKind::diffuser, cd::EffectKind::ahdr};
+
+constexpr std::array<cd::EffectKind, 5> kCompoundEffects{
+    cd::EffectKind::tape_void, cd::EffectKind::black_hole,
+    cd::EffectKind::ritual_gate, cd::EffectKind::rust_cloud, cd::EffectKind::deep_sea};
+
+int effect_group_size(int group) noexcept {
+    return group == 0 ? static_cast<int>(kBasicEffects.size())
+                      : static_cast<int>(kCompoundEffects.size());
+}
+
+cd::EffectKind effect_at(int group, int item) noexcept {
+    if (group == 0) return kBasicEffects[static_cast<std::size_t>(item)];
+    return kCompoundEffects[static_cast<std::size_t>(item)];
+}
+
+std::string_view effect_group_name(int group, bool russian) noexcept {
+    if (group == 0) return russian ? "БАЗОВЫЕ" : "BASIC";
+    return russian ? "СОСТАВНЫЕ" : "COMPOUND";
+}
 
 constexpr std::array<cd::SceneKind, 10> kScenes{
     cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
@@ -539,9 +604,12 @@ void open_effect_picker(UiState& state, const cd::Session& session) noexcept {
     state.picker = Picker::effect;
     state.picker_group = 0;
     state.picker_item = 0;
-    for (int item = 0; item < static_cast<int>(kEffectKinds.size()); ++item) {
-        if (kEffectKinds[static_cast<std::size_t>(item)] == current) {
-            state.picker_item = item;
+    for (int group = 0; group < 2; ++group) {
+        for (int item = 0; item < effect_group_size(group); ++item) {
+            if (effect_at(group, item) == current) {
+                state.picker_group = group;
+                state.picker_item = item;
+            }
         }
     }
 }
@@ -555,8 +623,14 @@ void move_picker(UiState& state, int horizontal, int vertical) noexcept {
         state.picker_group = (state.picker_group + horizontal + groups) % groups;
         state.picker_item = (state.picker_item + vertical + 4) % 4;
     } else if (state.picker == Picker::effect) {
-        const int effects = static_cast<int>(kEffectKinds.size());
-        state.picker_item = (state.picker_item + horizontal * 5 + vertical + effects) % effects;
+        if (horizontal != 0) {
+            state.picker_group = (state.picker_group + horizontal + 2) % 2;
+            state.picker_item = std::min(state.picker_item, effect_group_size(state.picker_group) - 1);
+        }
+        if (vertical != 0) {
+            const int effects = effect_group_size(state.picker_group);
+            state.picker_item = (state.picker_item + vertical + effects) % effects;
+        }
     }
 }
 
@@ -571,7 +645,7 @@ void confirm_picker(UiState& state, cd::Session& session) noexcept {
     } else if (state.picker == Picker::effect) {
         session.slots[static_cast<std::size_t>(state.slot)]
             .effects[static_cast<std::size_t>(parameter(state))].kind =
-            kEffectKinds[static_cast<std::size_t>(state.picker_item)];
+            effect_at(state.picker_group, state.picker_item);
         state.effect_field = 0;
         session.scene_modified = true;
     }
@@ -853,18 +927,18 @@ void outline(SDL_Renderer* renderer, SDL_Rect rectangle, SDL_Color color) {
 
 void draw_myldy_mark(SDL_Renderer* renderer, int x, int y, int scale, SDL_Color color) {
     const int s = std::max(1, scale);
-    fill(renderer, {x, y, 3 * s, 14 * s}, color);
-    fill(renderer, {x + 5 * s, y, 2 * s, 14 * s}, color);
-    fill(renderer, {x + 13 * s, y, 2 * s, 14 * s}, color);
-    fill(renderer, {x + 17 * s, y, 3 * s, 14 * s}, color);
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    for (int offset = 0; offset < 2 * s; ++offset) {
+    fill(renderer, {x, y, 4 * s, 15 * s}, color);
+    fill(renderer, {x + 7 * s, y, 3 * s, 15 * s}, color);
+    fill(renderer, {x + 18 * s, y, 3 * s, 15 * s}, color);
+    fill(renderer, {x + 24 * s, y, 4 * s, 15 * s}, color);
+    for (int offset = 0; offset < 3 * s; ++offset) {
         SDL_RenderDrawLine(renderer,
-            x + 7 * s + offset, y,
-            x + 10 * s + offset, y + 7 * s);
+            x + 9 * s + offset, y,
+            x + 14 * s + offset, y + 9 * s);
         SDL_RenderDrawLine(renderer,
-            x + 10 * s + offset, y + 7 * s,
-            x + 13 * s + offset, y);
+            x + 14 * s + offset, y + 9 * s,
+            x + 19 * s + offset, y);
     }
 }
 
@@ -1030,10 +1104,10 @@ void draw_scene(
     }
 
     const char* track_help = handheld()
-        ? (ru(session) ? "ДОРОЖКИ  </> ВЫБОР  L/R УРОВЕНЬ  B MUTE"
-                       : "TRACKS  </> SELECT  L/R LEVEL  B MUTE")
-        : (ru(session) ? "ДОРОЖКИ  </> ВЫБОР  A/D УРОВЕНЬ  SPACE MUTE"
-                       : "TRACKS  </> SELECT  A/D LEVEL  SPACE MUTE");
+        ? (ru(session) ? "ДОРОЖКИ  LT/RT ВЫБОР  L/R УРОВЕНЬ  B MUTE"
+                       : "TRACKS  LT/RT SELECT  L/R LEVEL  B MUTE")
+        : (ru(session) ? "ДОРОЖКИ  LT/RT ВЫБОР  A/D УРОВЕНЬ  SPACE MUTE"
+                       : "TRACKS  LT/RT SELECT  A/D LEVEL  SPACE MUTE");
     cd::ui::draw_text(renderer, 22, 250, track_help,
         state.scene_track_focus ? kInk : kDim);
     for (int index = 0; index < 4; ++index) {
@@ -1206,6 +1280,36 @@ void effect_visual(
             value = ((1.0F - effect.amount) + resonance * effect.amount) * 2.0F - 1.0F;
             break;
         }
+        case cd::EffectKind::chorus:
+        case cd::EffectKind::flanger:
+        case cd::EffectKind::phaser:
+            value = std::sin(t * 6.2831853F * (1.0F + effect.tone * 7.0F) +
+                std::sin(t * 12.5663706F) * effect.feedback * 2.2F) * effect.amount;
+            break;
+        case cd::EffectKind::diffuser:
+            value = (std::sin(t * 18.8495559F) + std::sin(t * 43.9822972F) * 0.52F +
+                std::sin(t * 69.1150384F) * 0.25F) * effect.amount * 0.48F;
+            break;
+        case cd::EffectKind::ahdr: {
+            const float phase = std::fmod(t * (1.0F + effect.tone * 3.0F), 1.0F);
+            float envelope = 0.0F;
+            if (phase < 0.13F) envelope = phase / 0.13F;
+            else if (phase < 0.30F) envelope = 1.0F;
+            else if (phase < 0.72F) envelope = 1.0F - (phase - 0.30F) * 1.55F;
+            else envelope = std::max(0.0F, 0.35F * (1.0F - (phase - 0.72F) / 0.28F));
+            value = envelope * effect.amount * 1.8F - 0.82F;
+            break;
+        }
+        case cd::EffectKind::tape_void:
+        case cd::EffectKind::black_hole:
+        case cd::EffectKind::ritual_gate:
+        case cd::EffectKind::rust_cloud:
+        case cd::EffectKind::deep_sea:
+            value = std::tanh((std::sin(t * 6.2831853F * (1.0F + effect.tone * 5.0F)) +
+                std::sin(t * 18.8495559F * (1.0F + effect.feedback * 2.0F)) * 0.62F +
+                std::sin(t * 50.2654825F) * effect.feedback * 0.24F) *
+                (0.55F + effect.amount * 2.4F));
+            break;
         case cd::EffectKind::bypass:
         case cd::EffectKind::delay:
             break;
@@ -1368,15 +1472,14 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
     }
     SDL_SetRenderDrawColor(renderer, 75, 67, 86, 255);
     SDL_RenderDrawLine(renderer, 32, 267, 468, 267);
-    draw_myldy_mark(renderer, 32, 276, 2, kInk);
-    cd::ui::draw_text(renderer, 82, 277, "DEVELOPED BY MYLDY DESIGN", kInk);
-    cd::ui::draw_text(renderer, 82, 294, "@MYLDY20", kDim);
-    constexpr std::string_view version{"V0.8.0"};
-    cd::ui::draw_text(renderer, 468 - cd::ui::text_width(version), 277, version, kDim);
+    draw_myldy_mark(renderer, 32, 275, 1, kInk);
+    cd::ui::draw_text(renderer, 68, 276, "MYLDY DESIGN  @MYLDY20", kInk);
+    cd::ui::draw_text(renderer, 68, 292, "DSP: DAISYSP  UI: FONT512  PORTMASTER", kDim);
+    constexpr std::string_view version{"V0.9.0"};
+    cd::ui::draw_text(renderer, 468 - cd::ui::text_width(version), 276, version, kDim);
     char cpu[48]{};
-    std::snprintf(cpu, sizeof(cpu), "%s: %d%%", ru(session) ? "ЗАГРУЗКА DSP" : "DSP LOAD",
-        state.displayed_cpu_percent);
-    cd::ui::draw_text(renderer, 468 - cd::ui::text_width(cpu), 294, cpu,
+    std::snprintf(cpu, sizeof(cpu), "DSP %d%%", state.displayed_cpu_percent);
+    cd::ui::draw_text(renderer, 468 - cd::ui::text_width(cpu), 292, cpu,
         state.displayed_cpu_percent < 75 ? kDim : kFxColors[0]);
     cd::ui::draw_text(renderer, 32, 328,
         handheld()
@@ -1405,10 +1508,10 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
         }
         cd::ui::draw_text(renderer, 92, 334,
             handheld()
-                ? (ru(session) ? "^/V ВЫБОР   B ПРИНЯТЬ   A НАЗАД"
-                               : "^/V SELECT   B APPLY   A BACK")
-                : (ru(session) ? "^/V ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
-                               : "^/V SELECT   E APPLY   ESC BACK"), kDim);
+                ? (ru(session) ? "UP/DN ВЫБОР   B ПРИНЯТЬ   A НАЗАД"
+                               : "UP/DN SELECT   B APPLY   A BACK")
+                : (ru(session) ? "UP/DN ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
+                               : "UP/DN SELECT   E APPLY   ESC BACK"), kDim);
     } else if (state.picker == Picker::engine) {
         cd::ui::draw_text(renderer, 92, 78,
             ru(session) ? "ВЫБОР ДВИЖКА" : "CHOOSE ENGINE", kInk, 2);
@@ -1430,30 +1533,39 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
         }
         cd::ui::draw_text(renderer, 92, 334,
             handheld()
-                ? (ru(session) ? "</> ГРУППА  ^/V ДВИЖОК  B OK  A НАЗАД"
-                               : "</> GROUP  ^/V ENGINE  B OK  A BACK")
-                : (ru(session) ? "</> ГРУППА  ^/V ДВИЖОК  E OK  ESC НАЗАД"
-                               : "</> GROUP  ^/V ENGINE  E OK  ESC BACK"), kDim);
+                ? (ru(session) ? "LT/RT ГРУППА  UP/DN ДВИЖОК  B OK  A НАЗАД"
+                               : "LT/RT GROUP  UP/DN ENGINE  B OK  A BACK")
+                : (ru(session) ? "LT/RT ГРУППА  UP/DN ДВИЖОК  E OK  ESC НАЗАД"
+                               : "LT/RT GROUP  UP/DN ENGINE  E OK  ESC BACK"), kDim);
     } else if (state.picker == Picker::effect) {
         cd::ui::draw_text(renderer, 92, 66,
             ru(session) ? "ВЫБОР ЭФФЕКТА" : "CHOOSE EFFECT", kInk, 2);
-        for (int item = 0; item < static_cast<int>(kEffectKinds.size()); ++item) {
-            const int column = item / 5;
-            const int row = item % 5;
+        for (int group = 0; group < 2; ++group) {
+            const int x = 92 + group * 164;
+            const bool selected_group = group == state.picker_group;
+            if (selected_group) fill(renderer, {x - 4, 92, 154, 20}, kPurple);
+            cd::ui::draw_text(renderer, x + 4, 97,
+                effect_group_name(group, ru(session)), selected_group ? kInk : kDim);
+        }
+        const int count = effect_group_size(state.picker_group);
+        const int rows = state.picker_group == 0 ? 8 : 5;
+        for (int item = 0; item < count; ++item) {
+            const int column = item / rows;
+            const int row = item % rows;
             const int x = 92 + column * 164;
-            const int y = 110 + row * 42;
+            const int y = 124 + row * 25;
             const bool selected = item == state.picker_item;
-            if (selected) fill(renderer, {x, y - 5, 154, 24}, {73, 46, 104, 255});
-            const std::string label = std::to_string(item + 1) + "  " +
-                std::string{effect_name(kEffectKinds[static_cast<std::size_t>(item)], ru(session))};
-            cd::ui::draw_text(renderer, x + 8, y, label, selected ? kInk : kDim);
+            if (selected) fill(renderer, {x, y - 4, 154, 20}, {73, 46, 104, 255});
+            cd::ui::draw_text(renderer, x + 7, y,
+                effect_name(effect_at(state.picker_group, item), ru(session)),
+                selected ? kInk : kDim);
         }
         cd::ui::draw_text(renderer, 92, 334,
             handheld()
-                ? (ru(session) ? "СТРЕЛКИ ВЫБОР   B OK   A НАЗАД"
-                               : "ARROWS SELECT   B OK   A BACK")
-                : (ru(session) ? "СТРЕЛКИ ВЫБОР   E OK   ESC НАЗАД"
-                               : "ARROWS SELECT   E OK   ESC BACK"), kDim);
+                ? (ru(session) ? "LT/RT ГРУППА  UP/DN ЭФФЕКТ  B OK  A НАЗАД"
+                               : "LT/RT GROUP  UP/DN EFFECT  B OK  A BACK")
+                : (ru(session) ? "LT/RT ГРУППА  UP/DN ЭФФЕКТ  E OK  ESC НАЗАД"
+                               : "LT/RT GROUP  UP/DN EFFECT  E OK  ESC BACK"), kDim);
     }
 }
 
@@ -1486,32 +1598,32 @@ void draw(
         if (state.picker != Picker::none) {
             help = ru(session) ? "B ВЫБРАТЬ  A НАЗАД" : "B SELECT  A BACK";
         } else if (state.page == Page::effects) {
-            help = ru(session) ? "</> FX  ^/V ПАРАМ.  Y ДОРОЖКА  L/R ЗНАЧ.  START ТИП"
-                               : "</> FX  ^/V PARAM  Y TRACK  L/R VALUE  START TYPE";
+            help = ru(session) ? "LT/RT FX  UP/DN ПАРАМ.  Y ДОРОЖКА  L/R ЗНАЧ.  START ТИП"
+                               : "LT/RT FX  UP/DN PARAM  Y TRACK  L/R VALUE  START TYPE";
         } else if (state.page == Page::perform) {
-            help = ru(session) ? "^/V РУЧКА/УРОВ.  </> ДОРОЖКА  B MUTE  START ЛАНДШАФТ"
-                               : "^/V MACRO/LEVEL  </> TRACK  B MUTE  START LANDSCAPE";
+            help = ru(session) ? "UP/DN РУЧКА/УРОВ.  LT/RT ДОРОЖКА  B MUTE  START ЛАНДШАФТ"
+                               : "UP/DN MACRO/LEVEL  LT/RT TRACK  B MUTE  START LANDSCAPE";
         } else if (state.page == Page::master || state.page == Page::setup) {
-            help = ru(session) ? "^/V ПАРАМ.  L/R ЗНАЧ.  X ЭКРАН  SELECT ФЕЙД  A KILL"
-                               : "^/V PARAM  L/R VALUE  X PAGE  SELECT FADE  A KILL";
+            help = ru(session) ? "UP/DN ПАРАМ.  L/R ЗНАЧ.  X ЭКРАН  SELECT ФЕЙД  A KILL"
+                               : "UP/DN PARAM  L/R VALUE  X PAGE  SELECT FADE  A KILL";
         } else {
-            help = ru(session) ? "</> СЛОТ  ^/V ПАРАМ.  L/R ЗНАЧ.  START ВЫБОР  B MUTE"
-                               : "</> SLOT  ^/V PARAM  L/R VALUE  START CHOOSE  B MUTE";
+            help = ru(session) ? "LT/RT СЛОТ  UP/DN ПАРАМ.  L/R ЗНАЧ.  START ВЫБОР  B MUTE"
+                               : "LT/RT SLOT  UP/DN PARAM  L/R VALUE  START CHOOSE  B MUTE";
         }
     } else if (state.picker != Picker::none) {
         help = ru(session) ? "E ВЫБРАТЬ  ESC НАЗАД" : "E SELECT  ESC BACK";
     } else if (state.page == Page::effects) {
-        help = ru(session) ? "</> FX  ^/V ПАРАМ.  S ДОРОЖКА  A/D ЗНАЧ.  E ТИП"
-                           : "</> FX  ^/V PARAM  S TRACK  A/D VALUE  E TYPE";
+        help = ru(session) ? "LT/RT FX  UP/DN ПАРАМ.  S ДОРОЖКА  A/D ЗНАЧ.  E ТИП"
+                           : "LT/RT FX  UP/DN PARAM  S TRACK  A/D VALUE  E TYPE";
     } else if (state.page == Page::perform) {
-        help = ru(session) ? "^/V РУЧКА/УРОВ.  </> ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ"
-                           : "^/V MACRO/LEVEL  </> TRACK  SPACE MUTE  E LANDSCAPE";
+        help = ru(session) ? "UP/DN РУЧКА/УРОВ.  LT/RT ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ"
+                           : "UP/DN MACRO/LEVEL  LT/RT TRACK  SPACE MUTE  E LANDSCAPE";
     } else if (state.page == Page::master || state.page == Page::setup) {
-        help = ru(session) ? "^/V ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
-                           : "^/V PARAM  A/D VALUE  TAB PAGE  F FADE  K KILL";
+        help = ru(session) ? "UP/DN ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
+                           : "UP/DN PARAM  A/D VALUE  TAB PAGE  F FADE  K KILL";
     } else {
-        help = ru(session) ? "</> СЛОТ  ^/V ПАРАМ.  A/D ЗНАЧ.  E ВЫБОР  SPACE MUTE"
-                           : "</> SLOT  ^/V PARAM  A/D VALUE  E CHOOSE  SPACE MUTE";
+        help = ru(session) ? "LT/RT СЛОТ  UP/DN ПАРАМ.  A/D ЗНАЧ.  E ВЫБОР  SPACE MUTE"
+                           : "LT/RT SLOT  UP/DN PARAM  A/D VALUE  E CHOOSE  SPACE MUTE";
     }
     cd::ui::draw_text(renderer, 10, 370, help, kDim);
     if (state.held_direction != 0 && now - state.held_since >= 1'050U) {

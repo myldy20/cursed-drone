@@ -59,7 +59,17 @@ enum class EffectKind {
     crusher,
     wavefolder,
     ringmod,
-    comb
+    comb,
+    chorus,
+    flanger,
+    phaser,
+    diffuser,
+    ahdr,
+    tape_void,
+    black_hole,
+    ritual_gate,
+    rust_cloud,
+    deep_sea
 };
 enum class ModWave { sine, triangle, sample_hold, random_walk };
 enum class ModDestination {
@@ -117,7 +127,7 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{7};
+    unsigned schema_version{8};
     Locale locale{Locale::en};
     SceneKind scene{SceneKind::derelict};
     bool scene_modified{false};

@@ -8,8 +8,8 @@
   "items_opt": null,
   "attr": {
     "title": "Cursed Drone",
-    "desc": "Procedural derelict, factory and wasteland soundscapes with four controllable actors.",
-    "inst": "Pre-release device probe and audio prototype. The first launch records video, audio and controller information.",
+    "desc": "Procedural drone synth with ten soundscapes, thirty-two engines and basic or compound ambient effects.",
+    "inst": "Verified on TrimUI Brick with Knulli. The first launch checks video, audio and controls, then stores logs under curseddrone/conf.",
     "genres": [
       "music"
     ],

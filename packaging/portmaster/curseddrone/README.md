@@ -1,4 +1,4 @@
-# Cursed Drone v0.8 — AArch64 PortMaster public test
+# Cursed Drone v0.9 — AArch64 PortMaster public test
 
 ## Important / Важно
 
@@ -62,13 +62,17 @@ curseddrone/conf/cursed-drone.log
 | Start | choose landscape, engine or effect / открыть выбор |
 | hold Start, then press Select | save and exit / сохранить и выйти |
 
+On the FX page, press **Start** and use Left/Right to switch between **BASIC** processors and **COMPOUND** drone/ambient recipes.
+
+На странице FX нажмите **Start** и переключайтесь влево/вправо между **БАЗОВЫМИ** процессорами и **СОСТАВНЫМИ** рецептами для дрона и эмбиента.
+
 Language and separate fade times are changed on `SETUP / НАСТР.` with L/R.
 
 Язык и времена fade-in/fade-out меняются на экране `SETUP / НАСТР.` кнопками L/R.
 
 ## Saves / Сохранения
 
-Version 0.8 stores the current session in:
+Version 0.9 stores the current session in:
 
 ```text
 curseddrone/conf/autosave.cdrone
@@ -82,4 +86,4 @@ curseddrone/conf/myldy20/cursed-drone/autosave.cdrone
 
 Developed by **Myldy design — @myldy20**.
 
-Thanks to the PortMaster project for its packaging conventions and platform helpers.
+Uses an audited subset of **DaisySP** and the **font512** bitmap font; see the bundled licence notices for exact terms. PortMaster provides the packaging conventions and platform helpers.

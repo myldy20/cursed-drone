@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/branding/cursed-drone-banner.png" alt="Cursed Drone — developed by Myldy design" width="100%">
+  <img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-  <img src="https://img.shields.io/badge/version-0.8.0-public_test-eee2c5" alt="version 0.8.0">
+  <img src="https://img.shields.io/badge/version-0.9.0-eee2c5" alt="version 0.8.0">
   <img src="https://img.shields.io/badge/verified-TrimUI_Brick-50a99a" alt="verified on TrimUI Brick">
   <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
 </p>
@@ -64,7 +64,9 @@ Current public-test features:
 - four simultaneous audio slots;
 - ten landscape recipes, including bass-first `Bunker`, `Power Grid`, `Deep Water` and `Ash Field`;
 - thirty-two selectable engines, including `Sub Drone`, `Tape Drone`, `Bowed Metal` and `Earth Rumble`;
-- four serial effects and four modulation lanes per actor;
+- four serial FX slots per actor with **basic** processors and **compound** drone/ambient recipes;
+- basic FX: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb, chorus, flanger, phaser, diffuser and AHDR;
+- compound FX: `Tape Void`, `Black Hole`, `Ritual Gate`, `Rust Cloud` and `Deep Sea`;
 - performance macros for `Material`, `Activity`, `Tension`, `Distance` and `Evolution`;
 - separate fade-in and fade-out times, tail-preserving mute and hard `Kill`;
 - per-slot and master waveform, RMS, peak and throttled DSP telemetry;
@@ -146,6 +148,7 @@ The CI builds and tests Linux, macOS and Ubuntu 20.04 AArch64/PortMaster package
 - [Procedural soundscapes](docs/soundscapes.en.md) · [Процедурные ландшафты](docs/soundscapes.ru.md)
 - [Roadmap](docs/roadmap.en.md) · [Дорожная карта](docs/roadmap.ru.md)
 - [TrimUI Brick and porting](docs/trimui-brick.en.md) · [TrimUI Brick и портирование](docs/trimui-brick.ru.md)
+- [Effect architecture and recipes](docs/effects.en.md) · [Архитектура эффектов и рецепты](docs/effects.ru.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Credits and licence
@@ -195,7 +198,9 @@ Project code is licensed under **GNU GPL v3.0 or later**. Third-party components
 - четыре одновременно звучащих процедурных слота;
 - десять ландшафтов, включая басовые `Бункер`, `Подстанция`, `Глубина` и `Пепел`;
 - тридцать два движка, включая саб-дрон, ленточный дрон, смычковый металл и гул земли;
-- четыре последовательных эффекта и четыре линии модуляции на каждый слот;
+- четыре последовательных FX-слота на актёра с **базовыми** процессорами и **составными** рецептами для дрона/эмбиента;
+- базовые FX: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb, chorus, flanger, phaser, diffuser и AHDR;
+- составные FX: `Лентопустота`, `Чёрная дыра`, `Ритуальный гейт`, `Облако ржавчины` и `Глубина`;
 - макросы `Материал`, `Активность`, `Напряжение`, `Дистанция` и `Развитие`;
 - раздельные fade-in/fade-out, mute с сохранением хвостов и жёсткий `Kill`;
 - waveform, RMS, peak и замедленная индикация загрузки DSP;
