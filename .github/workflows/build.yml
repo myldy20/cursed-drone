@@ -17,6 +17,14 @@ jobs:
         run: cmake --build build --parallel 2
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Branded SDL startup smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            timeout 3s build/cursed-drone-sdl
+          status=$?
+          set -e
+          test "$status" -eq 0 -o "$status" -eq 124
       - name: Render soundscape previews
         run: |
           mkdir -p previews
@@ -52,12 +60,15 @@ jobs:
         run: ctest --test-dir build-macos --output-on-failure
       - name: Assemble test bundle
         run: |
-          mkdir -p dist/cursed-drone-macos
+          mkdir -p dist/cursed-drone-macos/assets/branding dist/cursed-drone-macos/docs
           cp build-macos/cursed-drone dist/cursed-drone-macos/
           cp build-macos/cursed-drone-sdl dist/cursed-drone-macos/
           cp build-macos/cursed-drone-probe dist/cursed-drone-macos/
           cp build-macos/cursed-drone-render dist/cursed-drone-macos/
           cp README.md LICENSE THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
+          cp assets/branding/cursed-drone-splash.bmp dist/cursed-drone-macos/assets/branding/
+          cp assets/branding/cursed-drone-banner.png dist/cursed-drone-macos/assets/branding/
+          cp docs/install.en.md docs/install.ru.md dist/cursed-drone-macos/docs/
           cp third_party/font512/LICENSE dist/cursed-drone-macos/font512-UNLICENSE.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -85,10 +96,13 @@ jobs:
               strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
               ./tools/package_portmaster.sh build-aarch64 dist
             '
-      - name: Inspect binaries
+      - name: Inspect binaries and package
         run: |
           file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-          unzip -l dist/curseddrone-aarch64-test.zip
+          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/package-list.txt
+          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package-list.txt
+          grep -q 'curseddrone/docs/install.en.md' /tmp/package-list.txt
+          grep -q 'curseddrone/docs/install.ru.md' /tmp/package-list.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-portmaster-aarch64
