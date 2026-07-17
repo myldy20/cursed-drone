@@ -27,14 +27,32 @@ jobs:
       - name: Normalize patch for current main
         run: python3 tools/normalize_v09_patch.py
       - name: Apply v0.9 patch
-        run: python3 tools/apply_v09_patch.py
+        id: apply
+        continue-on-error: true
+        run: python3 tools/apply_v09_patch.py > /tmp/v09-patch.log 2>&1
+      - name: Save patch failure
+        if: steps.apply.outcome == 'failure'
+        run: |
+          git reset --hard HEAD
+          mkdir -p docs
+          cp /tmp/v09-patch.log docs/V09_PATCH_ERROR.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/V09_PATCH_ERROR.txt
+          git commit -m "Record v0.9 patch failure"
+          git push origin HEAD:agent/v0.9-effects-branding
+          exit 1
       - name: Validate generated diff
+        if: steps.apply.outcome == 'success'
         run: git diff --check
       - name: Configure and build
+        if: steps.apply.outcome == 'success'
         run: cmake -S . -B build-v09 -DCMAKE_BUILD_TYPE=Release
       - name: Run tests
+        if: steps.apply.outcome == 'success'
         run: ctest --test-dir build-v09 --output-on-failure
       - name: SDL startup smoke test
+        if: steps.apply.outcome == 'success'
         run: |
           set +e
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
@@ -43,6 +61,7 @@ jobs:
           status=$?
           test "$status" -eq 0 -o "$status" -eq 124
       - name: Verify PortMaster package
+        if: steps.apply.outcome == 'success'
         run: |
           ./tools/package_portmaster.sh build-v09 dist-v09
           unzip -l dist-v09/curseddrone-aarch64-test.zip | tee /tmp/package.txt
@@ -50,9 +69,12 @@ jobs:
           grep -q 'docs/install.ru.md' /tmp/package.txt
           grep -q 'cursed-drone-splash.bmp' /tmp/package.txt
       - name: Restore temporary integration files
+        if: steps.apply.outcome == 'success'
         run: |
+          rm -f docs/V09_PATCH_ERROR.txt
           git checkout HEAD -- tools/apply_v09_patch.py tools/normalize_v09_patch.py .github/workflows/apply-v09.yml
       - name: Commit generated v0.9 source
+        if: steps.apply.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
