@@ -1,0 +1,103 @@
+name: integrate-performance-lab
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/patch_audio_lab.py
+      - tools/patch_ui_lab.py
+      - tools/patch_tests_lab.py
+      - .github/workflows/apply-performance-lab.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/plaits-performance-lab
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply audio and UI integration
+        id: patch
+        continue-on-error: true
+        run: |
+          : > /tmp/performance-lab.log
+          python3 tools/patch_audio_lab.py >> /tmp/performance-lab.log 2>&1
+          python3 tools/patch_ui_lab.py >> /tmp/performance-lab.log 2>&1
+          python3 tools/patch_tests_lab.py >> /tmp/performance-lab.log 2>&1
+          python3 - <<'PY' >> /tmp/performance-lab.log 2>&1
+          from pathlib import Path
+          path = Path('tests/test_main.cpp')
+          text = path.read_text(encoding='utf-8')
+          if '#include <fstream>' not in text:
+              text = text.replace('#include <filesystem>\n', '#include <filesystem>\n#include <fstream>\n')
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check >> /tmp/performance-lab.log 2>&1
+      - name: Install SDL2
+        if: steps.patch.outcome == 'success'
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+      - name: Configure and build
+        id: build
+        if: steps.patch.outcome == 'success'
+        continue-on-error: true
+        run: |
+          cmake -S . -B build-lab -DCMAKE_BUILD_TYPE=Release 2>&1 | tee -a /tmp/performance-lab.log
+          cmake --build build-lab --parallel 2 2>&1 | tee -a /tmp/performance-lab.log
+      - name: Run tests
+        id: tests
+        if: steps.patch.outcome == 'success' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: ctest --test-dir build-lab --output-on-failure 2>&1 | tee -a /tmp/performance-lab.log
+      - name: SDL smoke test
+        id: smoke
+        if: steps.patch.outcome == 'success' && steps.build.outcome == 'success' && steps.tests.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            timeout 3s build-lab/cursed-drone-sdl >> /tmp/performance-lab.log 2>&1
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+      - name: Build PortMaster test package
+        id: package
+        if: steps.patch.outcome == 'success' && steps.build.outcome == 'success' && steps.tests.outcome == 'success' && steps.smoke.outcome == 'success'
+        continue-on-error: true
+        run: |
+          ./tools/package_portmaster.sh build-lab dist-lab 2>&1 | tee -a /tmp/performance-lab.log
+          unzip -l dist-lab/curseddrone-aarch64-test.zip | tee -a /tmp/performance-lab.log
+          unzip -l dist-lab/curseddrone-aarch64-test.zip | grep -q 'conf/scales/19-edo.scl'
+          unzip -l dist-lab/curseddrone-aarch64-test.zip | grep -q 'docs/experiment-lab.ru.md'
+      - name: Upload integration diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-lab-integration-log
+          path: /tmp/performance-lab.log
+      - name: Upload provisional package
+        if: steps.package.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-performance-lab-provisional
+          path: dist-lab/curseddrone-aarch64-test.zip
+      - name: Restore temporary integration files
+        if: steps.patch.outcome == 'success' && steps.build.outcome == 'success' && steps.tests.outcome == 'success' && steps.smoke.outcome == 'success' && steps.package.outcome == 'success'
+        run: |
+          rm -rf build-lab dist-lab
+          git checkout HEAD -- tools/patch_audio_lab.py tools/patch_ui_lab.py tools/patch_tests_lab.py .github/workflows/apply-performance-lab.yml
+      - name: Commit integrated source
+        if: steps.patch.outcome == 'success' && steps.build.outcome == 'success' && steps.tests.outcome == 'success' && steps.smoke.outcome == 'success' && steps.package.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/audio.cpp src/sdl_main.cpp tests/test_main.cpp
+          git commit -m "experiment: integrate Performance Lab audio and UI"
+          git push origin HEAD:experiment/plaits-performance-lab
+      - name: Fail if integration failed
+        if: steps.patch.outcome != 'success' || steps.build.outcome != 'success' || steps.tests.outcome != 'success' || steps.smoke.outcome != 'success' || steps.package.outcome != 'success'
+        run: exit 1
