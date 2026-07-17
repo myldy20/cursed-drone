@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./Cursed Drone Lab.sh</path>
+    <name>Cursed Drone Lab</name>
+    <desc>Experimental drone and soundscape performance lab.</desc>
+    <releasedate>20260718T000000</releasedate>
+    <developer>Myldy design</developer>
+    <publisher>Myldy design</publisher>
+    <genre>Music</genre>
+  </game>
+</gameList>
