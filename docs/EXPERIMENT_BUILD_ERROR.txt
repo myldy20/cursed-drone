@@ -5,30 +5,31 @@
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
 -- Cursed Drone experiment: pinned upstream Plaits enabled
--- Configuring done (0.8s)
+-- Configuring done (1.5s)
 -- Generating done (0.0s)
 -- Build files have been written to: /home/runner/work/cursed-drone/cursed-drone/build-session
 [  1%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Filters/svf.cpp.o
 [  2%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/chords/chord_bank.cc.o
-[  4%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/additive_engine.cc.o
-[  5%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Noise/clockednoise.cpp.o
-[  7%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/bass_drum_engine.cc.o
-[  8%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Noise/grainlet.cpp.o
-[ 10%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/chord_engine.cc.o
-[ 11%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Noise/particle.cpp.o
-[ 13%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/fm_engine.cc.o
-[ 14%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/PhysicalModeling/drip.cpp.o
+[  4%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Noise/clockednoise.cpp.o
+[  5%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/additive_engine.cc.o
+[  7%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Noise/grainlet.cpp.o
+[  8%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/bass_drum_engine.cc.o
+[ 10%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Noise/particle.cpp.o
+[ 11%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/chord_engine.cc.o
+[ 13%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/PhysicalModeling/drip.cpp.o
+[ 14%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/fm_engine.cc.o
 [ 15%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/grain_engine.cc.o
-[ 17%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/hi_hat_engine.cc.o
-[ 18%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/PhysicalModeling/modalvoice.cpp.o
-[ 20%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/modal_engine.cc.o
-[ 21%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/PhysicalModeling/resonator.cpp.o
+[ 17%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/PhysicalModeling/modalvoice.cpp.o
+[ 18%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/hi_hat_engine.cc.o
+[ 20%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/PhysicalModeling/resonator.cpp.o
+[ 21%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/modal_engine.cc.o
 [ 23%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/noise_engine.cc.o
-[ 24%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/particle_engine.cc.o
-[ 26%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Synthesis/oscillator.cpp.o
-[ 27%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/snare_drum_engine.cc.o
-[ 28%] Linking CXX static library libcursed_drone_daisysp.a
+[ 24%] Building CXX object CMakeFiles/cursed_drone_daisysp.dir/third_party/daisysp/Source/Synthesis/oscillator.cpp.o
+[ 26%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/particle_engine.cc.o
+[ 27%] Linking CXX static library libcursed_drone_daisysp.a
+[ 28%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/snare_drum_engine.cc.o
 [ 30%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/speech_engine.cc.o
+[ 30%] Built target cursed_drone_daisysp
 [ 31%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/string_engine.cc.o
 [ 33%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/swarm_engine.cc.o
 [ 34%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/engine/virtual_analog_engine.cc.o
@@ -48,7 +49,6 @@
 [ 49%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/fm/dx_units.cc.o
 [ 50%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/physical_modelling/modal_voice.cc.o
 [ 52%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/physical_modelling/resonator.cc.o
-[ 52%] Built target cursed_drone_daisysp
 [ 53%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/physical_modelling/string.cc.o
 [ 55%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/physical_modelling/string_voice.cc.o
 [ 56%] Building CXX object CMakeFiles/cursed_drone_plaits.dir/third_party/eurorack/plaits/dsp/speech/lpc_speech_synth.cc.o
