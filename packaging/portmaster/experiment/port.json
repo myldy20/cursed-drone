@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "name": "curseddrone-lab.zip",
+  "items": [
+    "Cursed Drone Lab.sh",
+    "curseddrone-lab"
+  ],
+  "items_opt": null,
+  "attr": {
+    "title": "Cursed Drone Lab",
+    "desc": "Experimental performance lab with original macro-oscillator engines, Scala tuning, Euclidean events, reverse grains and landscape morphing.",
+    "inst": "Isolated experimental build. Verified target: TrimUI Brick with Knulli. Installs beside public Cursed Drone and keeps a separate autosave.",
+    "genres": ["music"],
+    "porter": ["myldy20"],
+    "image": {},
+    "rtr": true,
+    "runtime": null,
+    "reqs": [],
+    "arch": ["aarch64"]
+  }
+}
