@@ -1,0 +1,52 @@
+name: experimental-session-lab
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/patch_session_lab.py
+      - tools/normalize_session_patch.py
+      - .github/workflows/apply-experiment-session.yml
+      - include/cursed_drone/session.hpp
+      - include/cursed_drone/scala.hpp
+      - src/scala.cpp
+      - src/plaits_actor.cpp
+      - src/plaits_actor.hpp
+      - CMakeLists.txt
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/plaits-performance-lab
+          fetch-depth: 0
+          submodules: recursive
+      - name: Normalize and apply session patch
+        run: |
+          python3 tools/normalize_session_patch.py
+          python3 tools/patch_session_lab.py
+          git diff --check
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - name: Configure and build
+        run: |
+          cmake -S . -B build-session -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-session --parallel 2
+      - name: Test
+        run: ctest --test-dir build-session --output-on-failure
+      - name: Restore temporary files
+        run: |
+          rm -rf build-session
+          git checkout HEAD -- tools/patch_session_lab.py tools/normalize_session_patch.py .github/workflows/apply-experiment-session.yml
+      - name: Commit session integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/session.cpp
+          git commit -m "experiment: persist performance lab settings"
+          git push origin HEAD:experiment/plaits-performance-lab
