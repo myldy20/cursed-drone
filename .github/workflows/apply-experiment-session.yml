@@ -27,23 +27,42 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - name: Normalize and apply session patch
+        id: patch
+        continue-on-error: true
         run: |
-          python3 tools/normalize_session_patch.py
-          python3 tools/patch_session_lab.py
-          git diff --check
+          python3 tools/normalize_session_patch.py > /tmp/session-patch.log 2>&1
+          python3 tools/patch_session_lab.py >> /tmp/session-patch.log 2>&1
+          git diff --check >> /tmp/session-patch.log 2>&1
+      - name: Save patch diagnostics
+        if: steps.patch.outcome == 'failure'
+        run: |
+          git reset --hard HEAD
+          cp /tmp/session-patch.log docs/EXPERIMENT_SESSION_ERROR.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/EXPERIMENT_SESSION_ERROR.txt
+          git commit -m "experiment: record session integration failure"
+          git push origin HEAD:experiment/plaits-performance-lab
+          exit 1
       - name: Install SDL2
+        if: steps.patch.outcome == 'success'
         run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
       - name: Configure and build
+        if: steps.patch.outcome == 'success'
         run: |
           cmake -S . -B build-session -DCMAKE_BUILD_TYPE=Release
           cmake --build build-session --parallel 2
       - name: Test
+        if: steps.patch.outcome == 'success'
         run: ctest --test-dir build-session --output-on-failure
       - name: Restore temporary files
+        if: steps.patch.outcome == 'success'
         run: |
           rm -rf build-session
+          rm -f docs/EXPERIMENT_SESSION_ERROR.txt
           git checkout HEAD -- tools/patch_session_lab.py tools/normalize_session_patch.py .github/workflows/apply-experiment-session.yml
       - name: Commit session integration
+        if: steps.patch.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
