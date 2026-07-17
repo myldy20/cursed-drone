@@ -26,6 +26,10 @@ jobs:
           build/cursed-drone-render previews/wet-cave.wav 30 wet_cave
           build/cursed-drone-render previews/metro-car.wav 30 metro
           build/cursed-drone-render previews/broken-nursery.wav 30 nursery
+          build/cursed-drone-render previews/bunker.wav 30 bunker
+          build/cursed-drone-render previews/power-grid.wav 30 power_grid
+          build/cursed-drone-render previews/deep-water.wav 30 deep_water
+          build/cursed-drone-render previews/ash-field.wav 30 ash_field
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-soundscape-previews
