@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" role="img" aria-labelledby="title desc">
+  <title id="title">Cursed Drone by Myldy design</title>
+  <desc id="desc">Myldy design monogram and Cursed Drone procedural synth identity</desc>
+  <rect width="1600" height="400" rx="18" fill="#08070c"/>
+  <rect x="1.5" y="1.5" width="1597" height="397" rx="16.5" fill="none" stroke="#2f2a38" stroke-width="3"/>
+
+  <g fill="#eee2c5">
+    <rect x="92" y="82" width="54" height="176" rx="10"/>
+    <rect x="174" y="82" width="38" height="176" rx="10"/>
+    <rect x="304" y="82" width="38" height="176" rx="10"/>
+    <rect x="370" y="82" width="54" height="176" rx="10"/>
+    <path d="M203 82h38l63 128-28 48h-25l-67-137z"/>
+    <path d="M342 82h-38l-63 128 28 48h25l67-137z"/>
+  </g>
+  <text x="92" y="314" fill="#eee2c5" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="700" letter-spacing="8">MYLDY DESIGN</text>
+  <text x="94" y="349" fill="#9c94a6" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="600" letter-spacing="3">@MYLDY20</text>
+
+  <line x1="570" y1="72" x2="570" y2="328" stroke="#4a4352" stroke-width="2"/>
+
+  <g transform="translate(690 62)" fill="#eee2c5">
+    <rect x="0" y="12" width="42" height="160" rx="8"/>
+    <rect x="78" y="12" width="30" height="160" rx="7"/>
+    <rect x="202" y="12" width="30" height="160" rx="7"/>
+    <rect x="268" y="12" width="42" height="160" rx="8"/>
+    <path d="M102 12h42l58 107-25 53h-21L94 51z"/>
+    <path d="M208 12h-42l-58 107 25 53h21l62-121z"/>
+    <rect x="132" y="0" width="46" height="22" rx="5"/>
+  </g>
+
+  <text x="1060" y="178" fill="#eee2c5" font-family="Arial,Helvetica,sans-serif" font-size="74" font-weight="800" letter-spacing="4">CURSED</text>
+  <text x="1060" y="252" fill="#eee2c5" font-family="Arial,Helvetica,sans-serif" font-size="74" font-weight="300" letter-spacing="10">DRONE</text>
+  <text x="1064" y="302" fill="#9c94a6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="600" letter-spacing="4">PROCEDURAL DRONE SYNTH</text>
+  <line x1="690" y1="340" x2="1500" y2="340" stroke="#2f2a38" stroke-width="2"/>
+  <circle cx="690" cy="340" r="4" fill="#eee2c5"/>
+  <circle cx="1500" cy="340" r="4" fill="#eee2c5"/>
+</svg>
