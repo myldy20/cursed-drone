@@ -1,0 +1,54 @@
+name: apply-v08-branding
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/apply_v08_branding.py
+      - .github/workflows/apply-v08-branding.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.8-branding-install-guides
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+      - name: Apply in-app branding patch
+        run: python3 tools/apply_v08_branding.py
+      - name: Validate diff
+        run: git diff --check
+      - name: Configure and build
+        run: cmake -S . -B build-v08 -DCMAKE_BUILD_TYPE=Release
+      - name: Run tests
+        run: |
+          cmake --build build-v08 --parallel 2
+          ctest --test-dir build-v08 --output-on-failure
+      - name: SDL headless startup smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy CURSED_DRONE_SKIP_SPLASH=1 \
+            timeout 3s build-v08/cursed-drone-sdl
+          status=$?
+          set -e
+          test "$status" -eq 0 -o "$status" -eq 124
+      - name: Verify PortMaster package contents
+        run: |
+          ./tools/package_portmaster.sh build-v08 dist-v08
+          unzip -l dist-v08/curseddrone-aarch64-test.zip | tee /tmp/package-list.txt
+          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package-list.txt
+          grep -q 'curseddrone/docs/install.en.md' /tmp/package-list.txt
+          grep -q 'curseddrone/docs/install.ru.md' /tmp/package-list.txt
+      - name: Commit generated application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sdl_main.cpp
+          git commit -m "Add branded splash, credits and save migration"
+          git push origin HEAD:agent/v0.8-branding-install-guides
