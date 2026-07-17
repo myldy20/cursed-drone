@@ -1,0 +1,61 @@
+name: apply-v09-effects
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/apply_v09_patch.py
+      - tools/normalize_v09_patch.py
+      - .github/workflows/apply-v09.yml
+      - assets/branding/cursed-drone-banner.svg
+      - docs/effects.en.md
+      - docs/effects.ru.md
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v0.9-effects-branding
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+      - name: Normalize patch for current main
+        run: python3 tools/normalize_v09_patch.py
+      - name: Apply v0.9 patch
+        run: python3 tools/apply_v09_patch.py
+      - name: Validate generated diff
+        run: git diff --check
+      - name: Configure and build
+        run: cmake -S . -B build-v09 -DCMAKE_BUILD_TYPE=Release
+      - name: Run tests
+        run: ctest --test-dir build-v09 --output-on-failure
+      - name: SDL startup smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            timeout 3s build-v09/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+      - name: Verify PortMaster package
+        run: |
+          ./tools/package_portmaster.sh build-v09 dist-v09
+          unzip -l dist-v09/curseddrone-aarch64-test.zip | tee /tmp/package.txt
+          grep -q 'docs/install.en.md' /tmp/package.txt
+          grep -q 'docs/install.ru.md' /tmp/package.txt
+          grep -q 'cursed-drone-splash.bmp' /tmp/package.txt
+      - name: Restore temporary integration files
+        run: |
+          git checkout HEAD -- tools/apply_v09_patch.py tools/normalize_v09_patch.py .github/workflows/apply-v09.yml
+      - name: Commit generated v0.9 source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "v0.9: compound effects and interface polish"
+          git push origin HEAD:agent/v0.9-effects-branding
