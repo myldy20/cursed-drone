@@ -1294,8 +1294,11 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
             cd::ui::draw_text(renderer, x + 8, y, label, selected ? kInk : kDim);
         }
         cd::ui::draw_text(renderer, 92, 334,
-            ru(session) ? "^/V ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
-                        : "^/V SELECT   E APPLY   ESC BACK", kDim);
+            handheld()
+                ? (ru(session) ? "^/V ВЫБОР   B ПРИНЯТЬ   A НАЗАД"
+                               : "^/V SELECT   B APPLY   A BACK")
+                : (ru(session) ? "^/V ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
+                               : "^/V SELECT   E APPLY   ESC BACK"), kDim);
     } else if (state.picker == Picker::engine) {
         cd::ui::draw_text(renderer, 92, 78,
             ru(session) ? "ВЫБОР ДВИЖКА" : "CHOOSE ENGINE", kInk, 2);
@@ -1316,8 +1319,11 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
             cd::ui::draw_text(renderer, 102, y, label, selected ? kInk : kDim);
         }
         cd::ui::draw_text(renderer, 92, 334,
-            ru(session) ? "</> ГРУППА  ^/V ДВИЖОК  E OK  ESC НАЗАД"
-                        : "</> GROUP  ^/V ENGINE  E OK  ESC BACK", kDim);
+            handheld()
+                ? (ru(session) ? "</> ГРУППА  ^/V ДВИЖОК  B OK  A НАЗАД"
+                               : "</> GROUP  ^/V ENGINE  B OK  A BACK")
+                : (ru(session) ? "</> ГРУППА  ^/V ДВИЖОК  E OK  ESC НАЗАД"
+                               : "</> GROUP  ^/V ENGINE  E OK  ESC BACK"), kDim);
     } else if (state.picker == Picker::effect) {
         cd::ui::draw_text(renderer, 92, 66,
             ru(session) ? "ВЫБОР ЭФФЕКТА" : "CHOOSE EFFECT", kInk, 2);
@@ -1333,8 +1339,11 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
             cd::ui::draw_text(renderer, x + 8, y, label, selected ? kInk : kDim);
         }
         cd::ui::draw_text(renderer, 92, 334,
-            ru(session) ? "СТРЕЛКИ ВЫБОР   E OK   ESC НАЗАД"
-                        : "ARROWS SELECT   E OK   ESC BACK", kDim);
+            handheld()
+                ? (ru(session) ? "СТРЕЛКИ ВЫБОР   B OK   A НАЗАД"
+                               : "ARROWS SELECT   B OK   A BACK")
+                : (ru(session) ? "СТРЕЛКИ ВЫБОР   E OK   ESC НАЗАД"
+                               : "ARROWS SELECT   E OK   ESC BACK"), kDim);
     }
 }
 

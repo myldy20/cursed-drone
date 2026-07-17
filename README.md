@@ -54,12 +54,12 @@ The direction of navigation matches the screen: left/right selects a horizontal 
 | select parameter row | Up / Down | D-pad Up / Down |
 | change value | A / D | L / R |
 | open landscape, engine or effect picker | E | Start |
-| confirm / cancel picker | E or Enter / Escape | A / B |
+| confirm / cancel picker | E or Enter / Escape | B / A |
 | next page | Tab or 1–5 | X |
-| mute selected track | Space | A outside a picker |
+| mute selected track | Space | B outside a picker |
 | select next source track on FX | S | Y |
 | run output fade | F | Select / Back |
-| clear voices and effect tails | K | B outside a picker |
+| clear voices and effect tails | K | A outside a picker |
 | exit | Escape | hold Start, then press Select |
 
 A short value press changes most parameters by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds. On `Scene`, Down after the last macro focuses the track strip so A/D edits its level directly. Mute stops new source audio but keeps effect tails; `Kill` clears both source and effect memory.
@@ -205,12 +205,12 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 | выбрать строку параметра | Up / Down | D-pad Up / Down |
 | изменить значение | A / D | L / R |
 | открыть выбор ландшафта, движка или эффекта | E | Start |
-| подтвердить / отменить выбор | E или Enter / Escape | A / B |
+| подтвердить / отменить выбор | E или Enter / Escape | B / A |
 | следующий экран | Tab или 1–5 | X |
-| mute выбранной дорожки | Space | A вне окна выбора |
+| mute выбранной дорожки | Space | B вне окна выбора |
 | следующая исходная дорожка на FX | S | Y |
 | запустить фейд выхода | F | Select / Back |
-| очистить голоса и хвосты эффектов | K | B вне окна выбора |
+| очистить голоса и хвосты эффектов | K | A вне окна выбора |
 | выход | Escape | удерживать Start, затем нажать Select |
 
 Короткое нажатие меняет большинство параметров на один процент. Удержание ускоряется через 1,05 секунды и ещё раз через 2,2 секунды. На экране `Сцена` нажатие Down после последнего макроса переводит фокус на дорожки, и A/D напрямую меняет уровень выбранной. Mute прекращает новый сигнал, сохраняя хвосты эффектов; `Kill` очищает и источник, и память эффектов.
