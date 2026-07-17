@@ -70,6 +70,7 @@ struct PlaitsActor::Impl {
     plaits::Voice voice{};
     std::array<plaits::Voice::Frame, plaits::kBlockSize> frames{};
     std::size_t frame_index{plaits::kBlockSize};
+    bool pending_trigger{false};
 #endif
 
     void fallback_reset() noexcept {
@@ -88,6 +89,7 @@ void PlaitsActor::prepare(float sample_rate) {
     impl_->allocator.Init(impl_->allocator_memory.data(), impl_->allocator_memory.size());
     impl_->voice.Init(&impl_->allocator);
     impl_->frame_index = plaits::kBlockSize;
+    impl_->pending_trigger = false;
 #endif
 }
 
@@ -97,6 +99,7 @@ void PlaitsActor::reset() noexcept {
     impl_->allocator.Init(impl_->allocator_memory.data(), impl_->allocator_memory.size());
     impl_->voice.Init(&impl_->allocator);
     impl_->frame_index = plaits::kBlockSize;
+    impl_->pending_trigger = false;
 #endif
 }
 
@@ -118,6 +121,7 @@ StereoFrame PlaitsActor::next(
     decay = std::clamp(decay, 0.0F, 1.0F);
 
 #if CURSED_DRONE_HAS_PLAITS
+    impl_->pending_trigger = impl_->pending_trigger || trigger;
     if (impl_->frame_index >= plaits::kBlockSize) {
         plaits::Patch patch{};
         const float corrected_frequency = frequency_hz * (48'000.0F / impl_->sample_rate);
@@ -139,7 +143,7 @@ StereoFrame PlaitsActor::next(
         modulations.harmonics = 0.0F;
         modulations.timbre = 0.0F;
         modulations.morph = 0.0F;
-        modulations.trigger = trigger ? 1.0F : 0.0F;
+        modulations.trigger = impl_->pending_trigger ? 1.0F : 0.0F;
         modulations.level = 1.0F;
         modulations.frequency_patched = false;
         modulations.timbre_patched = false;
@@ -149,6 +153,7 @@ StereoFrame PlaitsActor::next(
 
         impl_->voice.Render(patch, modulations, impl_->frames.data(), plaits::kBlockSize);
         impl_->frame_index = 0U;
+        impl_->pending_trigger = false;
     }
     const auto frame = impl_->frames[impl_->frame_index++];
     const float main = -static_cast<float>(frame.out) / 32768.0F;
