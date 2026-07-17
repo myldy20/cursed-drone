@@ -1,53 +1,85 @@
-# Cursed Drone v0.7 — TrimUI Brick public test
+# Cursed Drone v0.8 — AArch64 PortMaster public test
 
-## RU
+## Important / Важно
 
-Это публичная тестовая сборка для TrimUI Brick и других AArch64-устройств с PortMaster.
+**Real hardware verification exists only for TrimUI Brick running Knulli.** Other AArch64 PortMaster handhelds are currently unverified.
 
-При первом запуске диагностический экран проверяет SDL2, звук и кнопки. Нажмите Start, чтобы перейти в основную программу. Отчёт сохраняется в `curseddrone/conf/device-probe.log`. Чтобы повторить диагностику, удалите `curseddrone/conf/probe-v1.complete`.
+**На реальном железе проверен только TrimUI Brick с Knulli.** Другие AArch64-консоли с PortMaster пока не проверены.
 
-## Управление на TrimUI Brick
+Detailed guides included in the package:
 
-| Кнопка | Действие |
-| --- | --- |
-| D-pad Left/Right | дорожка, слот или колонка FX |
-| D-pad Up/Down | параметр или строка FX |
-| L/R | уменьшить / увеличить значение |
-| B | mute выбранной дорожки; подтвердить выбор |
-| A | Kill: очистить голоса и хвосты FX; отменить выбор |
-| X | следующий экран |
-| Y | следующая исходная дорожка на экране FX |
-| Select | автофейд выхода |
-| Start | выбрать ландшафт, движок или эффект |
-| удерживать Start, затем нажать Select | сохранить и выйти |
+```text
+curseddrone/docs/install.en.md
+curseddrone/docs/install.ru.md
+```
 
-Язык и отдельные времена fade-in/fade-out меняются на экране `SETUP / НАСТР.` кнопками L/R.
+## Correct installation layout / Правильная структура установки
 
-Логи и автосохранение находятся внутри `curseddrone/conf/`.
+Extract the package into the folder containing other PortMaster launchers:
 
-## EN
+```text
+<ports>/Cursed Drone.sh
+<ports>/curseddrone/cursed-drone-sdl.aarch64
+<ports>/curseddrone/cursed-drone-probe.aarch64
+<ports>/curseddrone/assets/cursed-drone-splash.bmp
+```
 
-This is a public test build for TrimUI Brick and other AArch64 PortMaster devices.
+For TrimUI Brick with Knulli, `<ports>` is:
 
-On first launch, the device probe checks SDL2 video, audio and controls. Press Start to enter the main application. The report is stored at `curseddrone/conf/device-probe.log`. Delete `curseddrone/conf/probe-v1.complete` to run the probe again.
+```text
+/userdata/roms/ports
+```
 
-## TrimUI Brick controls
+Do not leave the launcher inside an extra ZIP-named directory.
+
+Не оставляйте `Cursed Drone.sh` внутри лишней папки с названием архива — он должен лежать непосредственно в папке Ports.
+
+## First launch / Первый запуск
+
+The first launch opens a hardware probe. Press the controls you want to test, then press **Start** to enter the synth.
+
+При первом запуске откроется диагностика железа. Нажмите проверяемые кнопки, затем **Start**, чтобы открыть синтезатор.
+
+Logs:
+
+```text
+curseddrone/conf/device-probe.log
+curseddrone/conf/cursed-drone.log
+```
+
+## Controls / Управление
 
 | Button | Action |
 | --- | --- |
-| D-pad Left/Right | track, slot or FX column |
-| D-pad Up/Down | parameter or FX row |
-| L/R | decrease / increase value |
-| B | mute selected track; confirm picker |
-| A | Kill voices and FX tails; cancel picker |
-| X | next page |
-| Y | next source track on the FX page |
-| Select | output auto-fade |
-| Start | choose landscape, engine or effect |
-| hold Start, then press Select | save and exit |
+| D-pad Left/Right | track, slot or FX column / дорожка, слот или колонка FX |
+| D-pad Up/Down | parameter or FX row / параметр или строка FX |
+| L/R | decrease/increase / изменить значение |
+| B | mute; confirm picker / mute; подтвердить выбор |
+| A | hard Kill; cancel picker / Kill; отменить выбор |
+| X | next page / следующий экран |
+| Y | next source track on FX / следующая исходная дорожка FX |
+| Select | output fade / автофейд выхода |
+| Start | choose landscape, engine or effect / открыть выбор |
+| hold Start, then press Select | save and exit / сохранить и выйти |
 
-Language and separate fade-in/fade-out times are changed on `SETUP` with L/R.
+Language and separate fade times are changed on `SETUP / НАСТР.` with L/R.
 
-Logs and autosave data are stored under `curseddrone/conf/`.
+Язык и времена fade-in/fade-out меняются на экране `SETUP / НАСТР.` кнопками L/R.
+
+## Saves / Сохранения
+
+Version 0.8 stores the current session in:
+
+```text
+curseddrone/conf/autosave.cdrone
+```
+
+It also reads the legacy v0.7 path once if required:
+
+```text
+curseddrone/conf/myldy20/cursed-drone/autosave.cdrone
+```
+
+Developed by **Myldy design — @myldy20**.
 
 Thanks to the PortMaster project for its packaging conventions and platform helpers.
