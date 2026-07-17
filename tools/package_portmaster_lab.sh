@@ -11,7 +11,6 @@ BUILD_DIR=$(CDPATH= cd -- "$1" && pwd)
 mkdir -p "$2"
 OUTPUT_DIR=$(CDPATH= cd -- "$2" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-PUBLIC_ASSETS="$ROOT_DIR/packaging/portmaster/curseddrone"
 LAB_ASSETS="$ROOT_DIR/packaging/portmaster/experiment"
 STAGE="$OUTPUT_DIR/curseddrone-lab-stage"
 PACKAGE_ROOT="$STAGE/package"
@@ -33,7 +32,7 @@ mkdir -p \
 
 cp "$LAB_ASSETS/port.json" "$PACKAGE_ROOT/port.json"
 cp "$LAB_ASSETS/gameinfo.xml" "$PACKAGE_ROOT/gameinfo.xml"
-cp "$PUBLIC_ASSETS/README.md" "$PACKAGE_ROOT/README.md"
+cp "$LAB_ASSETS/README.md" "$PACKAGE_ROOT/README.md"
 cp "$LAB_ASSETS/Cursed Drone Lab.sh" "$PACKAGE_ROOT/Cursed Drone Lab.sh"
 cp "$ROOT_DIR/assets/branding/cursed-drone-splash.bmp" "$APP_ROOT/assets/cursed-drone-splash.bmp"
 cp "$ROOT_DIR/assets/scales/"*.scl "$APP_ROOT/assets/scales/"
