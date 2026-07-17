@@ -1,0 +1,4 @@
+  File "/home/runner/work/cursed-drone/cursed-drone/tools/normalize_session_patch.py", line 15
+    for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {''')'''
+                                                                                           ^
+SyntaxError: unmatched ')'
