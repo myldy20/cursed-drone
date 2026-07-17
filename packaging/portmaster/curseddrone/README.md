@@ -1,8 +1,12 @@
-# Cursed Drone v0.9 — AArch64 PortMaster public test
+# Cursed Drone Experimental 0.10 — TrimUI Brick test
 
 ## Important / Важно
 
-**Real hardware verification exists only for TrimUI Brick running Knulli.** Other AArch64 PortMaster handhelds are currently unverified.
+This package belongs to the isolated `experiment/plaits-performance-lab` branch. It does not replace public v0.9.
+
+Этот пакет собран из отдельной ветки `experiment/plaits-performance-lab` и не заменяет публичную v0.9.
+
+**Real hardware verification exists only for TrimUI Brick running Knulli.** Other AArch64 PortMaster handhelds remain unverified.
 
 **На реальном железе проверен только TrimUI Brick с Knulli.** Другие AArch64-консоли с PortMaster пока не проверены.
 
@@ -11,17 +15,20 @@ Detailed guides included in the package:
 ```text
 curseddrone/docs/install.en.md
 curseddrone/docs/install.ru.md
+curseddrone/docs/experiment-lab.en.md
+curseddrone/docs/experiment-lab.ru.md
 ```
 
-## Correct installation layout / Правильная структура установки
+## Installation / Установка
 
-Extract the package into the folder containing other PortMaster launchers:
+Extract into the folder containing other PortMaster launchers:
 
 ```text
 <ports>/Cursed Drone.sh
 <ports>/curseddrone/cursed-drone-sdl.aarch64
 <ports>/curseddrone/cursed-drone-probe.aarch64
 <ports>/curseddrone/assets/cursed-drone-splash.bmp
+<ports>/curseddrone/assets/scales/*.scl
 ```
 
 For TrimUI Brick with Knulli, `<ports>` is:
@@ -32,13 +39,13 @@ For TrimUI Brick with Knulli, `<ports>` is:
 
 Do not leave the launcher inside an extra ZIP-named directory.
 
-Не оставляйте `Cursed Drone.sh` внутри лишней папки с названием архива — он должен лежать непосредственно в папке Ports.
+Не оставляйте `Cursed Drone.sh` внутри лишней папки с названием архива.
 
 ## First launch / Первый запуск
 
-The first launch opens a hardware probe. Press the controls you want to test, then press **Start** to enter the synth.
+The first launch opens a hardware probe. Press controls to test them, then press **Start** to enter the synth.
 
-При первом запуске откроется диагностика железа. Нажмите проверяемые кнопки, затем **Start**, чтобы открыть синтезатор.
+При первом запуске откроется диагностика железа. Нажмите проверяемые кнопки, затем **Start**.
 
 Logs:
 
@@ -47,43 +54,52 @@ curseddrone/conf/device-probe.log
 curseddrone/conf/cursed-drone.log
 ```
 
-## Controls / Управление
+## Simplified controls / Упрощённое управление
 
 | Button | Action |
 | --- | --- |
-| D-pad Left/Right | track, slot or FX column / дорожка, слот или колонка FX |
-| D-pad Up/Down | parameter or FX row / параметр или строка FX |
-| L/R | decrease/increase / изменить значение |
-| B | mute; confirm picker / mute; подтвердить выбор |
-| A | hard Kill; cancel picker / Kill; отменить выбор |
-| X | next page / следующий экран |
-| Y | next source track on FX / следующая исходная дорожка FX |
-| Select | output fade / автофейд выхода |
-| Start | choose landscape, engine or effect / открыть выбор |
-| hold Start, then press Select | save and exit / сохранить и выйти |
+| D-pad | navigation only / только навигация |
+| L/R | change value / изменить значение |
+| A | open, act, confirm / открыть, выполнить, подтвердить |
+| B | back or cancel; hold for Kill / назад или отмена; удерживать для Kill |
+| X | next main page / следующий основной экран |
+| Y | next actor / следующий актёр |
+| Select | output fade / fade выхода |
+| Start | open Performance Lab / открыть Performance Lab |
+| Start + Select | save and exit / сохранить и выйти |
 
-On the FX page, press **Start** and use Left/Right to switch between **BASIC** processors and **COMPOUND** drone/ambient recipes.
+## Performance Lab
 
-На странице FX нажмите **Start** и переключайтесь влево/вправо между **БАЗОВЫМИ** процессорами и **СОСТАВНЫМИ** рецептами для дрона и эмбиента.
+Press **Start**. The advanced functions are kept in this overlay and do not add more pages to the normal live workflow.
 
-Language and separate fade times are changed on `SETUP / НАСТР.` with L/R.
+Нажмите **Start**. Расширенные функции находятся в отдельном оверлее и не раздувают обычный цикл экранов.
 
-Язык и времена fade-in/fade-out меняются на экране `SETUP / НАСТР.` кнопками L/R.
+Lab sections:
+
+- `ACTOR`: original upstream macro actor, 16 models, MAIN/AUX/MIX/STEREO, Scala and root;
+- `MOD`: four bipolar modulation rows with safe rate cross-modulation;
+- `EVENT`: Euclidean steps, pulses, rotation, probability and Reverse Grains;
+- `MORPH`: target landscape and continuous morph;
+- `STAGE`: minimal performance screen.
+
+User Scala files go to:
+
+```text
+curseddrone/conf/scales/
+```
 
 ## Saves / Сохранения
 
-Version 0.9 stores the current session in:
+Experimental 0.10 stores the current schema-9 session in:
 
 ```text
 curseddrone/conf/autosave.cdrone
 ```
 
-It also reads the legacy v0.7 path once if required:
+Older sessions are loaded and upgraded automatically. Keep a backup before returning from the experiment to public v0.9, because v0.9 does not understand the new schema.
 
-```text
-curseddrone/conf/myldy20/cursed-drone/autosave.cdrone
-```
+Старые сессии загружаются и обновляются автоматически. Перед возвратом на публичную v0.9 сохраните резервную копию: v0.9 не понимает новую схему.
 
 Developed by **Myldy design — @myldy20**.
 
-Uses an audited subset of **DaisySP** and the **font512** bitmap font; see the bundled licence notices for exact terms. PortMaster provides the packaging conventions and platform helpers.
+The experimental macro actor uses pinned original Plaits/stmlib source under MIT terms. Exact components and notices are in `curseddrone/licenses/THIRD_PARTY_NOTICES.md`.
