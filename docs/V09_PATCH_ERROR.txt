@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/runner/work/cursed-drone/cursed-drone/tools/apply_v09_patch.py", line 757, in <module>
-    replace_once('src/sdl_main.cpp',
-  File "/home/runner/work/cursed-drone/cursed-drone/tools/apply_v09_patch.py", line 10, in replace_once
-    raise RuntimeError(f'{path}: expected one match, found {count}: {old[:120]!r}')
-RuntimeError: src/sdl_main.cpp: expected one match, found 0: '        case cd::EffectKind::comb:\n            value = std::sin(t * kTwoPi * (1.0F + effect.tone * 12.0F)) * effect.amou'

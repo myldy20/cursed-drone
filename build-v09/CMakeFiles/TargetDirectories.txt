@@ -1,0 +1,10 @@
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed_drone_daisysp.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed_drone_core.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed-drone.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed-drone-render.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed-drone-tests.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed-drone-sdl.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/cursed-drone-probe.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/test.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/edit_cache.dir
+/home/runner/work/cursed-drone/cursed-drone/build-v09/CMakeFiles/rebuild_cache.dir

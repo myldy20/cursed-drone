@@ -101,6 +101,16 @@ constexpr std::array kEffects{
     std::pair{EffectKind::wavefolder, std::string_view{"wavefolder"}},
     std::pair{EffectKind::ringmod, std::string_view{"ringmod"}},
     std::pair{EffectKind::comb, std::string_view{"comb"}},
+    std::pair{EffectKind::chorus, std::string_view{"chorus"}},
+    std::pair{EffectKind::flanger, std::string_view{"flanger"}},
+    std::pair{EffectKind::phaser, std::string_view{"phaser"}},
+    std::pair{EffectKind::diffuser, std::string_view{"diffuser"}},
+    std::pair{EffectKind::ahdr, std::string_view{"ahdr"}},
+    std::pair{EffectKind::tape_void, std::string_view{"tape_void"}},
+    std::pair{EffectKind::black_hole, std::string_view{"black_hole"}},
+    std::pair{EffectKind::ritual_gate, std::string_view{"ritual_gate"}},
+    std::pair{EffectKind::rust_cloud, std::string_view{"rust_cloud"}},
+    std::pair{EffectKind::deep_sea, std::string_view{"deep_sea"}},
 };
 
 constexpr std::array kWaves{
@@ -464,7 +474,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     if (schema == values.end() ||
         (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
             schema->second != "4" && schema->second != "5" && schema->second != "6" &&
-            schema->second != "7")) {
+            schema->second != "7" && schema->second != "8")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -546,10 +556,10 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
     if (schema->second != "4" && schema->second != "5" && schema->second != "6" &&
-        schema->second != "7") {
+        schema->second != "7" && schema->second != "8") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 7;
+    loaded.schema_version = 8;
     session = loaded;
     return true;
 }

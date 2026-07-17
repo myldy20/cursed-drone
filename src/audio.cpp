@@ -335,20 +335,32 @@ class EffectRuntime {
 public:
     void prepare(float sample_rate) {
         sample_rate_ = sample_rate;
-        const auto delay_frames = static_cast<std::size_t>(std::ceil(sample_rate_ * 1.3F)) + 1U;
+        const auto delay_frames = static_cast<std::size_t>(std::ceil(sample_rate_ * 1.3F)) + 2U;
+        const auto short_frames = static_cast<std::size_t>(std::ceil(sample_rate_ * 0.080F)) + 2U;
         delay_.assign(delay_frames, {});
+        short_delay_.assign(short_frames, {});
         reset();
     }
 
     void reset() noexcept {
         lowpass_ = {};
         highpass_low_ = {};
+        diffuser_damp_ = {};
+        phaser_feedback_ = {};
         tremolo_phase_ = 0.0F;
         ring_phase_ = 0.0F;
+        chorus_phase_ = 0.0F;
+        flanger_phase_ = 0.0F;
+        phaser_phase_ = 0.0F;
+        envelope_phase_ = 0.0F;
         delay_write_ = 0U;
+        short_write_ = 0U;
         crusher_counter_ = 0U;
         crusher_held_ = {};
+        phaser_left_.fill(0.0F);
+        phaser_right_.fill(0.0F);
         std::fill(delay_.begin(), delay_.end(), StereoFrame{});
+        std::fill(short_delay_.begin(), short_delay_.end(), StereoFrame{});
     }
 
     StereoFrame process(StereoFrame input, EffectKind kind, float amount, float tone, float feedback) noexcept {
@@ -357,101 +369,114 @@ public:
         feedback = clamp01(feedback);
 
         switch (kind) {
-        case EffectKind::bypass:
-            return input;
-        case EffectKind::drive:
-            return drive(input, amount);
-        case EffectKind::lowpass:
-            return lowpass(input, amount, tone);
-        case EffectKind::highpass:
-            return highpass(input, amount, tone);
-        case EffectKind::tremolo:
-            return tremolo(input, amount, tone);
-        case EffectKind::delay:
-            return delay(input, amount, tone, feedback);
-        case EffectKind::crusher:
-            return crusher(input, amount, tone);
-        case EffectKind::wavefolder:
-            return wavefolder(input, amount, tone);
-        case EffectKind::ringmod:
-            return ringmod(input, amount, tone);
-        case EffectKind::comb:
-            return comb(input, amount, tone, feedback);
+        case EffectKind::bypass: return input;
+        case EffectKind::drive: return drive(input, amount);
+        case EffectKind::lowpass: return lowpass(input, amount, tone);
+        case EffectKind::highpass: return highpass(input, amount, tone);
+        case EffectKind::tremolo: return tremolo(input, amount, tone);
+        case EffectKind::delay: return delay(input, amount, tone, feedback);
+        case EffectKind::crusher: return crusher(input, amount, tone);
+        case EffectKind::wavefolder: return wavefolder(input, amount, tone);
+        case EffectKind::ringmod: return ringmod(input, amount, tone);
+        case EffectKind::comb: return comb(input, amount, tone, feedback);
+        case EffectKind::chorus: return chorus(input, amount, tone, feedback);
+        case EffectKind::flanger: return flanger(input, amount, tone, feedback);
+        case EffectKind::phaser: return phaser(input, amount, tone, feedback);
+        case EffectKind::diffuser: return diffuser(input, amount, tone, feedback);
+        case EffectKind::ahdr: return ahdr(input, amount, tone, feedback);
+        case EffectKind::tape_void: return tape_void(input, amount, tone, feedback);
+        case EffectKind::black_hole: return black_hole(input, amount, tone, feedback);
+        case EffectKind::ritual_gate: return ritual_gate(input, amount, tone, feedback);
+        case EffectKind::rust_cloud: return rust_cloud(input, amount, tone, feedback);
+        case EffectKind::deep_sea: return deep_sea(input, amount, tone, feedback);
         }
         return input;
     }
 
 private:
+    static StereoFrame mix(StereoFrame dry, StereoFrame wet, float amount) noexcept {
+        return {
+            dry.left + (wet.left - dry.left) * amount,
+            dry.right + (wet.right - dry.right) * amount,
+        };
+    }
+
+    static float advance(float& phase, float rate, float sample_rate) noexcept {
+        phase += rate / sample_rate;
+        phase -= std::floor(phase);
+        return phase;
+    }
+
+    StereoFrame read_delay(
+        const std::vector<StereoFrame>& buffer,
+        std::size_t write,
+        float frames) const noexcept {
+        if (buffer.size() < 2U) return {};
+        frames = std::clamp(frames, 1.0F, static_cast<float>(buffer.size() - 2U));
+        const float position = static_cast<float>(write) - frames;
+        float wrapped = position;
+        while (wrapped < 0.0F) wrapped += static_cast<float>(buffer.size());
+        while (wrapped >= static_cast<float>(buffer.size())) wrapped -= static_cast<float>(buffer.size());
+        const auto first = static_cast<std::size_t>(wrapped);
+        const auto second = (first + 1U) % buffer.size();
+        const float fraction = wrapped - static_cast<float>(first);
+        return {
+            buffer[first].left + (buffer[second].left - buffer[first].left) * fraction,
+            buffer[first].right + (buffer[second].right - buffer[first].right) * fraction,
+        };
+    }
+
     static StereoFrame drive(StereoFrame input, float amount) noexcept {
-        const float gain = 1.0F + amount * 18.0F;
-        const float normalizer = 1.0F / std::tanh(gain);
+        const float gain = 1.0F + amount * 48.0F;
+        const float normalizer = 1.0F / std::max(0.001F, std::tanh(gain));
         const StereoFrame wet{
             std::tanh(input.left * gain) * normalizer,
             std::tanh(input.right * gain) * normalizer,
         };
-        return {
-            input.left + (wet.left - input.left) * amount,
-            input.right + (wet.right - input.right) * amount,
-        };
+        return mix(input, wet, amount);
     }
 
     StereoFrame lowpass(StereoFrame input, float amount, float tone) noexcept {
-        const float cutoff = 35.0F * std::pow(480.0F, tone);
+        const float cutoff = std::min(sample_rate_ * 0.42F, 18.0F * std::pow(1'000.0F, tone));
         const float coefficient = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
         lowpass_.left += (input.left - lowpass_.left) * coefficient;
         lowpass_.right += (input.right - lowpass_.right) * coefficient;
-        return {
-            input.left + (lowpass_.left - input.left) * amount,
-            input.right + (lowpass_.right - input.right) * amount,
-        };
+        return mix(input, lowpass_, amount);
     }
 
     StereoFrame highpass(StereoFrame input, float amount, float tone) noexcept {
-        const float cutoff = 20.0F * std::pow(500.0F, tone);
+        const float cutoff = std::min(sample_rate_ * 0.42F, 12.0F * std::pow(1'000.0F, tone));
         const float coefficient = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
         highpass_low_.left += (input.left - highpass_low_.left) * coefficient;
         highpass_low_.right += (input.right - highpass_low_.right) * coefficient;
-        const StereoFrame wet{input.left - highpass_low_.left, input.right - highpass_low_.right};
-        return {
-            input.left + (wet.left - input.left) * amount,
-            input.right + (wet.right - input.right) * amount,
-        };
+        return mix(input, {input.left - highpass_low_.left, input.right - highpass_low_.right}, amount);
     }
 
     StereoFrame tremolo(StereoFrame input, float amount, float tone) noexcept {
-        const float rate = 0.03F + tone * tone * 12.0F;
-        tremolo_phase_ += rate / sample_rate_;
-        tremolo_phase_ -= std::floor(tremolo_phase_);
-        const float modulation = 1.0F - amount * (0.5F + 0.5F * std::sin(tremolo_phase_ * kTwoPi));
+        const float rate = 0.015F + tone * tone * 18.0F;
+        const float phase = advance(tremolo_phase_, rate, sample_rate_);
+        const float wave = 0.5F + 0.5F * std::sin(phase * kTwoPi);
+        const float modulation = 1.0F - amount * (0.20F + wave * 0.80F);
         return {input.left * modulation, input.right * modulation};
     }
 
     StereoFrame delay(StereoFrame input, float amount, float tone, float feedback) noexcept {
-        if (delay_.empty()) {
-            return input;
-        }
-        const float delay_seconds = 0.05F + tone * 1.2F;
-        const auto delay_frames = std::min(
-            delay_.size() - 1U,
-            static_cast<std::size_t>(delay_seconds * sample_rate_));
-        const auto read = (delay_write_ + delay_.size() - delay_frames) % delay_.size();
-        const StereoFrame wet = delay_[read];
-        const float regeneration = feedback * 0.92F;
+        if (delay_.empty()) return input;
+        const float delay_seconds = 0.025F + std::pow(tone, 1.35F) * 1.265F;
+        const StereoFrame wet = read_delay(delay_, delay_write_, delay_seconds * sample_rate_);
+        const float regeneration = std::min(0.985F, feedback * 0.985F);
         delay_[delay_write_] = {
             input.left + wet.right * regeneration,
             input.right + wet.left * regeneration,
         };
         delay_write_ = (delay_write_ + 1U) % delay_.size();
-        return {
-            input.left + wet.left * amount,
-            input.right + wet.right * amount,
-        };
+        return mix(input, wet, amount);
     }
 
     StereoFrame crusher(StereoFrame input, float amount, float tone) noexcept {
-        const auto hold_samples = static_cast<unsigned>(1.0F + tone * tone * 63.0F);
+        const auto hold_samples = static_cast<unsigned>(1.0F + tone * tone * 255.0F);
         if (crusher_counter_ == 0U) {
-            const float levels = std::pow(2.0F, 15.0F - amount * 12.0F);
+            const float levels = std::pow(2.0F, 16.0F - amount * 15.0F);
             crusher_held_ = {
                 std::round(input.left * levels) / levels,
                 std::round(input.right * levels) / levels,
@@ -459,10 +484,7 @@ private:
             crusher_counter_ = hold_samples;
         }
         --crusher_counter_;
-        return {
-            input.left + (crusher_held_.left - input.left) * amount,
-            input.right + (crusher_held_.right - input.right) * amount,
-        };
+        return mix(input, crusher_held_, amount);
     }
 
     static float fold_sample(float input) noexcept {
@@ -472,53 +494,198 @@ private:
     }
 
     static StereoFrame wavefolder(StereoFrame input, float amount, float tone) noexcept {
-        const float gain = 1.0F + amount * (2.0F + tone * 14.0F);
-        const StereoFrame wet{fold_sample(input.left * gain), fold_sample(input.right * gain)};
-        return {
-            input.left + (wet.left - input.left) * amount,
-            input.right + (wet.right - input.right) * amount,
-        };
+        const float gain = 1.0F + amount * (3.0F + tone * 30.0F);
+        return mix(input, {fold_sample(input.left * gain), fold_sample(input.right * gain)}, amount);
     }
 
     StereoFrame ringmod(StereoFrame input, float amount, float tone) noexcept {
-        const float frequency = 0.35F * std::pow(5'000.0F, tone);
-        ring_phase_ += frequency / sample_rate_;
-        ring_phase_ -= std::floor(ring_phase_);
-        const float carrier = std::sin(ring_phase_ * kTwoPi);
+        const float frequency = 0.05F * std::pow(160'000.0F, tone);
+        const float phase = advance(ring_phase_, frequency, sample_rate_);
+        const float carrier = std::sin(phase * kTwoPi);
         return {
             input.left * (1.0F - amount + carrier * amount),
-            input.right * (1.0F - amount + carrier * amount),
+            input.right * (1.0F - amount - carrier * amount),
         };
     }
 
     StereoFrame comb(StereoFrame input, float amount, float tone, float feedback) noexcept {
         if (delay_.empty()) return input;
-        const float seconds = 0.0012F * std::pow(32.0F, tone);
-        const auto delay_frames = std::clamp(
-            static_cast<std::size_t>(seconds * sample_rate_), std::size_t{1}, delay_.size() - 1U);
-        const auto read = (delay_write_ + delay_.size() - delay_frames) % delay_.size();
-        const StereoFrame wet = delay_[read];
-        const float regeneration = 0.12F + feedback * 0.82F;
+        const float seconds = 0.0007F * std::pow(90.0F, tone);
+        const StereoFrame wet = read_delay(delay_, delay_write_, seconds * sample_rate_);
+        const float regeneration = 0.12F + feedback * 0.85F;
         delay_[delay_write_] = {
             input.left + wet.left * regeneration,
             input.right + wet.right * regeneration,
         };
         delay_write_ = (delay_write_ + 1U) % delay_.size();
-        return {
-            input.left + wet.left * amount,
-            input.right + wet.right * amount,
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame chorus(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        if (short_delay_.empty()) return input;
+        const float rate = 0.015F + tone * tone * 4.5F;
+        const float phase = advance(chorus_phase_, rate, sample_rate_);
+        const float depth_ms = 1.0F + feedback * 14.0F;
+        const float base_ms = 7.0F + feedback * 17.0F;
+        const float left_frames = (base_ms + std::sin(phase * kTwoPi) * depth_ms) * 0.001F * sample_rate_;
+        const float right_frames = (base_ms + std::sin((phase + 0.27F) * kTwoPi) * depth_ms) * 0.001F * sample_rate_;
+        const StereoFrame left_tap = read_delay(short_delay_, short_write_, left_frames);
+        const StereoFrame right_tap = read_delay(short_delay_, short_write_, right_frames);
+        const StereoFrame wet{left_tap.left * 0.72F + right_tap.left * 0.28F,
+                              right_tap.right * 0.72F + left_tap.right * 0.28F};
+        short_delay_[short_write_] = input;
+        short_write_ = (short_write_ + 1U) % short_delay_.size();
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame flanger(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        if (short_delay_.empty()) return input;
+        const float rate = 0.025F + tone * tone * 7.0F;
+        const float phase = advance(flanger_phase_, rate, sample_rate_);
+        const float delay_ms = 0.35F + (0.5F + 0.5F * std::sin(phase * kTwoPi)) * (1.5F + tone * 7.0F);
+        const StereoFrame wet = read_delay(short_delay_, short_write_, delay_ms * 0.001F * sample_rate_);
+        const float regeneration = feedback * 0.92F;
+        short_delay_[short_write_] = {
+            input.left + wet.right * regeneration,
+            input.right + wet.left * regeneration,
         };
+        short_write_ = (short_write_ + 1U) % short_delay_.size();
+        return mix(input, wet, amount);
+    }
+
+    static float allpass(float input, std::array<float, 4>& states, float coefficient) noexcept {
+        for (auto& state : states) {
+            const float output = -coefficient * input + state;
+            state = input + coefficient * output;
+            input = output;
+        }
+        return input;
+    }
+
+    StereoFrame phaser(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        const float rate = 0.01F + tone * tone * 5.5F;
+        const float phase = advance(phaser_phase_, rate, sample_rate_);
+        const float sweep = 0.5F + 0.5F * std::sin(phase * kTwoPi);
+        const float frequency = std::min(sample_rate_ * 0.18F, 45.0F * std::pow(120.0F, sweep));
+        const float tangent = std::tan(kPi * frequency / sample_rate_);
+        const float coefficient = std::clamp((1.0F - tangent) / (1.0F + tangent), -0.98F, 0.98F);
+        const StereoFrame driven{
+            input.left + phaser_feedback_.left * feedback * 0.88F,
+            input.right + phaser_feedback_.right * feedback * 0.88F,
+        };
+        const StereoFrame wet{
+            allpass(driven.left, phaser_left_, coefficient),
+            allpass(driven.right, phaser_right_, -coefficient),
+        };
+        phaser_feedback_ = wet;
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame diffuser(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        if (delay_.empty()) return input;
+        const float base = (0.012F + tone * 0.105F) * sample_rate_;
+        const StereoFrame a = read_delay(delay_, delay_write_, base);
+        const StereoFrame b = read_delay(delay_, delay_write_, base * 1.37F);
+        const StereoFrame c = read_delay(delay_, delay_write_, base * 1.91F);
+        const StereoFrame d = read_delay(delay_, delay_write_, base * 2.53F);
+        const StereoFrame wet{
+            (a.left - b.right + c.left + d.right) * 0.38F,
+            (a.right + b.left - c.right + d.left) * 0.38F,
+        };
+        const float damping = 0.04F + (1.0F - tone) * 0.18F;
+        diffuser_damp_.left += (wet.left - diffuser_damp_.left) * damping;
+        diffuser_damp_.right += (wet.right - diffuser_damp_.right) * damping;
+        delay_[delay_write_] = {
+            input.left + diffuser_damp_.right * feedback * 0.91F,
+            input.right + diffuser_damp_.left * feedback * 0.91F,
+        };
+        delay_write_ = (delay_write_ + 1U) % delay_.size();
+        return mix(input, diffuser_damp_, amount);
+    }
+
+    float envelope(float tone, float feedback) noexcept {
+        const float rate = 0.025F + tone * tone * 3.2F;
+        const float phase = advance(envelope_phase_, rate, sample_rate_);
+        const float attack_end = 0.05F + feedback * 0.08F;
+        const float hold_end = attack_end + 0.05F + feedback * 0.20F;
+        const float decay_end = std::min(0.82F, hold_end + 0.18F + (1.0F - tone) * 0.30F);
+        const float sustain = 0.08F + feedback * 0.64F;
+        if (phase < attack_end) return phase / attack_end;
+        if (phase < hold_end) return 1.0F;
+        if (phase < decay_end) {
+            const float progress = (phase - hold_end) / std::max(0.001F, decay_end - hold_end);
+            return 1.0F + (sustain - 1.0F) * progress;
+        }
+        const float progress = (phase - decay_end) / std::max(0.001F, 1.0F - decay_end);
+        return sustain * (1.0F - progress);
+    }
+
+    StereoFrame ahdr(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        const float env = envelope(tone, feedback);
+        const float gain = 1.0F - amount + amount * env;
+        return {input.left * gain, input.right * gain};
+    }
+
+    StereoFrame tape_void(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        StereoFrame wet = chorus(input, 0.45F + amount * 0.45F, tone * 0.55F, 0.35F + feedback * 0.55F);
+        wet = drive(wet, amount * (0.18F + tone * 0.32F));
+        wet = lowpass(wet, 0.35F + amount * 0.55F, 0.20F + tone * 0.45F);
+        wet = delay(wet, 0.20F + amount * 0.65F, 0.25F + tone * 0.60F, 0.45F + feedback * 0.52F);
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame black_hole(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        StereoFrame wet = phaser(input, 0.45F + amount * 0.50F, tone * 0.42F, 0.55F + feedback * 0.40F);
+        wet = ringmod(wet, amount * 0.42F, 0.08F + tone * 0.30F);
+        wet = comb(wet, 0.30F + amount * 0.62F, 0.18F + tone * 0.52F, 0.70F + feedback * 0.27F);
+        wet = lowpass(wet, 0.65F + amount * 0.30F, 0.16F + tone * 0.28F);
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame ritual_gate(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        const float env = envelope(tone, feedback);
+        StereoFrame wet{input.left * env, input.right * env};
+        wet = lowpass(wet, 0.35F + amount * 0.58F, 0.12F + env * (0.35F + tone * 0.45F));
+        wet = drive(wet, amount * 0.35F * env);
+        wet = delay(wet, amount * 0.56F, 0.18F + tone * 0.52F, 0.52F + feedback * 0.43F);
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame rust_cloud(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        StereoFrame wet = crusher(input, 0.25F + amount * 0.70F, 0.30F + tone * 0.68F);
+        wet = wavefolder(wet, amount * 0.76F, 0.28F + feedback * 0.68F);
+        wet = flanger(wet, 0.30F + amount * 0.60F, tone, 0.35F + feedback * 0.60F);
+        wet = comb(wet, amount * 0.55F, 0.10F + tone * 0.35F, 0.45F + feedback * 0.48F);
+        return mix(input, wet, amount);
+    }
+
+    StereoFrame deep_sea(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        StereoFrame wet = lowpass(input, 0.70F + amount * 0.28F, 0.08F + tone * 0.32F);
+        wet = chorus(wet, 0.28F + amount * 0.62F, 0.06F + tone * 0.25F, 0.55F + feedback * 0.40F);
+        wet = tremolo(wet, amount * 0.42F, 0.03F + tone * 0.18F);
+        wet = diffuser(wet, 0.28F + amount * 0.64F, 0.20F + tone * 0.45F, 0.58F + feedback * 0.37F);
+        return mix(input, wet, amount);
     }
 
     float sample_rate_{48'000.0F};
     StereoFrame lowpass_{};
     StereoFrame highpass_low_{};
+    StereoFrame diffuser_damp_{};
+    StereoFrame phaser_feedback_{};
     float tremolo_phase_{0.0F};
     float ring_phase_{0.0F};
+    float chorus_phase_{0.0F};
+    float flanger_phase_{0.0F};
+    float phaser_phase_{0.0F};
+    float envelope_phase_{0.0F};
     std::vector<StereoFrame> delay_{};
+    std::vector<StereoFrame> short_delay_{};
     std::size_t delay_write_{0U};
+    std::size_t short_write_{0U};
     unsigned crusher_counter_{0U};
     StereoFrame crusher_held_{};
+    std::array<float, 4> phaser_left_{};
+    std::array<float, 4> phaser_right_{};
 };
 
 struct SlotRuntime {

@@ -195,7 +195,10 @@ void test_audio() {
         cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass,
         cd::EffectKind::highpass, cd::EffectKind::tremolo, cd::EffectKind::delay,
         cd::EffectKind::crusher, cd::EffectKind::wavefolder, cd::EffectKind::ringmod,
-        cd::EffectKind::comb};
+        cd::EffectKind::comb, cd::EffectKind::chorus, cd::EffectKind::flanger,
+        cd::EffectKind::phaser, cd::EffectKind::diffuser, cd::EffectKind::ahdr,
+        cd::EffectKind::tape_void, cd::EffectKind::black_hole,
+        cd::EffectKind::ritual_gate, cd::EffectKind::rust_cloud, cd::EffectKind::deep_sea};
     for (const auto effect : effects) {
         auto effected = default_session;
         for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) effected.slots[slot].enabled = false;
@@ -239,7 +242,7 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 7, "session should upgrade to schema 7");
+    expect(loaded.schema_version == 8, "session should upgrade to schema 8");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,

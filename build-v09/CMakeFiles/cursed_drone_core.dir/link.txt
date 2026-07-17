@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcursed_drone_core.a CMakeFiles/cursed_drone_core.dir/src/audio.cpp.o CMakeFiles/cursed_drone_core.dir/src/i18n.cpp.o CMakeFiles/cursed_drone_core.dir/src/session.cpp.o CMakeFiles/cursed_drone_core.dir/src/soundscape.cpp.o CMakeFiles/cursed_drone_core.dir/src/wav.cpp.o
+/usr/bin/ranlib libcursed_drone_core.a

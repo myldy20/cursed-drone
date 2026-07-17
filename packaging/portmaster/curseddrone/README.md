@@ -1,4 +1,4 @@
-# Cursed Drone v0.8 — AArch64 PortMaster public test
+# Cursed Drone v0.9 — AArch64 PortMaster public test
 
 ## Important / Важно
 

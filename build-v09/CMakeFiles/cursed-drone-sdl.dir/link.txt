@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/cursed-drone-sdl.dir/link.d "CMakeFiles/cursed-drone-sdl.dir/src/sdl_main.cpp.o" "CMakeFiles/cursed-drone-sdl.dir/src/bitmap_text.cpp.o" -o cursed-drone-sdl  libcursed_drone_core.a /usr/lib/x86_64-linux-gnu/libSDL2.so /usr/lib/x86_64-linux-gnu/libSDL2main.a libcursed_drone_daisysp.a
