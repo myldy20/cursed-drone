@@ -1,0 +1,88 @@
+name: experiment-build
+
+on:
+  push:
+    branches: [experiment/plaits-performance-lab]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+      - name: Configure
+        run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build-linux --parallel 2
+      - name: Test
+        run: ctest --test-dir build-linux --output-on-failure
+      - name: Handheld SDL smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            timeout 3s build-linux/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+      - name: Verify original Plaits is linked
+        run: |
+          test -f third_party/eurorack/plaits/dsp/voice.cc
+          grep -q 'CURSED_DRONE_HAS_PLAITS=1' build-linux/CMakeFiles/cursed_drone_core.dir/flags.make
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install SDL2
+        run: brew install sdl2
+      - name: Configure
+        run: >-
+          cmake -S . -B build-macos
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+      - name: Build
+        run: cmake --build build-macos --parallel 3
+      - name: Test
+        run: ctest --test-dir build-macos --output-on-failure
+
+  portmaster-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Build in Ubuntu 20.04 aarch64
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 \
+            bash -ec '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip file
+              cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
+              cmake --build build-aarch64 --parallel 2
+              ctest --test-dir build-aarch64 --output-on-failure
+              strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+              ./tools/package_portmaster.sh build-aarch64 dist-experiment
+            '
+      - name: Inspect package
+        run: |
+          file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+          unzip -l dist-experiment/curseddrone-aarch64-test.zip | tee /tmp/package.txt
+          grep -q 'curseddrone/conf/scales/19-edo.scl' /tmp/package.txt
+          grep -q 'curseddrone/docs/experiment-lab.ru.md' /tmp/package.txt
+          grep -q 'curseddrone/licenses/Plaits-MIT.txt' /tmp/package.txt
+          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-performance-lab-aarch64
+          path: dist-experiment/curseddrone-aarch64-test.zip
