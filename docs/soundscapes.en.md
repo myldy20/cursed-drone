@@ -13,7 +13,7 @@ In 0.4 a default slot is a **scene actor** rather than just a synthesizer:
 
 The expert page still exposes frequency, four actor-specific character controls, level, pan, FX and modulators. Scene control sits above it and changes how sound is caused, not only a single DSP value.
 
-## The first three scenes
+## Six scenes
 
 | Scene | Actor | Procedural model |
 | --- | --- | --- |
@@ -29,6 +29,18 @@ The expert page still exposes frequency, four actor-specific character controls,
 | Wasteland | birds | random clusters of short frequency-shaped phrases with contour, gaps and a small grain component |
 | Wasteland | insects | asynchronous impulse carriers, colony activity phases and narrow-band scratch |
 | Wasteland | signal | a sequence of rising pulses followed by a bounded random pause and restart |
+| Wet Cave | cave air | three filtered pressure bands, subsonic body and independent slow breathing |
+| Wet Cave | drips | audited MIT DaisySP/Perry Cook physical water model with controllable pitch, damping and density |
+| Wet Cave | water flow | turbulent multi-band water plus short bubble chirps with independent event timing |
+| Wet Cave | stone | sparse impacts exciting short inharmonic rock modes without bell-length sustain |
+| Metro Car | traction | rotor harmonics, accelerating inverter whine, bearing band and a long run/coast cycle |
+| Metro Car | rail joints | paired impact envelopes, rail body modes and process-tempo-scaled repetition |
+| Metro Car | brake | finite high-resonance friction gestures with a directional downward spectral sweep |
+| Metro Car | carriage | low chassis pressure, sway, narrow-band rattle and speed-dependent loose parts |
+| Broken Nursery | music box | random pentatonic tines, short excitation and a small decaying body |
+| Broken Nursery | toy voice | bounded circuit-bent syllable gestures, pulse carrier and battery dropout |
+| Broken Nursery | gears | tooth impulses, cheap motor harmonics and slowly collapsing battery voltage |
+| Broken Nursery | lullaby | sparse pseudo-notes chosen from a small pitch set, glass partial and long fragile decay |
 
 Every source is synthesized in real time. The repository contains no recorded footstep, door, bird or factory samples.
 
@@ -54,13 +66,13 @@ Macros are smoothed. Randomness uses a separate deterministic seed per actor and
 
 ## Acceptance criteria
 
-Tests cover finite output, limiting, session round-trip and non-silent output from all twelve actors. Musical acceptance also requires:
+Tests cover finite output, limiting, session round-trip, master-gain monotonicity and non-silent output from all twenty-four actors. Musical acceptance also requires:
 
 - at least 30 unattended seconds from every scene;
-- clearly different spectra and time structures;
+- clearly different spectra and time structures across all six scenes;
 - audible negative space and foreground events rather than permanent maximum density;
 - radically different low and high macro states;
 - no accidental bell sustain in wood or metal gestures;
 - DSP-load measurement and a ten-minute underrun test on TrimUI Brick.
 
-GitHub Actions renders three 30-second WAV files and publishes them as `cursed-drone-soundscape-previews` next to the macOS and PortMaster builds.
+GitHub Actions renders six 30-second WAV files and publishes them as `cursed-drone-soundscape-previews` next to the macOS and PortMaster builds.

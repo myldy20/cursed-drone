@@ -8,7 +8,7 @@
 
 The primary target is the **TrimUI Brick**. The SDL2 frontend and compact C++ core are also intended for Anbernic devices, PortMaster-compatible systems, macOS and desktop Linux.
 
-> Status: experimental `0.5.0` development version. Three procedural landscapes and sixteen selectable engines work now. This iteration rebuilds the live interface around consistent D-pad navigation, explicit engine/effect pickers, independent slot editing and clear output-fade state.
+> Status: experimental `0.6.0` development version. Six procedural landscapes and twenty-eight selectable engines work now. This iteration concentrates on different acoustic causes: water, stone, rail motion, braking, broken toys and sparse pseudo-musical objects rather than additional flavours of continuous drone.
 
 ## Concept
 
@@ -19,7 +19,7 @@ actor / engine -> FX 1 -> FX 2 -> FX 3 -> FX 4 -> level / pan
        ^           ^       ^       ^       ^
                   four modulation lanes
 
-four actors -> mixer -> DC blocker -> soft limiter -> SDL audio
+four actors -> mixer -> DC blocker -> soft limiter -> master / fade -> SDL audio
 ```
 
 Time exists as a shared process tempo, long cycles, envelopes, random walks and bounded probabilistic events. There is no note table, transport or tracker sequence.
@@ -27,10 +27,10 @@ Time exists as a shared process tempo, long cycles, envelopes, random walks and 
 ## What works
 
 - four simultaneous audio slots;
-- `Derelict`, `Factory` and `Wasteland` landscape recipes;
-- twelve procedural actors: room bed, footsteps, door, pipe, motor, machinery, crowd, metal, wind, birds, insects and rising signal;
+- six landscape recipes: `Derelict`, `Factory`, `Wasteland`, `Wet Cave`, `Metro Car` and `Broken Nursery`;
+- twenty-four procedural actors with independent gesture, material and timing models;
 - four general engines: tone, resonator, grainlet and particles;
-- four serial FX slots per actor: drive, low-pass, tremolo, delay, crusher or empty;
+- four serial FX slots per actor: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb or empty;
 - four modulators per actor: sine, triangle, sample-and-hold and random walk;
 - performance macros `Material`, `Activity`, `Tension`, `Distance` and `Evolution` that change several parts of the scene at once;
 - separate fade-in and fade-out times, tail-preserving mute and hard `Kill`;
@@ -53,8 +53,8 @@ The direction of navigation matches the screen: left/right selects a horizontal 
 | select track / FX column | Left / Right | D-pad Left / Right |
 | select parameter row | Up / Down | D-pad Up / Down |
 | change value | A / D | L / R |
-| open engine or effect picker | E | Start |
-| confirm / cancel picker | Enter / Escape | A / B |
+| open landscape, engine or effect picker | E | Start |
+| confirm / cancel picker | E or Enter / Escape | A / B |
 | next page | Tab or 1–5 | X |
 | mute selected track | Space | A outside a picker |
 | select next source track on FX | S | Y |
@@ -62,7 +62,7 @@ The direction of navigation matches the screen: left/right selects a horizontal 
 | clear voices and effect tails | K | B outside a picker |
 | exit | Escape | Menu / OS action |
 
-A short value press changes most parameters by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds. Mute stops new source audio but keeps delay tails; `Kill` clears both source and effect memory.
+A short value press changes most parameters by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds. On `Scene`, Down after the last macro focuses the track strip so A/D edits its level directly. Mute stops new source audio but keeps effect tails; `Kill` clears both source and effect memory.
 
 The `Scene` macro endpoints describe the audible direction rather than implementation details: smooth/rough, sparse/busy, stable/unstable, near/far and static/changing. Detailed edits mark the landscape as `Modified`; loading a landscape recipe restores its four actors and clears that marker.
 
@@ -115,7 +115,7 @@ The macOS autosave is stored under the SDL preference directory. A previous Russ
 # render a saved session or a landscape
 ./build/cursed-drone --load default.cdrone --render drone.wav --seconds 30
 ./build/cursed-drone --scene factory --render factory.wav --seconds 45
-./build/cursed-drone-render wasteland.wav 45 wasteland
+./build/cursed-drone-render wet-cave.wav 45 wet_cave
 ```
 
 ## Landscapes
@@ -125,6 +125,9 @@ The macOS autosave is stored under the SDL preference directory. A previous Russ
 | `Derelict` | room bed, approaching footsteps, stick-slip door, pipe wind and knocks | low and sparse with rare close gestures |
 | `Factory` | rotor/brush motor, machine cycle, crowd-formant bed, moving metal scrape | dense mechanical spectrum with drifting load |
 | `Wasteland` | multi-rate wind, bird phrases, insect swarm, rising signal and bounded pause | airy high end, large gaps and isolated signals |
+| `Wet Cave` | cave pressure, MIT DaisySP physical drips, turbulent water and stone impacts | cold, deep, wet and strongly event-driven |
+| `Metro Car` | traction inverter, paired rail joints, braking scrape and carriage rattle | enclosed, accelerating and mechanically rhythmic |
+| `Broken Nursery` | music-box tines, bent toy voice, gears and sparse decaying lullaby notes | intimate, fragile, deliberately uncanny |
 
 Recorded samples are not used. The current procedural layer combines a pinned DaisySP subset with project-specific excitation, material and event scheduling. The [synthesis catalogue](docs/synthesis-catalog.en.md) records the next audited engines and why preset assets require a separate licence check.
 
@@ -152,7 +155,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 
 Главная целевая консоль — **TrimUI Brick**. SDL2-интерфейс и компактное C++-ядро также рассчитаны на устройства Anbernic, PortMaster-совместимые системы, macOS и обычный Linux.
 
-> Статус: экспериментальная версия `0.5.0` в разработке. Уже работают три процедурных ландшафта и шестнадцать выбираемых движков. Эта итерация пересобирает концертный интерфейс: единая логика D-pad, явный выбор движков и эффектов, независимое редактирование слотов и понятное состояние фейда выхода.
+> Статус: экспериментальная версия `0.6.0` в разработке. Уже работают шесть процедурных ландшафтов и двадцать восемь выбираемых движков. Эта итерация посвящена разным причинам звука: воде, камню, движению по рельсам, торможению, сломанным игрушкам и редким псевдомузыкальным объектам, а не новым сортам непрерывного гула.
 
 ## Идея
 
@@ -163,7 +166,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
        ^           ^       ^       ^       ^
                      четыре модулятора
 
-четыре актёра -> микшер -> DC blocker -> мягкий лимитер -> SDL audio
+четыре актёра -> микшер -> DC blocker -> мягкий лимитер -> мастер / fade -> SDL audio
 ```
 
 Время существует как общий темп процессов, длинные циклы, огибающие, случайные блуждания и ограниченные вероятностные события. Таблицы нот, транспорта и трекерной последовательности нет.
@@ -171,10 +174,10 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 ## Что работает
 
 - четыре одновременно звучащих аудиослота;
-- рецепты ландшафтов `Заброшенное`, `Цех` и `Пустошь`;
-- двенадцать процедурных актёров: комнатный фон, шаги, дверь, труба, мотор, станок, толпа, металл, ветер, птицы, насекомые и повышающийся сигнал;
+- шесть рецептов: `Заброшенное`, `Цех`, `Пустошь`, `Мокрая пещера`, `Вагон метро` и `Сломанная детская`;
+- двадцать четыре процедурных актёра с независимыми моделями жеста, материала и времени;
 - четыре общих движка: тон, резонатор, зерно и частицы;
-- четыре последовательных FX-слота на актёра: drive, low-pass, tremolo, delay, crusher или пусто;
+- четыре последовательных FX-слота на актёра: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb или пусто;
 - четыре модулятора на актёра: sine, triangle, sample-and-hold и random walk;
 - исполнительские макросы `Материал`, `Активность`, `Напряжение`, `Дистанция` и `Развитие`, одновременно меняющие несколько частей сцены;
 - раздельные времена открытия и закрытия, mute с сохранением хвостов и жёсткий `Kill`;
@@ -197,8 +200,8 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 | выбрать дорожку / колонку FX | Left / Right | D-pad Left / Right |
 | выбрать строку параметра | Up / Down | D-pad Up / Down |
 | изменить значение | A / D | L / R |
-| открыть выбор движка или эффекта | E | Start |
-| подтвердить / отменить выбор | Enter / Escape | A / B |
+| открыть выбор ландшафта, движка или эффекта | E | Start |
+| подтвердить / отменить выбор | E или Enter / Escape | A / B |
 | следующий экран | Tab или 1–5 | X |
 | mute выбранной дорожки | Space | A вне окна выбора |
 | следующая исходная дорожка на FX | S | Y |
@@ -206,7 +209,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. See [LICENSE](LICENSE)
 | очистить голоса и хвосты эффектов | K | B вне окна выбора |
 | выход | Escape | Menu / действие ОС |
 
-Короткое нажатие меняет большинство параметров на один процент. Удержание ускоряется через 1,05 секунды и ещё раз через 2,2 секунды. Mute прекращает новый сигнал, сохраняя хвосты дилея; `Kill` очищает и источник, и память эффектов.
+Короткое нажатие меняет большинство параметров на один процент. Удержание ускоряется через 1,05 секунды и ещё раз через 2,2 секунды. На экране `Сцена` нажатие Down после последнего макроса переводит фокус на дорожки, и A/D напрямую меняет уровень выбранной. Mute прекращает новый сигнал, сохраняя хвосты эффектов; `Kill` очищает и источник, и память эффектов.
 
 Крайние положения макросов `Сцены` описывают слышимое направление, а не внутреннюю реализацию: гладко/грубо, редко/плотно, спокойно/нестабильно, близко/далеко и статично/меняется. Детальное редактирование помечает ландшафт как `Изменён`; загрузка рецепта восстанавливает четырёх актёров и снимает эту отметку.
 
@@ -259,7 +262,7 @@ ctest --test-dir build --output-on-failure
 # отрендерить сохранённую сессию или ландшафт
 ./build/cursed-drone --load default.cdrone --render drone.wav --seconds 30
 ./build/cursed-drone --scene factory --render factory.wav --seconds 45
-./build/cursed-drone-render wasteland.wav 45 wasteland
+./build/cursed-drone-render wet-cave.wav 45 wet_cave
 ```
 
 ## Ландшафты
@@ -269,6 +272,9 @@ ctest --test-dir build --output-on-failure
 | `Заброшенное` | комнатный фон, приближающиеся шаги, stick-slip двери, ветер и стуки в трубе | низкий и разреженный, с редкими близкими жестами |
 | `Цех` | rotor/brush-мотор, цикл станка, формантный фон толпы, движущийся скрежет металла | плотный механический спектр с плавающей нагрузкой |
 | `Пустошь` | многоскоростной ветер, фразы птиц, рой насекомых, повышающийся сигнал с ограниченной случайной паузой | воздушный верх, большие пустоты и отдельные сигналы |
+| `Мокрая пещера` | давление воздуха, физические капли MIT DaisySP, турбулентная вода и удары камня | холодный, глубокий, мокрый, событийный |
+| `Вагон метро` | тяговый инвертор, парные стыки, тормозной скрежет и дребезг кузова | закрытый, разгоняющийся, механически ритмичный |
+| `Сломанная детская` | язычки шкатулки, погнутый голос игрушки, шестерни и редкие распадающиеся ноты | близкий, хрупкий, намеренно жуткий |
 
 Записанные сэмплы не используются. Текущий процедурный слой объединяет закреплённый поднабор DaisySP с собственными моделями возбуждения, материала и событий. В [каталоге синтеза](docs/synthesis-catalog.ru.md) записаны следующие проверенные движки и причины, по которым лицензия пресетов проверяется отдельно.
 

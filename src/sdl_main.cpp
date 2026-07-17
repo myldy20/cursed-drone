@@ -31,7 +31,7 @@ constexpr std::array<SDL_Color, 4> kFxColors{{
 }};
 
 enum class Page { perform, slot, effects, master, setup };
-enum class Picker { none, engine, effect };
+enum class Picker { none, scene, engine, effect };
 
 struct AudioBridge {
     cd::AudioGraph graph{};
@@ -48,6 +48,7 @@ struct UiState {
     Picker picker{Picker::none};
     int picker_group{0};
     int picker_item{0};
+    bool scene_track_focus{false};
     int held_direction{0};
     Uint32 held_since{0};
     Uint32 last_repeat{0};
@@ -98,6 +99,9 @@ std::string_view scene_name(cd::SceneKind scene, bool russian) noexcept {
     case cd::SceneKind::derelict: return russian ? "ЗАБРОШЕННОЕ" : "DERELICT";
     case cd::SceneKind::factory: return russian ? "ЦЕХ" : "FACTORY";
     case cd::SceneKind::wasteland: return russian ? "ПУСТОШЬ" : "WASTELAND";
+    case cd::SceneKind::wet_cave: return russian ? "МОКРАЯ ПЕЩЕРА" : "WET CAVE";
+    case cd::SceneKind::metro: return russian ? "ВАГОН МЕТРО" : "METRO CAR";
+    case cd::SceneKind::nursery: return russian ? "СЛОМАННАЯ ДЕТСКАЯ" : "BROKEN NURSERY";
     }
     return {};
 }
@@ -121,6 +125,18 @@ std::string_view engine_name(cd::EngineKind kind, bool russian) noexcept {
     case cd::EngineKind::birds: return russian ? "ПТИЦЫ" : "BIRDS";
     case cd::EngineKind::insects: return russian ? "НАСЕКОМЫЕ" : "INSECTS";
     case cd::EngineKind::signal: return russian ? "СИГНАЛ" : "SIGNAL";
+    case cd::EngineKind::cave_air: return russian ? "ВОЗДУХ" : "CAVE AIR";
+    case cd::EngineKind::water_drip: return russian ? "КАПЛИ" : "DRIPS";
+    case cd::EngineKind::water_flow: return russian ? "ПОТОК" : "FLOW";
+    case cd::EngineKind::stone: return russian ? "КАМЕНЬ" : "STONE";
+    case cd::EngineKind::metro_traction: return russian ? "ТЯГА" : "TRACTION";
+    case cd::EngineKind::rail_joint: return russian ? "СТЫКИ" : "RAIL JOINTS";
+    case cd::EngineKind::brake: return russian ? "ТОРМОЗ" : "BRAKE";
+    case cd::EngineKind::carriage: return russian ? "КУЗОВ" : "CARRIAGE";
+    case cd::EngineKind::music_box: return russian ? "ШКАТУЛКА" : "MUSIC BOX";
+    case cd::EngineKind::toy_voice: return russian ? "ГОЛОС" : "TOY VOICE";
+    case cd::EngineKind::toy_gears: return russian ? "ШЕСТЕРНИ" : "GEARS";
+    case cd::EngineKind::lullaby: return russian ? "КОЛЫБЕЛЬ" : "LULLABY";
     }
     return {};
 }
@@ -213,6 +229,66 @@ std::string_view slot_name(int index, const cd::SlotSettings& slot, cd::Locale l
         constexpr std::array<std::string_view, 4> e{"SHAPE", "OVERTONE", "SPEED", "DUST"};
         return (russian ? r : e)[static_cast<std::size_t>(character)];
     }
+    case cd::EngineKind::cave_air: {
+        constexpr std::array<std::string_view, 4> r{"ПОЛОСТЬ", "ВЛАГА", "ДЫХАНИЕ", "ТУМАН"};
+        constexpr std::array<std::string_view, 4> e{"CAVITY", "MOISTURE", "BREATH", "MIST"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::water_drip: {
+        constexpr std::array<std::string_view, 4> r{"РАЗМЕР", "ВЫСОТА", "ИНТЕРВАЛ", "КАПЕЛЬ"};
+        constexpr std::array<std::string_view, 4> e{"SIZE", "PITCH", "INTERVAL", "DENSITY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::water_flow: {
+        constexpr std::array<std::string_view, 4> r{"РУСЛО", "ПЕНА", "ТЕЧЕНИЕ", "ПУЗЫРИ"};
+        constexpr std::array<std::string_view, 4> e{"CHANNEL", "FOAM", "CURRENT", "BUBBLES"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::stone: {
+        constexpr std::array<std::string_view, 4> r{"ПОРОДА", "РАЗМЕР", "УДАРЫ", "КРОШКА"};
+        constexpr std::array<std::string_view, 4> e{"ROCK", "SIZE", "IMPACTS", "DEBRIS"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::metro_traction: {
+        constexpr std::array<std::string_view, 4> r{"РОТОР", "ИНВЕРТОР", "РАЗГОН", "ПОДШИП."};
+        constexpr std::array<std::string_view, 4> e{"ROTOR", "INVERTER", "ACCEL", "BEARING"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::rail_joint: {
+        constexpr std::array<std::string_view, 4> r{"РЕЛЬС", "ЗВОН", "СКОРОСТЬ", "СТЫК"};
+        constexpr std::array<std::string_view, 4> e{"RAIL", "RING", "SPEED", "JOINT"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::brake: {
+        constexpr std::array<std::string_view, 4> r{"КОЛОДКА", "ВИЗГ", "ДЛИНА", "ТРЕНИЕ"};
+        constexpr std::array<std::string_view, 4> e{"PAD", "SCREECH", "LENGTH", "FRICTION"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::carriage: {
+        constexpr std::array<std::string_view, 4> r{"КУЗОВ", "ДРЕБЕЗГ", "КАЧКА", "БОЛТЫ"};
+        constexpr std::array<std::string_view, 4> e{"BODY", "RATTLE", "SWAY", "BOLTS"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::music_box: {
+        constexpr std::array<std::string_view, 4> r{"ЯЗЫЧОК", "БЛЕСК", "ФРАЗЫ", "КОРПУС"};
+        constexpr std::array<std::string_view, 4> e{"TINE", "SHIMMER", "PHRASES", "BODY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::toy_voice: {
+        constexpr std::array<std::string_view, 4> r{"ГЛАСНЫЕ", "СХЕМА", "СЛОГИ", "ПОЛОМКА"};
+        constexpr std::array<std::string_view, 4> e{"VOWELS", "CIRCUIT", "SYLLABLES", "DAMAGE"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::toy_gears: {
+        constexpr std::array<std::string_view, 4> r{"МОТОР", "ЗУБЬЯ", "СКОРОСТЬ", "БАТАРЕЯ"};
+        constexpr std::array<std::string_view, 4> e{"MOTOR", "TEETH", "SPEED", "BATTERY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
+    case cd::EngineKind::lullaby: {
+        constexpr std::array<std::string_view, 4> r{"СТРУНА", "СТЕКЛО", "ТЕМП", "РАСПАД"};
+        constexpr std::array<std::string_view, 4> e{"STRING", "GLASS", "PACE", "DECAY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
     case cd::EngineKind::diagnostic:
         break;
     }
@@ -225,9 +301,13 @@ std::string_view effect_name(cd::EffectKind kind, bool russian) noexcept {
     case cd::EffectKind::bypass: return russian ? "ПУСТО" : "EMPTY";
     case cd::EffectKind::drive: return russian ? "ДРАЙВ" : "DRIVE";
     case cd::EffectKind::lowpass: return russian ? "ФИЛЬТР" : "LOWPASS";
+    case cd::EffectKind::highpass: return russian ? "ВЧ-ФИЛЬТР" : "HIGHPASS";
     case cd::EffectKind::tremolo: return russian ? "ТРЕМОЛО" : "TREMOLO";
     case cd::EffectKind::delay: return russian ? "ДЕЛЕЙ" : "DELAY";
     case cd::EffectKind::crusher: return russian ? "КРАШЕР" : "CRUSHER";
+    case cd::EffectKind::wavefolder: return russian ? "ФОЛДЕР" : "FOLDER";
+    case cd::EffectKind::ringmod: return russian ? "КОЛЬЦО" : "RING MOD";
+    case cd::EffectKind::comb: return russian ? "ГРЕБЕНКА" : "COMB";
     }
     return {};
 }
@@ -237,9 +317,13 @@ int effect_field_count(cd::EffectKind kind) noexcept {
     case cd::EffectKind::bypass: return 0;
     case cd::EffectKind::drive: return 1;
     case cd::EffectKind::lowpass:
+    case cd::EffectKind::highpass:
     case cd::EffectKind::tremolo:
-    case cd::EffectKind::crusher: return 2;
-    case cd::EffectKind::delay: return 3;
+    case cd::EffectKind::crusher:
+    case cd::EffectKind::wavefolder:
+    case cd::EffectKind::ringmod: return 2;
+    case cd::EffectKind::delay:
+    case cd::EffectKind::comb: return 3;
     }
     return 0;
 }
@@ -250,6 +334,8 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
     case cd::EffectKind::drive: return russian ? "ПЕРЕГРУЗ" : "DRIVE";
     case cd::EffectKind::lowpass:
         return index == 0 ? (russian ? "ПОДМЕСЬ" : "MIX") : (russian ? "СРЕЗ" : "CUTOFF");
+    case cd::EffectKind::highpass:
+        return index == 0 ? (russian ? "ПОДМЕСЬ" : "MIX") : (russian ? "СРЕЗ" : "CUTOFF");
     case cd::EffectKind::tremolo:
         return index == 0 ? (russian ? "ГЛУБИНА" : "DEPTH") : (russian ? "СКОРОСТЬ" : "RATE");
     case cd::EffectKind::delay:
@@ -258,26 +344,44 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
         return russian ? "ПОВТОРЫ" : "FEEDBACK";
     case cd::EffectKind::crusher:
         return index == 0 ? (russian ? "ДРОБЛЕНИЕ" : "CRUSH") : (russian ? "ЧАСТОТА" : "RATE");
+    case cd::EffectKind::wavefolder:
+        return index == 0 ? (russian ? "СКЛАДКИ" : "FOLD") : (russian ? "ГЛУБИНА" : "DEPTH");
+    case cd::EffectKind::ringmod:
+        return index == 0 ? (russian ? "ПОДМЕСЬ" : "MIX") : (russian ? "ЧАСТОТА" : "RATE");
+    case cd::EffectKind::comb:
+        if (index == 0) return russian ? "ПОДМЕСЬ" : "MIX";
+        if (index == 1) return russian ? "РАЗМЕР" : "SIZE";
+        return russian ? "РЕЗОНАНС" : "RESONANCE";
     }
     return {};
 }
 
-constexpr std::array<std::array<cd::EngineKind, 4>, 4> kEngineGroups{{
+constexpr std::array<std::array<cd::EngineKind, 4>, 7> kEngineGroups{{
     {cd::EngineKind::macro, cd::EngineKind::body, cd::EngineKind::grain, cd::EngineKind::particle},
     {cd::EngineKind::derelict_bed, cd::EngineKind::footsteps, cd::EngineKind::door, cd::EngineKind::pipe},
     {cd::EngineKind::motor, cd::EngineKind::machinery, cd::EngineKind::crowd, cd::EngineKind::metal},
     {cd::EngineKind::wind, cd::EngineKind::birds, cd::EngineKind::insects, cd::EngineKind::signal},
+    {cd::EngineKind::cave_air, cd::EngineKind::water_drip, cd::EngineKind::water_flow, cd::EngineKind::stone},
+    {cd::EngineKind::metro_traction, cd::EngineKind::rail_joint, cd::EngineKind::brake, cd::EngineKind::carriage},
+    {cd::EngineKind::music_box, cd::EngineKind::toy_voice, cd::EngineKind::toy_gears, cd::EngineKind::lullaby},
 }};
 
-constexpr std::array<cd::EffectKind, 6> kEffectKinds{
-    cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass,
-    cd::EffectKind::tremolo, cd::EffectKind::delay, cd::EffectKind::crusher};
+constexpr std::array<cd::EffectKind, 10> kEffectKinds{
+    cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass, cd::EffectKind::highpass,
+    cd::EffectKind::tremolo, cd::EffectKind::delay, cd::EffectKind::crusher, cd::EffectKind::wavefolder,
+    cd::EffectKind::ringmod, cd::EffectKind::comb};
+
+constexpr std::array<cd::SceneKind, 6> kScenes{
+    cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
+    cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery};
 
 int parameter(const UiState& state) noexcept;
 
 std::string_view engine_group_name(int group, bool russian) noexcept {
-    constexpr std::array<std::string_view, 4> r{"ОБЩИЕ", "ЗАБРОШЕННОЕ", "ЦЕХ", "ПУСТОШЬ"};
-    constexpr std::array<std::string_view, 4> e{"GENERAL", "DERELICT", "FACTORY", "WASTELAND"};
+    constexpr std::array<std::string_view, 7> r{
+        "ОБЩИЕ", "ЗАБРОШЕННОЕ", "ЦЕХ", "ПУСТОШЬ", "ПЕЩЕРА", "МЕТРО", "ДЕТСКАЯ"};
+    constexpr std::array<std::string_view, 7> e{
+        "GENERAL", "DERELICT", "FACTORY", "WASTELAND", "CAVE", "METRO", "NURSERY"};
     return (russian ? r : e)[static_cast<std::size_t>(group)];
 }
 
@@ -286,13 +390,22 @@ void open_engine_picker(UiState& state, const cd::Session& session) noexcept {
     state.picker = Picker::engine;
     state.picker_group = 0;
     state.picker_item = 0;
-    for (int group = 0; group < 4; ++group) {
+    for (int group = 0; group < static_cast<int>(kEngineGroups.size()); ++group) {
         for (int item = 0; item < 4; ++item) {
             if (kEngineGroups[static_cast<std::size_t>(group)][static_cast<std::size_t>(item)] == current) {
                 state.picker_group = group;
                 state.picker_item = item;
             }
         }
+    }
+}
+
+void open_scene_picker(UiState& state, const cd::Session& session) noexcept {
+    state.picker = Picker::scene;
+    state.picker_group = 0;
+    state.picker_item = 0;
+    for (int item = 0; item < static_cast<int>(kScenes.size()); ++item) {
+        if (kScenes[static_cast<std::size_t>(item)] == session.scene) state.picker_item = item;
     }
 }
 
@@ -310,16 +423,23 @@ void open_effect_picker(UiState& state, const cd::Session& session) noexcept {
 }
 
 void move_picker(UiState& state, int horizontal, int vertical) noexcept {
-    if (state.picker == Picker::engine) {
-        state.picker_group = (state.picker_group + horizontal + 4) % 4;
+    if (state.picker == Picker::scene) {
+        state.picker_item = (state.picker_item + horizontal + vertical +
+            static_cast<int>(kScenes.size())) % static_cast<int>(kScenes.size());
+    } else if (state.picker == Picker::engine) {
+        const int groups = static_cast<int>(kEngineGroups.size());
+        state.picker_group = (state.picker_group + horizontal + groups) % groups;
         state.picker_item = (state.picker_item + vertical + 4) % 4;
     } else if (state.picker == Picker::effect) {
-        state.picker_item = (state.picker_item + horizontal + vertical + 6) % 6;
+        const int effects = static_cast<int>(kEffectKinds.size());
+        state.picker_item = (state.picker_item + horizontal * 5 + vertical + effects) % effects;
     }
 }
 
 void confirm_picker(UiState& state, cd::Session& session) noexcept {
-    if (state.picker == Picker::engine) {
+    if (state.picker == Picker::scene) {
+        cd::apply_scene_recipe(session, kScenes[static_cast<std::size_t>(state.picker_item)]);
+    } else if (state.picker == Picker::engine) {
         session.slots[static_cast<std::size_t>(state.slot)].engine =
             kEngineGroups[static_cast<std::size_t>(state.picker_group)]
                 [static_cast<std::size_t>(state.picker_item)];
@@ -419,7 +539,9 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
     switch (state.page) {
     case Page::perform:
         std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
-            macro_value(session.performance, selected) * 100.0F)));
+            (state.scene_track_focus
+                    ? session.slots[static_cast<std::size_t>(state.slot)].level
+                    : macro_value(session.performance, selected)) * 100.0F)));
         break;
     case Page::slot: {
         const int slot = slot_override >= 0 ? slot_override : state.slot;
@@ -468,7 +590,12 @@ std::string value_text(const cd::Session& session, const UiState& state, int slo
 
 std::string current_label(const cd::Session& session, const UiState& state) {
     switch (state.page) {
-    case Page::perform: return std::string{macro_name(parameter(state), ru(session))};
+    case Page::perform:
+        if (state.scene_track_focus) {
+            return std::string{ru(session) ? "УРОВЕНЬ ДОРОЖКИ " : "TRACK LEVEL "} +
+                std::to_string(state.slot + 1);
+        }
+        return std::string{macro_name(parameter(state), ru(session))};
     case Page::slot: return std::string{slot_name(
         parameter(state), session.slots[static_cast<std::size_t>(state.slot)], session.locale)};
     case Page::effects:
@@ -494,8 +621,14 @@ void adjust(cd::Session& session, UiState& state, float steps) {
     const int selected = parameter(state);
     switch (state.page) {
     case Page::perform: {
-        float* value = macro_value(session.performance, selected);
-        *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
+        if (state.scene_track_focus) {
+            auto& level = session.slots[static_cast<std::size_t>(state.slot)].level;
+            level = std::clamp(level + steps * 0.01F, 0.0F, 1.0F);
+            session.scene_modified = true;
+        } else {
+            float* value = macro_value(session.performance, selected);
+            *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
+        }
         break;
     }
     case Page::slot: {
@@ -652,9 +785,17 @@ void scope(
     SDL_RenderDrawLine(renderer, peak_x, meter_y - 1, peak_x, meter_y + meter_height - 1);
 }
 
-void draw_header(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
+void draw_header(
+    SDL_Renderer* renderer,
+    const cd::Session& session,
+    const cd::AudioTelemetry& telemetry,
+    const UiState& state) {
     cd::ui::draw_text(renderer, 10, 5, cd::tr(session.locale, cd::TextId::app_name), kInk, 2);
-    std::string status{page_name(state.page, ru(session))};
+    char live_status[32]{};
+    std::snprintf(live_status, sizeof(live_status), "DSP %d  OUT %d",
+        state.displayed_cpu_percent,
+        static_cast<int>(std::lround(std::clamp(telemetry.master_peak, 0.0F, 1.0F) * 100.0F)));
+    std::string status{live_status};
     SDL_Color status_color = kDim;
     if (state.auto_fade) {
         status = std::string{ru(session) ? "ФЕЙД " : "FADE "} +
@@ -706,7 +847,7 @@ void draw_scene(
         session.scene_modified ? kFxColors[1] : kDim);
     for (int index = 0; index < 5; ++index) {
         const int y = 78 + index * 34;
-        const bool selected = parameter(state) == index;
+        const bool selected = !state.scene_track_focus && parameter(state) == index;
         if (selected) {
             fill(renderer, {18, y - 4, 476, 31}, {73, 46, 104, 255});
             outline(renderer, {18, y - 4, 476, 31}, kInk);
@@ -724,15 +865,18 @@ void draw_scene(
         cd::ui::draw_text(renderer, 484 - cd::ui::text_width(high), y + 13, high, selected ? kInk : kDim);
     }
 
-    cd::ui::draw_text(renderer, 22, 250, ru(session) ? "ДОРОЖКИ  </> ВЫБОР  SPACE MUTE" :
-        "TRACKS  </> SELECT  SPACE MUTE", kDim);
+    cd::ui::draw_text(renderer, 22, 250,
+        ru(session) ? "ДОРОЖКИ  </> ВЫБОР  A/D УРОВЕНЬ  SPACE MUTE" :
+                      "TRACKS  </> SELECT  A/D LEVEL  SPACE MUTE",
+        state.scene_track_focus ? kInk : kDim);
     for (int index = 0; index < 4; ++index) {
         const int x = 18 + index * 119;
         const auto& slot = session.slots[static_cast<std::size_t>(index)];
         const bool active = state.slot == index;
-        fill(renderer, {x, 264, 111, 78},
-            active ? SDL_Color{73, 46, 104, 255} : SDL_Color{27, 23, 36, 255});
-        if (active) outline(renderer, {x, 264, 111, 78}, kInk);
+        fill(renderer, {x, 264, 111, 78}, active
+            ? (state.scene_track_focus ? SDL_Color{90, 53, 126, 255} : SDL_Color{73, 46, 104, 255})
+            : SDL_Color{27, 23, 36, 255});
+        if (active) outline(renderer, {x, 264, 111, 78}, state.scene_track_focus ? kInk : kDim);
         const std::string title = std::to_string(index + 1) + " " +
             std::string{engine_name(slot.engine, ru(session))};
         cd::ui::draw_text(renderer, x + 6, 272, title, active ? kInk : kDim);
@@ -740,7 +884,8 @@ void draw_scene(
         bar(renderer, x + 6, 291, 99, 10, meter, react(kFxColors[static_cast<std::size_t>(index)], meter));
         char level[12]{};
         std::snprintf(level, sizeof(level), "LVL %d%%", static_cast<int>(std::lround(slot.level * 100.0F)));
-        cd::ui::draw_text(renderer, x + 6, 309, level, kDim);
+        cd::ui::draw_text(renderer, x + 6, 309, level,
+            active && state.scene_track_focus ? kInk : kDim);
         if (!slot.enabled) {
             cd::ui::draw_text(renderer, x + 6, 325, "MUTE", kFxColors[0]);
         }
@@ -834,10 +979,12 @@ void effect_visual(
         return;
     }
     if (effect.kind == cd::EffectKind::delay) {
-        const int count = 3 + static_cast<int>(std::lround(effect.feedback * 5.0F));
+        const int spacing = 7 + static_cast<int>(std::lround(effect.tone * 18.0F));
+        const int count = std::max(2, (right - left) / spacing + 1);
         for (int tap = 0; tap < count; ++tap) {
-            const float decay = std::pow(0.35F + effect.feedback * 0.55F, static_cast<float>(tap));
-            const int tap_x = left + tap * (right - left) / std::max(1, count - 1);
+            const float decay = tap == 0 ? (1.0F - effect.amount * 0.35F)
+                : effect.amount * std::pow(0.28F + effect.feedback * 0.67F, static_cast<float>(tap - 1));
+            const int tap_x = left + tap * spacing;
             const int tap_height = static_cast<int>(std::lround(decay * static_cast<float>(height - 14)));
             SDL_RenderDrawLine(renderer, tap_x, bottom, tap_x, bottom - tap_height);
         }
@@ -853,17 +1000,43 @@ void effect_visual(
             value = std::tanh(input * (1.0F + effect.amount * 8.0F));
             break;
         }
-        case cd::EffectKind::lowpass:
-            value = 0.82F - std::pow(t, 0.55F + effect.tone * 3.2F) * (0.55F + effect.amount * 0.42F);
-            value = value * 2.0F - 1.0F;
+        case cd::EffectKind::lowpass: {
+            const float cutoff = 0.06F + effect.tone * 0.86F;
+            const float wet = 1.0F / (1.0F + std::pow(t / cutoff, 2.0F + effect.amount * 7.0F));
+            value = ((1.0F - effect.amount) + wet * effect.amount) * 2.0F - 1.0F;
             break;
+        }
+        case cd::EffectKind::highpass: {
+            const float cutoff = 0.06F + effect.tone * 0.86F;
+            const float wet = 1.0F - 1.0F / (1.0F + std::pow(t / cutoff, 2.0F + effect.amount * 7.0F));
+            value = ((1.0F - effect.amount) + wet * effect.amount) * 2.0F - 1.0F;
+            break;
+        }
         case cd::EffectKind::tremolo:
             value = std::sin(t * 6.2831853F * (1.0F + effect.tone * 3.0F)) * effect.amount;
             break;
         case cd::EffectKind::crusher: {
-            const float steps = 2.0F + static_cast<float>(
-                std::lround((1.0F - effect.amount) * 10.0F));
-            value = std::floor((t * 2.0F - 1.0F) * steps) / steps;
+            const float horizontal_steps = 3.0F + (1.0F - effect.tone) * 26.0F;
+            const float held_t = std::floor(t * horizontal_steps) / horizontal_steps;
+            const float levels = 2.0F + (1.0F - effect.amount) * 18.0F;
+            value = std::round((held_t * 2.0F - 1.0F) * levels) / levels;
+            break;
+        }
+        case cd::EffectKind::wavefolder: {
+            const float input = (t * 2.0F - 1.0F) * (1.0F + effect.amount * (2.0F + effect.tone * 5.0F));
+            const float wrapped = std::fmod(input + 1.0F, 4.0F);
+            const float positive = wrapped < 0.0F ? wrapped + 4.0F : wrapped;
+            value = 1.0F - std::abs(positive - 2.0F);
+            break;
+        }
+        case cd::EffectKind::ringmod:
+            value = std::sin(t * 6.2831853F * (1.0F + effect.tone * 9.0F)) * effect.amount;
+            break;
+        case cd::EffectKind::comb: {
+            const float teeth = 2.0F + (1.0F - effect.tone) * 12.0F;
+            const float resonance = std::pow(std::abs(std::sin(t * 3.14159265F * teeth)),
+                3.0F + effect.feedback * 9.0F);
+            value = ((1.0F - effect.amount) + resonance * effect.amount) * 2.0F - 1.0F;
             break;
         }
         case cd::EffectKind::bypass:
@@ -871,7 +1044,7 @@ void effect_visual(
             break;
         }
         const int current_y = center - static_cast<int>(std::lround(value * static_cast<float>(height - 14) * 0.5F));
-        SDL_RenderDrawLine(renderer, left + column - (column > 0 ? 1 : 0), previous_y, left + column, current_y);
+        if (column > 0) SDL_RenderDrawLine(renderer, left + column - 1, previous_y, left + column, current_y);
         previous_y = current_y;
     }
 }
@@ -884,13 +1057,20 @@ void draw_effects(
     constexpr int panel_width = 117;
     const int active_effect = parameter(state);
     const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
-    const float slot_meter = std::clamp(
-        telemetry.slot_rms[static_cast<std::size_t>(state.slot)] * 4.2F, 0.0F, 1.0F);
-    fill(renderer, {10, 48, 492, 32}, kPanel);
-    const std::string source = std::string{ru(session) ? "ДОРОЖКА " : "TRACK "} +
-        std::to_string(state.slot + 1) + " / " + std::string{engine_name(slot.engine, ru(session))};
-    cd::ui::draw_text(renderer, 20, 57, source, kInk);
-    bar(renderer, 330, 58, 158, 10, slot_meter, react(kFxColors[static_cast<std::size_t>(state.slot)], slot_meter));
+    for (int track = 0; track < 4; ++track) {
+        const int x = 10 + track * 125;
+        const bool selected = track == state.slot;
+        const float meter = std::clamp(
+            telemetry.slot_rms[static_cast<std::size_t>(track)] * 4.2F, 0.0F, 1.0F);
+        fill(renderer, {x, 48, panel_width, 32}, selected ? SDL_Color{73, 46, 104, 255} : kPanel);
+        if (selected) outline(renderer, {x, 48, panel_width, 32}, kInk);
+        const auto& track_slot = session.slots[static_cast<std::size_t>(track)];
+        const std::string source = std::to_string(track + 1) + " " +
+            std::string{engine_name(track_slot.engine, ru(session))};
+        cd::ui::draw_text(renderer, x + 6, 54, source, selected ? kInk : kDim);
+        bar(renderer, x + 6, 68, panel_width - 12, 6, meter,
+            react(kFxColors[static_cast<std::size_t>(track)], meter));
+    }
     for (int index = 0; index < 4; ++index) {
         const int x = 10 + index * 125;
         fill(renderer, {x, 84, panel_width, 270}, index == active_effect ? kPurple : kPanel);
@@ -1029,44 +1209,61 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
 }
 
 void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
-    fill(renderer, {76, 64, 360, 282}, {8, 7, 12, 244});
-    outline(renderer, {76, 64, 360, 282}, kInk);
-    if (state.picker == Picker::engine) {
+    fill(renderer, {76, 52, 360, 302}, {8, 7, 12, 244});
+    outline(renderer, {76, 52, 360, 302}, kInk);
+    if (state.picker == Picker::scene) {
+        cd::ui::draw_text(renderer, 92, 66,
+            ru(session) ? "ЦЕЛЕВОЙ ЛАНДШАФТ" : "TARGET LANDSCAPE", kInk, 2);
+        for (int item = 0; item < static_cast<int>(kScenes.size()); ++item) {
+            const int y = 104 + item * 34;
+            const bool selected = item == state.picker_item;
+            if (selected) fill(renderer, {92, y - 5, 328, 24}, {73, 46, 104, 255});
+            const std::string label = std::to_string(item + 1) + "  " +
+                std::string{scene_name(kScenes[static_cast<std::size_t>(item)], ru(session))};
+            cd::ui::draw_text(renderer, 102, y, label, selected ? kInk : kDim);
+        }
+        cd::ui::draw_text(renderer, 92, 334,
+            ru(session) ? "^/V ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
+                        : "^/V SELECT   E APPLY   ESC BACK", kDim);
+    } else if (state.picker == Picker::engine) {
         cd::ui::draw_text(renderer, 92, 78,
             ru(session) ? "ВЫБОР ДВИЖКА" : "CHOOSE ENGINE", kInk, 2);
-        for (int group = 0; group < 4; ++group) {
-            const int x = 92 + (group % 2) * 164;
-            const int y = 112 + (group / 2) * 24;
+        for (int group = 0; group < static_cast<int>(kEngineGroups.size()); ++group) {
+            const int x = 92 + (group % 3) * 108;
+            const int y = 108 + (group / 3) * 21;
             const bool selected = group == state.picker_group;
-            if (selected) fill(renderer, {x - 4, y - 4, 154, 18}, kPurple);
+            if (selected) fill(renderer, {x - 4, y - 4, 104, 17}, kPurple);
             cd::ui::draw_text(renderer, x, y, engine_group_name(group, ru(session)), selected ? kInk : kDim);
         }
         const auto& group = kEngineGroups[static_cast<std::size_t>(state.picker_group)];
         for (int item = 0; item < 4; ++item) {
-            const int y = 176 + item * 32;
+            const int y = 180 + item * 32;
             const bool selected = item == state.picker_item;
             if (selected) fill(renderer, {92, y - 5, 328, 24}, {73, 46, 104, 255});
             const std::string label = std::to_string(item + 1) + "  " +
                 std::string{engine_name(group[static_cast<std::size_t>(item)], ru(session))};
             cd::ui::draw_text(renderer, 102, y, label, selected ? kInk : kDim);
         }
-        cd::ui::draw_text(renderer, 92, 320,
-            ru(session) ? "</> КАТЕГОРИЯ  ^/V ДВИЖОК  ENTER OK  ESC НАЗАД"
-                        : "</> CATEGORY  ^/V ENGINE  ENTER OK  ESC BACK", kDim);
+        cd::ui::draw_text(renderer, 92, 334,
+            ru(session) ? "</> ГРУППА  ^/V ДВИЖОК  E OK  ESC НАЗАД"
+                        : "</> GROUP  ^/V ENGINE  E OK  ESC BACK", kDim);
     } else if (state.picker == Picker::effect) {
-        cd::ui::draw_text(renderer, 92, 78,
+        cd::ui::draw_text(renderer, 92, 66,
             ru(session) ? "ВЫБОР ЭФФЕКТА" : "CHOOSE EFFECT", kInk, 2);
-        for (int item = 0; item < 6; ++item) {
-            const int y = 118 + item * 32;
+        for (int item = 0; item < static_cast<int>(kEffectKinds.size()); ++item) {
+            const int column = item / 5;
+            const int row = item % 5;
+            const int x = 92 + column * 164;
+            const int y = 110 + row * 42;
             const bool selected = item == state.picker_item;
-            if (selected) fill(renderer, {92, y - 5, 328, 24}, {73, 46, 104, 255});
+            if (selected) fill(renderer, {x, y - 5, 154, 24}, {73, 46, 104, 255});
             const std::string label = std::to_string(item + 1) + "  " +
                 std::string{effect_name(kEffectKinds[static_cast<std::size_t>(item)], ru(session))};
-            cd::ui::draw_text(renderer, 102, y, label, selected ? kInk : kDim);
+            cd::ui::draw_text(renderer, x + 8, y, label, selected ? kInk : kDim);
         }
-        cd::ui::draw_text(renderer, 92, 320,
-            ru(session) ? "^/V ВЫБОР  ENTER OK  ESC НАЗАД"
-                        : "^/V SELECT  ENTER OK  ESC BACK", kDim);
+        cd::ui::draw_text(renderer, 92, 334,
+            ru(session) ? "СТРЕЛКИ ВЫБОР   E OK   ESC НАЗАД"
+                        : "ARROWS SELECT   E OK   ESC BACK", kDim);
     }
 }
 
@@ -1079,7 +1276,7 @@ void draw(
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 8, 7, 12, 255);
     SDL_RenderClear(renderer);
-    draw_header(renderer, session, state);
+    draw_header(renderer, session, telemetry, state);
     if (state.page == Page::perform) {
         draw_scene(renderer, session, telemetry, state);
     } else if (state.page == Page::slot) {
@@ -1096,15 +1293,15 @@ void draw(
     }
     std::string help;
     if (state.picker != Picker::none) {
-        help = ru(session) ? "ENTER ВЫБРАТЬ  ESC НАЗАД" : "ENTER SELECT  ESC BACK";
+        help = ru(session) ? "E ВЫБРАТЬ  ESC НАЗАД" : "E SELECT  ESC BACK";
     } else if (state.page == Page::effects) {
         help = ru(session)
             ? "</> FX  ^/V ПАРАМ.  S ДОРОЖКА  A/D ЗНАЧ.  E ТИП"
             : "</> FX  ^/V PARAM  S TRACK  A/D VALUE  E TYPE";
     } else if (state.page == Page::perform) {
         help = ru(session)
-            ? "^/V РУЧКА  </> ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ  F ФЕЙД"
-            : "^/V MACRO  </> TRACK  SPACE MUTE  E LANDSCAPE  F FADE";
+            ? "^/V РУЧКА/УРОВ.  </> ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ"
+            : "^/V MACRO/LEVEL  </> TRACK  SPACE MUTE  E LANDSCAPE";
     } else if (state.page == Page::master || state.page == Page::setup) {
         help = ru(session)
             ? "^/V ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
@@ -1147,13 +1344,6 @@ bool update_fade(cd::Session& session, UiState& state, float seconds) noexcept {
     return true;
 }
 
-void cycle_context(cd::Session& session, const UiState& state) noexcept {
-    if (state.page == Page::perform) {
-        const auto next = static_cast<cd::SceneKind>((static_cast<int>(session.scene) + 1) % 3);
-        cd::apply_scene_recipe(session, next);
-    }
-}
-
 void navigate_horizontal(UiState& state, const cd::Session& session, int direction) noexcept {
     if (state.page == Page::effects) {
         parameter(state) = (parameter(state) + direction + 4) % 4;
@@ -1171,6 +1361,17 @@ void navigate_vertical(UiState& state, const cd::Session& session, int direction
             .effects[static_cast<std::size_t>(parameter(state))].kind;
         const int count = effect_field_count(kind);
         if (count > 0) state.effect_field = (state.effect_field + direction + count) % count;
+    } else if (state.page == Page::perform) {
+        if (state.scene_track_focus) {
+            if (direction < 0) {
+                state.scene_track_focus = false;
+                parameter(state) = 4;
+            }
+        } else if (direction > 0 && parameter(state) == 4) {
+            state.scene_track_focus = true;
+        } else {
+            parameter(state) = std::clamp(parameter(state) + direction, 0, 4);
+        }
     } else {
         const int count = parameter_count(state.page);
         parameter(state) = (parameter(state) + direction + count) % count;
@@ -1178,7 +1379,9 @@ void navigate_vertical(UiState& state, const cd::Session& session, int direction
 }
 
 void open_context_picker(UiState& state, const cd::Session& session) noexcept {
-    if (state.page == Page::slot) {
+    if (state.page == Page::perform) {
+        open_scene_picker(state, session);
+    } else if (state.page == Page::slot) {
         open_engine_picker(state, session);
     } else if (state.page == Page::effects) {
         open_effect_picker(state, session);
@@ -1274,6 +1477,7 @@ int main(int, char**) {
                     case SDLK_DOWN: move_picker(state, 0, 1); break;
                     case SDLK_RETURN:
                     case SDLK_SPACE: confirm_picker(state, session); changed = true; break;
+                    case SDLK_e: confirm_picker(state, session); changed = true; break;
                     default: break;
                     }
                 } else {
@@ -1303,8 +1507,7 @@ int main(int, char**) {
                         if (state.page == Page::effects) state.slot = (state.slot + 1) % 4;
                         break;
                     case SDLK_e:
-                        if (state.page == Page::perform) { cycle_context(session, state); changed = true; }
-                        else open_context_picker(state, session);
+                        open_context_picker(state, session);
                         break;
                     case SDLK_f: toggle_fade(session, state); changed = true; break;
                     case SDLK_k:
@@ -1365,8 +1568,7 @@ int main(int, char**) {
                         break;
                     case SDL_CONTROLLER_BUTTON_BACK: toggle_fade(session, state); changed = true; break;
                     case SDL_CONTROLLER_BUTTON_START:
-                        if (state.page == Page::perform) { cycle_context(session, state); changed = true; }
-                        else open_context_picker(state, session);
+                        open_context_picker(state, session);
                         break;
                     default: break;
                     }

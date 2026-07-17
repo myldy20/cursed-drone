@@ -23,6 +23,9 @@ jobs:
           build/cursed-drone-render previews/derelict.wav 30 derelict
           build/cursed-drone-render previews/factory.wav 30 factory
           build/cursed-drone-render previews/wasteland.wav 30 wasteland
+          build/cursed-drone-render previews/wet-cave.wav 30 wet_cave
+          build/cursed-drone-render previews/metro-car.wav 30 metro
+          build/cursed-drone-render previews/broken-nursery.wav 30 nursery
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-soundscape-previews

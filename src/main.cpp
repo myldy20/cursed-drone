@@ -16,7 +16,7 @@ namespace {
 void print_help(cd::Locale locale) {
     std::cout << cd::tr(locale, cd::TextId::app_name) << " — "
               << cd::tr(locale, cd::TextId::app_subtitle) << "\n\n"
-              << "cursed-drone [--lang ru|en] [--scene derelict|factory|wasteland]\n"
+              << "cursed-drone [--lang ru|en] [--scene derelict|factory|wasteland|wet_cave|metro|nursery]\n"
               << "             [--load FILE] [--save-default FILE]\n"
               << "             [--render FILE] [--seconds N]\n\n"
               << cd::tr(locale, cd::TextId::diagnostic_warning) << '\n';

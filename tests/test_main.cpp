@@ -60,7 +60,8 @@ void test_audio() {
     expect(default_session.slots[2].engine == cd::EngineKind::door, "slot 3 should be the door gesture");
     expect(default_session.slots[3].engine == cd::EngineKind::pipe, "slot 4 should be the pipe layer");
     constexpr std::array scenes{
-        cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland};
+        cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
+        cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery};
     for (const auto scene : scenes) {
         auto landscape = default_session;
         cd::apply_scene_recipe(landscape, scene);
@@ -153,13 +154,73 @@ void test_audio() {
         }
     }
     expect(macro_difference > 100.0, "scene macros should produce a materially different waveform");
+
+    const auto render_master_rms = [](float master_level) {
+        cd::Session controlled{};
+        controlled.master_level = master_level;
+        controlled.performance = {};
+        controlled.performance.fade = 1.0F;
+        controlled.slots[0].engine = cd::EngineKind::macro;
+        controlled.slots[0].frequency_hz = 82.41F;
+        controlled.slots[0].level = 1.0F;
+        controlled.slots[0].timbre = 0.0F;
+        controlled.slots[0].texture = 0.0F;
+        for (std::size_t index = 1; index < cd::kSlotCount; ++index) controlled.slots[index].enabled = false;
+        cd::AudioGraph controlled_graph;
+        controlled_graph.prepare({48'000.0F, 256U}, controlled);
+        std::array<cd::StereoFrame, 256> controlled_block{};
+        double controlled_energy = 0.0;
+        std::size_t samples = 0U;
+        for (int iteration = 0; iteration < 240; ++iteration) {
+            controlled_graph.process({controlled_block.data(), controlled_block.size()});
+            if (iteration < 40) continue;
+            for (const auto frame : controlled_block) {
+                controlled_energy += static_cast<double>(
+                    0.5F * (frame.left * frame.left + frame.right * frame.right));
+                ++samples;
+            }
+        }
+        return std::sqrt(controlled_energy / static_cast<double>(samples));
+    };
+    const double rms_10 = render_master_rms(0.10F);
+    const double rms_50 = render_master_rms(0.50F);
+    const double rms_100 = render_master_rms(1.0F);
+    expect(rms_10 < rms_50 * 0.24, "10% master should be much quieter than 50%");
+    expect(rms_50 < rms_100 * 0.56, "50% master should remain quieter than 100% after limiting");
+    expect(rms_50 > rms_100 * 0.44, "master control should be approximately linear after limiting");
+
+    constexpr std::array effects{
+        cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass,
+        cd::EffectKind::highpass, cd::EffectKind::tremolo, cd::EffectKind::delay,
+        cd::EffectKind::crusher, cd::EffectKind::wavefolder, cd::EffectKind::ringmod,
+        cd::EffectKind::comb};
+    for (const auto effect : effects) {
+        auto effected = default_session;
+        for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) effected.slots[slot].enabled = false;
+        for (auto& slot_effect : effected.slots[0].effects) slot_effect.kind = cd::EffectKind::bypass;
+        effected.slots[0].effects[0] = {effect, 0.72F, 0.57F, 0.61F};
+        cd::AudioGraph effect_graph;
+        effect_graph.prepare({48'000.0F, 256U}, effected);
+        std::array<cd::StereoFrame, 256> effect_block{};
+        double effect_energy = 0.0;
+        for (int iteration = 0; iteration < 300; ++iteration) {
+            effect_graph.process({effect_block.data(), effect_block.size()});
+            for (const auto frame : effect_block) {
+                expect(std::isfinite(frame.left) && std::isfinite(frame.right),
+                    "every effect should keep the audio finite");
+                effect_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
+            }
+        }
+        expect(effect_energy > 0.001, "every effect should preserve or produce audible output");
+    }
 }
 
 void test_session_roundtrip() {
     const auto path = std::filesystem::temp_directory_path() / "cursed-drone-test.cdrone";
     auto original = cd::make_default_session();
     original.locale = cd::Locale::en;
-    cd::apply_scene_recipe(original, cd::SceneKind::factory);
+    cd::apply_scene_recipe(original, cd::SceneKind::nursery);
+    original.slots[2].effects[1].kind = cd::EffectKind::ringmod;
     original.slots[2].effects[1].amount = 0.731F;
     original.performance.texture = 0.812F;
     original.performance.pulse = 0.643F;
@@ -175,10 +236,12 @@ void test_session_roundtrip() {
     cd::Session loaded{};
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
-    expect(loaded.scene == cd::SceneKind::factory, "scene should roundtrip");
-    expect(loaded.schema_version == 5, "session should upgrade to schema 5");
+    expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
+    expect(loaded.schema_version == 6, "session should upgrade to schema 6");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
+    expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
+        "new effect kinds should roundtrip");
     expect(std::abs(loaded.performance.texture - 0.812F) < 0.0001F, "texture macro should roundtrip");
     expect(std::abs(loaded.performance.pulse - 0.643F) < 0.0001F, "pulse macro should roundtrip");
     expect(std::abs(loaded.performance.chaos - 0.522F) < 0.0001F, "chaos macro should roundtrip");

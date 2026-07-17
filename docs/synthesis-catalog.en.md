@@ -6,7 +6,7 @@ This document separates three things that are easy to confuse: an audio algorith
 
 | Source | Useful models | Licence | Brick fit | Decision |
 | --- | --- | --- | --- | --- |
-| [DaisySP](https://github.com/electro-smith/DaisySP) | `StringVoice`, `ModalVoice`, `Drip`, resonators, noise and filters | MIT, with upstream Plaits and Soundpipe notices | Designed for embedded real-time DSP; a pinned subset is already vendored | First choice. Add `StringVoice` and an audited `Drip` implementation next. |
+| [DaisySP](https://github.com/electro-smith/DaisySP) | `StringVoice`, `ModalVoice`, `Drip`, resonators, noise and filters | MIT, with upstream Plaits and Soundpipe notices | Designed for embedded real-time DSP; a pinned subset is already vendored | `Drip` was audited and added in 0.6 with a documented upstream port correction. Review `StringVoice` after Brick profiling. |
 | [Mutable Instruments Plaits firmware](https://github.com/pichenettes/eurorack/tree/master/plaits) | modal, string, particle, speech and percussion engines | MIT per source file | Embedded code, but its internal support graph is broader than one actor | Prefer the already isolated DaisySP ports; import a direct engine only after dependency and CPU review. |
 | [STK](https://github.com/thestk/stk) | `Shakers`, `Whistle`, blown pipes, bowed and struck bodies | MIT-style | Mature and portable; some instruments need tables or a larger object graph | Prototype `Shakers` for debris, footsteps and broken mechanisms. Do not vendor the whole toolkit. |
 | [Faust libraries](https://github.com/grame-cncm/faustlibraries) | strings, drums, reeds, waveguides, filters and reverbs | LGPL 2.1+ with a generated-code exception; `instruments.lib` contains STK-4.3 material | Generate fixed C++ offline; no Faust runtime on the console | Good route for small self-contained pipe, bow and membrane actors after generated-code audit. |
@@ -14,17 +14,17 @@ This document separates three things that are easy to confuse: an audio algorith
 
 Code and preset assets are licensed separately. The project will not copy a patch bank merely because its host synthesizer is open source.
 
-## Landscape backlog
+## Landscape catalogue and backlog
 
 | Landscape | Continuous bed | Foreground actors | Character |
 | --- | --- | --- | --- |
-| Wet cave | low air pressure and filtered water roar | physical drips, rock ticks, distant stream surges | cold, spacious, sparse to overwhelming |
-| Metro carriage | body and traction-motor resonance | rail joints, braking scrape, door mechanism, ghosted voice-band noise | enclosed, kinetic, anxious |
+| Wet cave (0.6) | low air pressure and filtered water roar | physical drips, rock ticks, distant stream surges | cold, spacious, sparse to overwhelming |
+| Metro carriage (0.6) | body and traction-motor resonance | rail joints, braking scrape and carriage rattle | enclosed, kinetic, anxious |
 | Substation | mains-related transformer hum | relay chatter, ceramic ticks, electrical arcs | static pressure punctured by dangerous transients |
 | Ship engine room | several unsynchronised rotating masses | valve knocks, hull groans, steam leaks | heavy, warm, claustrophobic |
 | Frozen marsh | almost silent wind and ice body | ice cracks, dry reeds, distant bird fragments | exposed, brittle, patient |
 | Storm drain | turbulent air and low water | pipe knocks, splashes, resonant drops | wet, close, subterranean |
-| Broken nursery | weak room tone | music-box string, bent toy speech, gear motor, battery dropout | deliberately toy-like, intimate and frightening |
+| Broken nursery (0.6) | weak room tone | music-box tines, bent toy speech, gear motor, battery dropout | deliberately toy-like, intimate and frightening |
 | Data archive | ventilation and fluorescent buzz | disk seeks, relay clusters, corrupted speech grains | dry, repetitive, increasingly unstable |
 
 These are not skins over one drone. Each landscape needs at least one different excitation model, one different event scheduler and one different spectral centre.

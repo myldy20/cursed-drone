@@ -13,7 +13,7 @@ inline constexpr std::size_t kEffectsPerSlot = 4;
 inline constexpr std::size_t kModulatorsPerSlot = 4;
 
 enum class Locale { ru, en };
-enum class SceneKind { derelict, factory, wasteland };
+enum class SceneKind { derelict, factory, wasteland, wet_cave, metro, nursery };
 enum class EngineKind {
     diagnostic,
     macro,
@@ -31,9 +31,32 @@ enum class EngineKind {
     wind,
     birds,
     insects,
-    signal
+    signal,
+    cave_air,
+    water_drip,
+    water_flow,
+    stone,
+    metro_traction,
+    rail_joint,
+    brake,
+    carriage,
+    music_box,
+    toy_voice,
+    toy_gears,
+    lullaby
 };
-enum class EffectKind { bypass, drive, lowpass, tremolo, delay, crusher };
+enum class EffectKind {
+    bypass,
+    drive,
+    lowpass,
+    highpass,
+    tremolo,
+    delay,
+    crusher,
+    wavefolder,
+    ringmod,
+    comb
+};
 enum class ModWave { sine, triangle, sample_hold, random_walk };
 enum class ModDestination {
     pitch,
@@ -90,7 +113,7 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{5};
+    unsigned schema_version{6};
     Locale locale{Locale::en};
     SceneKind scene{SceneKind::derelict};
     bool scene_modified{false};

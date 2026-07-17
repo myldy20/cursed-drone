@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     if (argc > 3) {
         cursed_drone::SceneKind scene{};
         if (!cursed_drone::parse_scene(argv[3], scene)) {
-            std::cerr << "Invalid scene (use derelict, factory or wasteland)\n";
+            std::cerr << "Invalid scene (use derelict, factory, wasteland, wet_cave, metro or nursery)\n";
             return 2;
         }
         cursed_drone::apply_scene_recipe(session, scene);

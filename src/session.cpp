@@ -45,6 +45,9 @@ constexpr std::array kScenes{
     std::pair{SceneKind::derelict, std::string_view{"derelict"}},
     std::pair{SceneKind::factory, std::string_view{"factory"}},
     std::pair{SceneKind::wasteland, std::string_view{"wasteland"}},
+    std::pair{SceneKind::wet_cave, std::string_view{"wet_cave"}},
+    std::pair{SceneKind::metro, std::string_view{"metro"}},
+    std::pair{SceneKind::nursery, std::string_view{"nursery"}},
 };
 
 constexpr std::array kEngines{
@@ -65,15 +68,31 @@ constexpr std::array kEngines{
     std::pair{EngineKind::birds, std::string_view{"birds"}},
     std::pair{EngineKind::insects, std::string_view{"insects"}},
     std::pair{EngineKind::signal, std::string_view{"signal"}},
+    std::pair{EngineKind::cave_air, std::string_view{"cave_air"}},
+    std::pair{EngineKind::water_drip, std::string_view{"water_drip"}},
+    std::pair{EngineKind::water_flow, std::string_view{"water_flow"}},
+    std::pair{EngineKind::stone, std::string_view{"stone"}},
+    std::pair{EngineKind::metro_traction, std::string_view{"metro_traction"}},
+    std::pair{EngineKind::rail_joint, std::string_view{"rail_joint"}},
+    std::pair{EngineKind::brake, std::string_view{"brake"}},
+    std::pair{EngineKind::carriage, std::string_view{"carriage"}},
+    std::pair{EngineKind::music_box, std::string_view{"music_box"}},
+    std::pair{EngineKind::toy_voice, std::string_view{"toy_voice"}},
+    std::pair{EngineKind::toy_gears, std::string_view{"toy_gears"}},
+    std::pair{EngineKind::lullaby, std::string_view{"lullaby"}},
 };
 
 constexpr std::array kEffects{
     std::pair{EffectKind::bypass, std::string_view{"bypass"}},
     std::pair{EffectKind::drive, std::string_view{"drive"}},
     std::pair{EffectKind::lowpass, std::string_view{"lowpass"}},
+    std::pair{EffectKind::highpass, std::string_view{"highpass"}},
     std::pair{EffectKind::tremolo, std::string_view{"tremolo"}},
     std::pair{EffectKind::delay, std::string_view{"delay"}},
     std::pair{EffectKind::crusher, std::string_view{"crusher"}},
+    std::pair{EffectKind::wavefolder, std::string_view{"wavefolder"}},
+    std::pair{EffectKind::ringmod, std::string_view{"ringmod"}},
+    std::pair{EffectKind::comb, std::string_view{"comb"}},
 };
 
 constexpr std::array kWaves{
@@ -266,6 +285,24 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
         set_actor(2U, EngineKind::insects, 1320.0F, 0.48F, 0.58F, 0.52F, 0.50F, 0.18F, -0.50F);
         set_actor(3U, EngineKind::signal, 86.0F, 0.35F, 0.44F, 0.28F, 0.30F, 0.24F, 0.18F);
         break;
+    case SceneKind::wet_cave:
+        set_actor(0U, EngineKind::cave_air, 31.0F, 0.24F, 0.28F, 0.18F, 0.38F, 0.28F, -0.18F);
+        set_actor(1U, EngineKind::water_drip, 510.0F, 0.48F, 0.62F, 0.22F, 0.34F, 0.34F, 0.34F);
+        set_actor(2U, EngineKind::water_flow, 96.0F, 0.42F, 0.54F, 0.36F, 0.58F, 0.24F, -0.42F);
+        set_actor(3U, EngineKind::stone, 67.0F, 0.62F, 0.38F, 0.20F, 0.44F, 0.24F, 0.46F);
+        break;
+    case SceneKind::metro:
+        set_actor(0U, EngineKind::metro_traction, 43.0F, 0.48F, 0.36F, 0.56F, 0.34F, 0.30F, -0.16F);
+        set_actor(1U, EngineKind::rail_joint, 72.0F, 0.58F, 0.52F, 0.60F, 0.42F, 0.30F, 0.34F);
+        set_actor(2U, EngineKind::brake, 190.0F, 0.52F, 0.64F, 0.34F, 0.62F, 0.20F, -0.44F);
+        set_actor(3U, EngineKind::carriage, 54.0F, 0.38F, 0.46F, 0.48F, 0.52F, 0.27F, 0.42F);
+        break;
+    case SceneKind::nursery:
+        set_actor(0U, EngineKind::music_box, 220.0F, 0.56F, 0.70F, 0.22F, 0.28F, 0.26F, -0.34F);
+        set_actor(1U, EngineKind::toy_voice, 104.0F, 0.58F, 0.46F, 0.32F, 0.54F, 0.22F, 0.30F);
+        set_actor(2U, EngineKind::toy_gears, 38.0F, 0.46F, 0.30F, 0.48F, 0.52F, 0.24F, -0.48F);
+        set_actor(3U, EngineKind::lullaby, 294.0F, 0.42F, 0.62F, 0.18F, 0.32F, 0.20F, 0.46F);
+        break;
     }
 
     for (auto& slot : session.slots) {
@@ -277,6 +314,23 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
     session.slots[0].effects[2].amount = 0.04F;
     session.slots[2].effects[2] = {EffectKind::delay, 0.16F, 0.24F, 0.32F};
     session.slots[3].effects[2] = {EffectKind::delay, 0.13F, 0.34F, 0.36F};
+
+    if (scene == SceneKind::wet_cave) {
+        session.slots[0].effects[0] = {EffectKind::lowpass, 0.24F, 0.42F, 0.0F};
+        session.slots[1].effects[2] = {EffectKind::delay, 0.34F, 0.58F, 0.58F};
+        session.slots[2].effects[0] = {EffectKind::highpass, 0.12F, 0.18F, 0.0F};
+        session.slots[3].effects[2] = {EffectKind::comb, 0.18F, 0.24F, 0.42F};
+    } else if (scene == SceneKind::metro) {
+        session.slots[0].effects[1] = {EffectKind::wavefolder, 0.08F, 0.42F, 0.0F};
+        session.slots[1].effects[2] = {EffectKind::comb, 0.12F, 0.16F, 0.34F};
+        session.slots[2].effects[0] = {EffectKind::highpass, 0.20F, 0.36F, 0.0F};
+        session.slots[3].effects[1] = {EffectKind::drive, 0.06F, 0.50F, 0.0F};
+    } else if (scene == SceneKind::nursery) {
+        session.slots[0].effects[2] = {EffectKind::delay, 0.27F, 0.48F, 0.52F};
+        session.slots[1].effects[1] = {EffectKind::ringmod, 0.16F, 0.23F, 0.0F};
+        session.slots[2].effects[1] = {EffectKind::crusher, 0.18F, 0.34F, 0.0F};
+        session.slots[3].effects[2] = {EffectKind::comb, 0.14F, 0.52F, 0.38F};
+    }
 }
 
 bool save_session(const Session& session, const std::filesystem::path& path, std::string& error) {
@@ -362,7 +416,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     const auto schema = values.find("cursed_drone_session");
     if (schema == values.end() ||
         (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
-            schema->second != "4" && schema->second != "5")) {
+            schema->second != "4" && schema->second != "5" && schema->second != "6")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -443,10 +497,10 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     loaded.performance.space = std::clamp(loaded.performance.space, 0.0F, 1.0F);
     loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
-    if (schema->second != "4" && schema->second != "5") {
+    if (schema->second != "4" && schema->second != "5" && schema->second != "6") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 5;
+    loaded.schema_version = 6;
     session = loaded;
     return true;
 }

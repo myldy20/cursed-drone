@@ -11,6 +11,7 @@ DAISYSP := third_party/daisysp/Source/Filters/svf.cpp \
 	third_party/daisysp/Source/Noise/clockednoise.cpp \
 	third_party/daisysp/Source/Noise/grainlet.cpp \
 	third_party/daisysp/Source/Noise/particle.cpp \
+	third_party/daisysp/Source/PhysicalModeling/drip.cpp \
 	third_party/daisysp/Source/PhysicalModeling/modalvoice.cpp \
 	third_party/daisysp/Source/PhysicalModeling/resonator.cpp \
 	third_party/daisysp/Source/Synthesis/oscillator.cpp

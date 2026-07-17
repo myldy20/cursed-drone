@@ -1,5 +1,23 @@
 # Roadmap
 
+## 0.6 slice — different acoustic worlds (in development)
+
+- Wet Cave, Metro Car and Broken Nursery add twelve actor models and bring the total to six landscapes / twenty-four actors;
+- audited DaisySP `Drip`, physical water/stone events, rail mechanics and sparse pitch-set objects;
+- high-pass, wavefolder, ring modulation and comb effects with parameter-reactive diagrams;
+- target landscape picker, direct track-level editing on Scene and four visible source tracks on FX;
+- post-limiter master/fade gain with a monotonicity regression test;
+- schema 6 and six automatic WAV previews.
+
+**Next gate:** subjective Mac listening, then CPU and underrun measurement on the Brick. Equal-power dual-bus scene morphing follows after the six-scene load is profiled.
+
+## 0.5 slice — coherent live interface (done)
+
+- consistent spatial D-pad navigation and independent slot rows;
+- categorized engine/effect pickers and actor-specific control names;
+- explicit output fade state, integer DSP telemetry and default English UI;
+- mirrored English/Russian README and synthesis catalogue.
+
 ## 0.4 slice — procedural landscapes (ready for subjective testing)
 
 - three scene recipes: Derelict, Factory and Wasteland;

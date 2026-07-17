@@ -1,16 +1,16 @@
 # Сторонний код / Third-party notices
 
-Начиная с `0.3.0`, репозиторий содержит проверенный поднабор DaisySP. Он собирается непосредственно в core. В 0.4 прежние четыре источника сохранены для экспертного режима, а DaisySP SVF также используется двенадцатью процедурными актёрами. Старый диагностический генератор оставлен только для обратной совместимости.
+Начиная с `0.3.0`, репозиторий содержит проверенный поднабор DaisySP. Он собирается непосредственно в core. В 0.6 прежние четыре источника сохранены для экспертного режима, SVF используется процедурными актёрами, а модель `Drip` создаёт капли мокрой пещеры. Старый диагностический генератор оставлен только для обратной совместимости.
 
-Starting with `0.3.0`, the repository contains an audited DaisySP subset built directly into the core. In 0.4 the original four sources remain available in expert mode, while DaisySP SVF also filters the twelve procedural actors. The diagnostic generator remains only for backward compatibility.
+Starting with `0.3.0`, the repository contains an audited DaisySP subset built directly into the core. In 0.6 the original four sources remain available in expert mode, SVF filters procedural actors, and the `Drip` model creates the Wet Cave drops. The diagnostic generator remains only for backward compatibility.
 
 ## DaisySP DSP subset / Поднабор DaisySP
 
 | Project | Files | Pinned commit | License | Local use |
 | --- | --- | --- | --- | --- |
-| [electro-smith/DaisySP](https://github.com/electro-smith/DaisySP) | `third_party/daisysp/Source/{Utility,Filters,Noise,PhysicalModeling,Synthesis}`; exact list in the local README | `599511b740f8f3a9b8db72a0642aa45b8a23c3a3` | MIT; full text in `third_party/daisysp/LICENSE` | Existing `TONE/RESONATOR/GRAINLET/PARTICLES`; stable SVF filtering for procedural wind, surfaces, crowd, machinery and friction |
+| [electro-smith/DaisySP](https://github.com/electro-smith/DaisySP) | `third_party/daisysp/Source/{Utility,Filters,Noise,PhysicalModeling,Synthesis}`; exact list in the local README | `599511b740f8f3a9b8db72a0642aa45b8a23c3a3` | MIT; full text in `third_party/daisysp/LICENSE` | `TONE/RESONATOR/GRAINLET/PARTICLES`, SVF material filters and Perry Cook/Soundpipe `Drip` water model |
 
-The vendored upstream source files are unmodified. Product glue, macro mapping, event scheduling and the audio graph live in `src/audio.cpp` and `src/soundscape.cpp` under this repository's GPL-3.0-or-later license. The Designing Sound, STK, Faust and Soundpipe links in the research documents are references only; no source from them is vendored in 0.4.
+The local `Drip` copy has a documented two-line resonator correction and three parameter setters; details are in the subset README. Other vendored upstream files remain unmodified. Product glue, macro mapping, event scheduling and the audio graph live in `src/audio.cpp` and `src/soundscape.cpp` under this repository's GPL-3.0-or-later license. The Designing Sound, STK and Faust links in the research documents are references only.
 
 ## Vendored UI font / Встроенный UI-шрифт
 

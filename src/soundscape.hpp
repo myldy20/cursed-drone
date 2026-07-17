@@ -56,6 +56,28 @@ private:
         float texture, float activity, float tension, float evolution) noexcept;
     float signal(float frequency, float timbre, float color, float motion,
         float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept;
+    float cave_air(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float water_flow(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float stone(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float metro_traction(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float rail_joint(float frequency, float timbre, float color, float motion,
+        float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept;
+    float brake(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float carriage(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float music_box(float frequency, float timbre, float color, float motion,
+        float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept;
+    float toy_voice(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float toy_gears(float frequency, float timbre, float color, float motion,
+        float texture, float activity, float tension, float evolution) noexcept;
+    float lullaby(float frequency, float timbre, float color, float motion,
+        float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept;
 
     float noise() noexcept;
     float sine(std::size_t index, float frequency) noexcept;

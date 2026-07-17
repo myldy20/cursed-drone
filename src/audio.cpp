@@ -5,6 +5,7 @@
 #include "Noise/clockednoise.h"
 #include "Noise/grainlet.h"
 #include "Noise/particle.h"
+#include "PhysicalModeling/drip.h"
 #include "PhysicalModeling/modalvoice.h"
 #include "Synthesis/oscillator.h"
 
@@ -181,6 +182,7 @@ public:
         body_.Init(sample_rate_);
         grain_.Init(sample_rate_);
         particle_.Init(sample_rate_);
+        drip_.Init(sample_rate_, 0.72F);
         clocked_noise_.Init(sample_rate_);
         soundscape_.prepare(sample_rate_, slot_index_);
         event_phase_ = 1.0F;
@@ -271,6 +273,11 @@ public:
             particle_.SetRandomFreq(0.15F + motion * motion * 12.0F);
             particle_.SetSync(trigger);
             return particle_.Process() * 2.2F;
+        case EngineKind::water_drip:
+            drip_.SetFrequency(std::clamp(frequency, 120.0F, 1'800.0F) * (0.78F + color * 0.64F));
+            drip_.SetDamping(0.08F + timbre * 0.52F);
+            drip_.SetDensity(0.12F + texture * 0.72F);
+            return drip_.Process(trigger) * (4.2F + texture * 2.8F);
         case EngineKind::derelict_bed:
         case EngineKind::footsteps:
         case EngineKind::door:
@@ -283,6 +290,17 @@ public:
         case EngineKind::birds:
         case EngineKind::insects:
         case EngineKind::signal:
+        case EngineKind::cave_air:
+        case EngineKind::water_flow:
+        case EngineKind::stone:
+        case EngineKind::metro_traction:
+        case EngineKind::rail_joint:
+        case EngineKind::brake:
+        case EngineKind::carriage:
+        case EngineKind::music_box:
+        case EngineKind::toy_voice:
+        case EngineKind::toy_gears:
+        case EngineKind::lullaby:
             return soundscape_.next(
                 kind, frequency, timbre, color, motion, texture,
                 tempo_bpm, pulse, chaos, events);
@@ -304,6 +322,7 @@ private:
     daisysp::ModalVoice body_{};
     daisysp::GrainletOscillator grain_{};
     daisysp::Particle particle_{};
+    daisysp::Drip drip_{};
     daisysp::ClockedNoise clocked_noise_{};
     detail::SoundscapeVoice soundscape_{};
 };
@@ -319,7 +338,9 @@ public:
 
     void reset() noexcept {
         lowpass_ = {};
+        highpass_low_ = {};
         tremolo_phase_ = 0.0F;
+        ring_phase_ = 0.0F;
         delay_write_ = 0U;
         crusher_counter_ = 0U;
         crusher_held_ = {};
@@ -338,12 +359,20 @@ public:
             return drive(input, amount);
         case EffectKind::lowpass:
             return lowpass(input, amount, tone);
+        case EffectKind::highpass:
+            return highpass(input, amount, tone);
         case EffectKind::tremolo:
             return tremolo(input, amount, tone);
         case EffectKind::delay:
             return delay(input, amount, tone, feedback);
         case EffectKind::crusher:
             return crusher(input, amount, tone);
+        case EffectKind::wavefolder:
+            return wavefolder(input, amount, tone);
+        case EffectKind::ringmod:
+            return ringmod(input, amount, tone);
+        case EffectKind::comb:
+            return comb(input, amount, tone, feedback);
         }
         return input;
     }
@@ -370,6 +399,18 @@ private:
         return {
             input.left + (lowpass_.left - input.left) * amount,
             input.right + (lowpass_.right - input.right) * amount,
+        };
+    }
+
+    StereoFrame highpass(StereoFrame input, float amount, float tone) noexcept {
+        const float cutoff = 20.0F * std::pow(500.0F, tone);
+        const float coefficient = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
+        highpass_low_.left += (input.left - highpass_low_.left) * coefficient;
+        highpass_low_.right += (input.right - highpass_low_.right) * coefficient;
+        const StereoFrame wet{input.left - highpass_low_.left, input.right - highpass_low_.right};
+        return {
+            input.left + (wet.left - input.left) * amount,
+            input.right + (wet.right - input.right) * amount,
         };
     }
 
@@ -420,9 +461,56 @@ private:
         };
     }
 
+    static float fold_sample(float input) noexcept {
+        const float wrapped = std::fmod(input + 1.0F, 4.0F);
+        const float positive = wrapped < 0.0F ? wrapped + 4.0F : wrapped;
+        return 1.0F - std::abs(positive - 2.0F);
+    }
+
+    static StereoFrame wavefolder(StereoFrame input, float amount, float tone) noexcept {
+        const float gain = 1.0F + amount * (2.0F + tone * 14.0F);
+        const StereoFrame wet{fold_sample(input.left * gain), fold_sample(input.right * gain)};
+        return {
+            input.left + (wet.left - input.left) * amount,
+            input.right + (wet.right - input.right) * amount,
+        };
+    }
+
+    StereoFrame ringmod(StereoFrame input, float amount, float tone) noexcept {
+        const float frequency = 0.35F * std::pow(5'000.0F, tone);
+        ring_phase_ += frequency / sample_rate_;
+        ring_phase_ -= std::floor(ring_phase_);
+        const float carrier = std::sin(ring_phase_ * kTwoPi);
+        return {
+            input.left * (1.0F - amount + carrier * amount),
+            input.right * (1.0F - amount + carrier * amount),
+        };
+    }
+
+    StereoFrame comb(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        if (delay_.empty()) return input;
+        const float seconds = 0.0012F * std::pow(32.0F, tone);
+        const auto delay_frames = std::clamp(
+            static_cast<std::size_t>(seconds * sample_rate_), std::size_t{1}, delay_.size() - 1U);
+        const auto read = (delay_write_ + delay_.size() - delay_frames) % delay_.size();
+        const StereoFrame wet = delay_[read];
+        const float regeneration = 0.12F + feedback * 0.82F;
+        delay_[delay_write_] = {
+            input.left + wet.left * regeneration,
+            input.right + wet.right * regeneration,
+        };
+        delay_write_ = (delay_write_ + 1U) % delay_.size();
+        return {
+            input.left + wet.left * amount,
+            input.right + wet.right * amount,
+        };
+    }
+
     float sample_rate_{48'000.0F};
     StereoFrame lowpass_{};
+    StereoFrame highpass_low_{};
     float tremolo_phase_{0.0F};
+    float ring_phase_{0.0F};
     std::vector<StereoFrame> delay_{};
     std::size_t delay_write_{0U};
     unsigned crusher_counter_{0U};
@@ -738,6 +826,14 @@ public:
                 case EngineKind::birds:
                 case EngineKind::insects:
                 case EngineKind::signal:
+                case EngineKind::water_drip:
+                case EngineKind::water_flow:
+                case EngineKind::stone:
+                case EngineKind::rail_joint:
+                case EngineKind::brake:
+                case EngineKind::music_box:
+                case EngineKind::toy_voice:
+                case EngineKind::lullaby:
                     parameters.color += texture_macro * 0.18F;
                     parameters.motion += pulse_macro * 0.38F + events_macro * 0.22F;
                     parameters.texture += texture_macro * 0.58F + chaos_macro * 0.12F;
@@ -746,6 +842,10 @@ public:
                 case EngineKind::pipe:
                 case EngineKind::metal:
                 case EngineKind::crowd:
+                case EngineKind::cave_air:
+                case EngineKind::metro_traction:
+                case EngineKind::carriage:
+                case EngineKind::toy_gears:
                     parameters.timbre += texture_macro * 0.22F;
                     parameters.color += chaos_macro * 0.22F;
                     parameters.motion += events_macro * 0.30F;
@@ -775,6 +875,18 @@ public:
                 case EngineKind::birds: pulse_ratio = 0.67F; pulse_depth = 0.0F; break;
                 case EngineKind::insects: pulse_ratio = 2.0F; pulse_depth = 0.06F; break;
                 case EngineKind::signal: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::cave_air: pulse_ratio = 0.13F; pulse_depth = 0.03F; break;
+                case EngineKind::water_drip: pulse_ratio = 0.71F; pulse_depth = 0.0F; break;
+                case EngineKind::water_flow: pulse_ratio = 0.29F; pulse_depth = 0.04F; break;
+                case EngineKind::stone: pulse_ratio = 0.37F; pulse_depth = 0.0F; break;
+                case EngineKind::metro_traction: pulse_ratio = 0.25F; pulse_depth = 0.05F; break;
+                case EngineKind::rail_joint: pulse_ratio = 1.0F; pulse_depth = 0.0F; break;
+                case EngineKind::brake: pulse_ratio = 0.41F; pulse_depth = 0.0F; break;
+                case EngineKind::carriage: pulse_ratio = 0.5F; pulse_depth = 0.04F; break;
+                case EngineKind::music_box: pulse_ratio = 0.5F; pulse_depth = 0.0F; break;
+                case EngineKind::toy_voice: pulse_ratio = 0.67F; pulse_depth = 0.06F; break;
+                case EngineKind::toy_gears: pulse_ratio = 1.0F; pulse_depth = 0.08F; break;
+                case EngineKind::lullaby: pulse_ratio = 0.25F; pulse_depth = 0.0F; break;
                 case EngineKind::diagnostic: break;
                 }
                 pulse_phases_[slot_index] += pulse_rate * pulse_ratio / config_.sample_rate;
@@ -790,18 +902,25 @@ public:
                     switch (settings.effects[effect_index].kind) {
                     case EffectKind::drive:
                     case EffectKind::crusher:
+                    case EffectKind::wavefolder:
                         parameters.effect_amount[effect_index] += texture_macro * 0.42F;
                         break;
                     case EffectKind::lowpass:
+                    case EffectKind::highpass:
                         parameters.effect_tone[effect_index] += texture_macro * 0.16F;
                         break;
                     case EffectKind::tremolo:
                         parameters.effect_amount[effect_index] += pulse_macro * 0.20F;
                         break;
                     case EffectKind::delay:
+                    case EffectKind::comb:
                         parameters.effect_amount[effect_index] += space_macro * 0.58F;
                         parameters.effect_feedback[effect_index] += space_macro * 0.46F;
                         parameters.effect_tone[effect_index] += space_macro * 0.13F;
+                        break;
+                    case EffectKind::ringmod:
+                        parameters.effect_amount[effect_index] += chaos_macro * 0.34F;
+                        parameters.effect_tone[effect_index] += pulse_macro * 0.12F;
                         break;
                     case EffectKind::bypass:
                         break;
@@ -856,10 +975,6 @@ public:
                     slot_peak[slot_index], std::max(std::abs(slot_frame.left), std::abs(slot_frame.right)));
             }
 
-            const float master = master_.next();
-            mix.left *= master;
-            mix.right *= master;
-
             constexpr float dc_coefficient = 0.995F;
             const StereoFrame dc_removed{
                 mix.left - dc_input_.left + dc_coefficient * dc_output_.left,
@@ -869,9 +984,10 @@ public:
             dc_output_ = dc_removed;
 
             constexpr float limiter_drive = 1.85F;
+            const float master = master_.next();
             frame = {
-                std::tanh(dc_removed.left * limiter_drive),
-                std::tanh(dc_removed.right * limiter_drive),
+                std::tanh(dc_removed.left * limiter_drive) * master,
+                std::tanh(dc_removed.right * limiter_drive) * master,
             };
             master_scope_frame[scope_index] = 0.5F * (frame.left + frame.right);
             const float master_power = 0.5F * (frame.left * frame.left + frame.right * frame.right);

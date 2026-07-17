@@ -199,11 +199,34 @@ float SoundscapeVoice::next(
         return insects(frequency, timbre, color, motion, texture, activity, tension, evolution);
     case EngineKind::signal:
         return signal(frequency, timbre, color, motion, texture, tempo_bpm, activity, tension, evolution);
+    case EngineKind::cave_air:
+        return cave_air(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::water_flow:
+        return water_flow(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::stone:
+        return stone(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::metro_traction:
+        return metro_traction(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::rail_joint:
+        return rail_joint(frequency, timbre, color, motion, texture, tempo_bpm, activity, tension, evolution);
+    case EngineKind::brake:
+        return brake(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::carriage:
+        return carriage(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::music_box:
+        return music_box(frequency, timbre, color, motion, texture, tempo_bpm, activity, tension, evolution);
+    case EngineKind::toy_voice:
+        return toy_voice(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::toy_gears:
+        return toy_gears(frequency, timbre, color, motion, texture, activity, tension, evolution);
+    case EngineKind::lullaby:
+        return lullaby(frequency, timbre, color, motion, texture, tempo_bpm, activity, tension, evolution);
     case EngineKind::diagnostic:
     case EngineKind::macro:
     case EngineKind::body:
     case EngineKind::grain:
     case EngineKind::particle:
+    case EngineKind::water_drip:
         break;
     }
     return 0.0F;
@@ -526,6 +549,231 @@ float SoundscapeVoice::signal(float frequency, float timbre, float color, float 
     const float overtone = sine(1U, pitch * (2.0F + color * 2.0F));
     const float grit = noise() * texture * 0.12F;
     return (tone * 0.72F + overtone * (0.06F + color * 0.16F) + grit) * primary_envelope_;
+}
+
+float SoundscapeVoice::cave_air(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    const float raw = noise();
+    const float breath = std::clamp(0.48F + slow_value_ * 0.32F +
+        sine(7U, 0.013F + evolution * 0.052F) * (0.12F + motion * 0.16F), 0.04F, 1.0F);
+    if (control_tick()) {
+        configure_filter(0U, 34.0F + color * 170.0F, 0.45F + timbre * 0.42F);
+        configure_filter(1U, 240.0F + color * 1'600.0F + slow_value_ * 90.0F,
+            0.28F + timbre * 0.55F);
+        configure_filter(2U, 1'400.0F + texture * 4'800.0F, 0.10F + color * 0.24F);
+    }
+    filters_[0].Process(raw * breath);
+    filters_[1].Process(raw * breath);
+    filters_[2].Process(raw * breath);
+    const float sub = sine(0U, std::clamp(frequency, 18.0F, 70.0F) *
+        (1.0F + slow_value_ * tension * 0.012F)) * (0.025F + tension * 0.07F);
+    const float hollow = filters_[1].Band() * (0.30F + timbre * 0.26F);
+    const float mist = filters_[2].Band() * texture * (0.04F + activity * 0.12F);
+    return filters_[0].Low() * 0.75F + hollow + mist + sub;
+}
+
+float SoundscapeVoice::water_flow(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    const float raw = noise();
+    const float surge = std::clamp(0.46F + slow_value_ * 0.34F +
+        sine(6U, 0.08F + motion * 0.34F) * 0.20F, 0.06F, 1.0F);
+    if (control_tick()) {
+        configure_filter(0U, 90.0F + color * 720.0F, 0.20F + timbre * 0.32F);
+        configure_filter(1U, 760.0F + color * 3'800.0F, 0.16F + texture * 0.28F);
+        configure_filter(2U, 2'400.0F + texture * 5'200.0F, 0.08F + color * 0.18F);
+    }
+    filters_[0].Process(raw * surge);
+    filters_[1].Process(raw * surge * surge);
+    filters_[2].Process(raw);
+    if (tick_event(0.18F + activity * 1.4F + evolution * 0.5F, 0.82F)) {
+        primary_envelope_ = 1.0F;
+        event_pan_ = noise();
+    }
+    primary_envelope_ *= decay_coefficient(sample_rate_, 0.025F + timbre * 0.10F);
+    const float bubble_pitch = std::clamp(frequency, 55.0F, 420.0F) *
+        (2.0F + (event_pan_ * 0.5F + 0.5F) * (3.0F + color * 8.0F));
+    const float bubble = sine(0U, bubble_pitch * (1.0F + primary_envelope_ * tension * 0.52F)) *
+        primary_envelope_ * 0.18F;
+    return filters_[0].Band() * 0.56F + filters_[1].Band() * (0.24F + texture * 0.28F) +
+        filters_[2].High() * texture * 0.035F + bubble;
+}
+
+float SoundscapeVoice::stone(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    if (tick_event(0.012F + activity * activity * 0.18F + motion * 0.03F, 0.94F)) {
+        event_pan_ = noise();
+        excite_modes(0.30F + activity * 0.46F, 0.24F + texture * 0.62F);
+        primary_envelope_ = 1.0F;
+    }
+    primary_envelope_ *= decay_coefficient(sample_rate_, 0.012F + color * 0.032F);
+    const float impact = noise() * primary_envelope_ * (0.18F + texture * 0.36F);
+    const float base = std::clamp(frequency, 28.0F, 220.0F) *
+        std::pow(2.0F, event_pan_ * tension * 0.28F);
+    const float ring = modal_sum(base, 0.045F + timbre * (0.20F + evolution * 0.22F), color);
+    return impact + ring * (0.72F + texture * 0.34F);
+}
+
+float SoundscapeVoice::metro_traction(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    approach_phase_ += (0.004F + motion * 0.018F + evolution * 0.012F) * inverse_sample_rate_;
+    approach_phase_ -= std::floor(approach_phase_);
+    const float run = smoothstep(triangle(approach_phase_));
+    const float base = std::clamp(frequency, 18.0F, 120.0F) *
+        (0.55F + run * (0.62F + activity * 1.55F));
+    const float inverter = 75.0F + run * run * (160.0F + tension * 1'400.0F);
+    const float rotor = sine(0U, base) * 0.52F + sine(1U, base * 2.0F) * (0.12F + timbre * 0.20F) +
+        sine(2U, base * 6.0F) * texture * 0.08F;
+    const float whine = sine(3U, inverter) * (0.025F + color * 0.10F) * std::pow(run, 1.7F);
+    const float raw = noise();
+    if (control_tick()) configure_filter(0U, 480.0F + run * 2'600.0F, 0.24F + texture * 0.48F);
+    filters_[0].Process(raw);
+    const float bearings = filters_[0].Band() * texture * (0.04F + run * 0.18F);
+    return (rotor + whine + bearings) * (0.42F + run * 0.46F);
+}
+
+float SoundscapeVoice::rail_joint(float frequency, float timbre, float color, float motion,
+    float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept {
+    const float tempo = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
+    const float rate = 0.42F + activity * 2.8F + motion * 2.0F + tempo * 0.18F;
+    step_phase_ += rate * inverse_sample_rate_;
+    if (step_phase_ >= 1.0F) {
+        step_phase_ -= 1.0F;
+        primary_envelope_ = 1.0F;
+        secondary_countdown_ = 0.055F + (1.0F - tension) * 0.035F;
+        excite_modes(0.14F + texture * 0.20F, 0.55F);
+    }
+    secondary_countdown_ -= inverse_sample_rate_;
+    if (secondary_countdown_ <= 0.0F && secondary_countdown_ > -1.0F) {
+        secondary_countdown_ = -2.0F;
+        secondary_envelope_ = 0.72F;
+        excite_modes(0.08F + texture * 0.15F, 0.70F);
+    }
+    primary_envelope_ *= decay_coefficient(sample_rate_, 0.018F + timbre * 0.035F);
+    secondary_envelope_ *= decay_coefficient(sample_rate_, 0.026F + timbre * 0.045F);
+    const float hit = noise() * (primary_envelope_ + secondary_envelope_) * (0.18F + color * 0.28F);
+    const float ring = modal_sum(std::clamp(frequency, 38.0F, 190.0F),
+        0.028F + timbre * 0.095F + evolution * 0.08F, color);
+    return hit + ring * 0.68F;
+}
+
+float SoundscapeVoice::brake(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    if (tick_event(0.006F + activity * activity * 0.085F + evolution * 0.014F, 0.88F)) {
+        event_age_ = 0.0F;
+        event_duration_ = 0.65F + (noise() * 0.5F + 0.5F) * (1.2F + motion * 2.8F);
+        event_pan_ = noise();
+    }
+    event_age_ += inverse_sample_rate_;
+    const float progress = event_age_ / std::max(0.1F, event_duration_);
+    if (progress >= 1.0F) return 0.0F;
+    const float envelope = std::pow(std::sin(progress * kPi), 0.7F + timbre * 1.2F);
+    const float sweep = 0.45F + (1.0F - progress) * (1.0F + tension * 5.0F) + event_pan_ * 0.08F;
+    const float center = std::clamp(frequency, 80.0F, 650.0F) * (2.0F + color * 6.0F) * sweep;
+    const float raw = noise();
+    if (control_tick()) {
+        configure_filter(0U, center, 0.72F + timbre * 0.24F, texture * 0.22F);
+        configure_filter(1U, center * (1.62F + color * 0.7F), 0.58F + texture * 0.34F);
+    }
+    filters_[0].Process(raw * envelope);
+    filters_[1].Process(raw * envelope);
+    return filters_[0].Band() * 0.64F + filters_[1].Band() * (0.22F + texture * 0.35F);
+}
+
+float SoundscapeVoice::carriage(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    const float raw = noise();
+    const float speed = 0.8F + activity * 6.0F + motion * 3.0F;
+    const float sway = 0.68F + 0.22F * sine(6U, 0.21F + evolution * 0.34F) +
+        0.10F * sine(7U, 0.73F + motion * 1.2F);
+    if (control_tick()) {
+        configure_filter(0U, 45.0F + color * 180.0F, 0.38F + timbre * 0.36F);
+        configure_filter(1U, 420.0F + color * 2'400.0F, 0.28F + texture * 0.46F);
+    }
+    filters_[0].Process(raw * sway);
+    filters_[1].Process(raw);
+    const float rattle_gate = std::pow(0.5F + 0.5F * sine(5U, speed), 8.0F + texture * 12.0F);
+    const float chassis = sine(0U, std::clamp(frequency, 22.0F, 110.0F) *
+        (1.0F + slow_value_ * tension * 0.025F)) * 0.10F;
+    return filters_[0].Low() * 0.60F + filters_[1].Band() * rattle_gate *
+        (0.10F + texture * 0.34F) + chassis;
+}
+
+float SoundscapeVoice::music_box(float frequency, float timbre, float color, float motion,
+    float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept {
+    const float tempo = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
+    if (tick_event(0.14F + activity * 0.8F + tempo * 0.12F + motion * 0.18F,
+            0.42F + evolution * 0.46F)) {
+        constexpr std::array<float, 8> semitones{0.0F, 3.0F, 5.0F, 7.0F, 10.0F, 12.0F, 15.0F, 19.0F};
+        const auto index = static_cast<std::size_t>(std::clamp(
+            static_cast<int>((noise() * 0.5F + 0.5F) * 8.0F), 0, 7));
+        event_pan_ = semitones[index];
+        primary_envelope_ = 1.0F;
+        excite_modes(0.16F + texture * 0.24F, 0.18F + tension * 0.48F);
+    }
+    primary_envelope_ *= decay_coefficient(sample_rate_, 0.018F + timbre * 0.055F);
+    const float pitch = std::clamp(frequency, 110.0F, 880.0F) * std::pow(2.0F, event_pan_ / 12.0F);
+    const float tine = sine(0U, pitch) * primary_envelope_ * 0.46F +
+        sine(1U, pitch * (2.01F + color * 1.93F)) * primary_envelope_ * (0.08F + color * 0.20F);
+    const float body = modal_sum(pitch * 0.25F, 0.06F + timbre * 0.34F, 0.28F + color * 0.62F);
+    return tine + body * (0.48F + texture * 0.28F) + noise() * primary_envelope_ * texture * 0.025F;
+}
+
+float SoundscapeVoice::toy_voice(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    if (tick_event(0.015F + activity * activity * 0.11F, 0.84F)) {
+        event_age_ = 0.0F;
+        event_duration_ = 0.38F + (noise() * 0.5F + 0.5F) * (0.7F + evolution * 1.8F);
+        event_pan_ = noise();
+    }
+    event_age_ += inverse_sample_rate_;
+    const float progress = event_age_ / std::max(0.08F, event_duration_);
+    if (progress >= 1.0F) return 0.0F;
+    const float envelope = std::pow(std::sin(progress * kPi), 0.65F);
+    const float syllables = 1.0F + std::floor(progress * (2.0F + motion * 8.0F));
+    const float bent = std::sin(progress * kTwoPi * syllables) * (0.04F + tension * 0.38F);
+    const float pitch = std::clamp(frequency, 55.0F, 380.0F) *
+        std::pow(2.0F, event_pan_ * 0.18F + bent);
+    const float pulse = sine(0U, pitch) > (timbre * 1.6F - 0.8F) ? 1.0F : -1.0F;
+    const float carrier = sine(1U, pitch * (1.0F + color * 0.08F));
+    const float dropout = sine(6U, 3.0F + motion * 17.0F) > (-0.82F + texture * 0.58F) ? 1.0F : 0.18F;
+    return (pulse * (0.18F + timbre * 0.14F) + carrier * 0.26F + noise() * texture * 0.07F) *
+        envelope * dropout;
+}
+
+float SoundscapeVoice::toy_gears(float frequency, float timbre, float color, float motion,
+    float texture, float activity, float tension, float evolution) noexcept {
+    const float speed = std::clamp(frequency, 12.0F, 100.0F) * (0.42F + activity * 1.15F);
+    step_phase_ += speed * inverse_sample_rate_;
+    if (step_phase_ >= 1.0F) {
+        step_phase_ -= 1.0F;
+        primary_envelope_ = 1.0F;
+        if (noise() > 0.72F - evolution * 0.34F) slow_target_ = -1.0F;
+    }
+    primary_envelope_ *= decay_coefficient(sample_rate_, 0.003F + timbre * 0.018F);
+    const float motor = sine(0U, speed) * 0.22F + sine(1U, speed * (3.0F + color * 5.0F)) * 0.09F;
+    const float tooth = noise() * primary_envelope_ * (0.14F + texture * 0.38F);
+    const float battery = std::clamp(0.72F + slow_value_ * (0.18F + tension * 0.48F) +
+        sine(7U, 0.09F + motion * 0.36F) * 0.12F, 0.0F, 1.0F);
+    return (motor + tooth) * battery;
+}
+
+float SoundscapeVoice::lullaby(float frequency, float timbre, float color, float motion,
+    float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept {
+    const float tempo = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
+    if (tick_event(0.055F + activity * 0.34F + tempo * 0.045F, 0.66F + evolution * 0.28F)) {
+        constexpr std::array<float, 7> semitones{0.0F, 2.0F, 3.0F, 7.0F, 9.0F, 12.0F, 15.0F};
+        const auto index = static_cast<std::size_t>(std::clamp(
+            static_cast<int>((noise() * 0.5F + 0.5F) * 7.0F), 0, 6));
+        event_pan_ = semitones[index];
+        secondary_envelope_ = 1.0F;
+        excite_modes(0.10F + texture * 0.16F, 0.24F + tension * 0.48F);
+    }
+    secondary_envelope_ *= decay_coefficient(sample_rate_, 0.16F + timbre * 0.72F);
+    const float pitch = std::clamp(frequency, 130.0F, 720.0F) * std::pow(2.0F, event_pan_ / 12.0F);
+    const float glass = sine(0U, pitch * (1.0F + slow_value_ * motion * 0.008F)) * secondary_envelope_ * 0.26F +
+        sine(1U, pitch * (2.97F + color * 0.08F)) * secondary_envelope_ * (0.04F + color * 0.11F);
+    const float haze = modal_sum(pitch * 0.21F, 0.18F + timbre * 0.58F, color) * 0.32F;
+    return glass + haze + noise() * secondary_envelope_ * texture * 0.018F;
 }
 
 } // namespace cursed_drone::detail
