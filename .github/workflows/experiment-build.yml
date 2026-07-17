@@ -3,6 +3,19 @@ name: experiment-build
 on:
   push:
     branches: [experiment/plaits-performance-lab]
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/experiment-build.yml
+      - CMakeLists.txt
+      - include/**
+      - src/**
+      - tests/**
+      - tools/package_portmaster.sh
+      - assets/scales/**
+      - docs/experiment-lab.*
+      - third_party/PLAITS_LICENSE.txt
+      - .gitmodules
   workflow_dispatch:
 
 jobs:
