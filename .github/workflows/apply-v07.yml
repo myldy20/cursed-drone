@@ -24,6 +24,16 @@ jobs:
         with:
           ref: agent/v0.7-brick-production
           fetch-depth: 0
+      - name: Correct README selector
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/apply_v07_patch.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('| выход | Escape | Menu / системная кнопка |',
+                              '| выход | Escape | Menu / действие ОС |')
+          path.write_text(text, encoding='utf-8')
+          PY
       - name: Apply production patch
         id: apply
         continue-on-error: true
@@ -46,6 +56,7 @@ jobs:
       - name: Commit generated source
         if: steps.apply.outcome == 'success'
         run: |
+          rm -f docs/V07_PATCH_ERROR.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
