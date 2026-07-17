@@ -30,9 +30,9 @@ jobs:
           PY
       - name: Apply production patch
         run: python3 tools/apply_v07_patch.py
-      - name: Restore helper files
+      - name: Restore helper and workflow files
         run: |
-          git checkout HEAD -- tools/apply_v07_patch.py .github/workflows/apply-v07.yml
+          git checkout HEAD -- tools/apply_v07_patch.py .github/workflows/apply-v07.yml .github/workflows/build.yml
           rm -f docs/V07_PATCH_ERROR.txt
       - name: Validate generated source
         run: git diff --check
