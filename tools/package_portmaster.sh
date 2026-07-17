@@ -23,12 +23,19 @@ for binary in cursed-drone-sdl cursed-drone-probe; do
 done
 
 rm -rf "$STAGE"
-mkdir -p "$PACKAGE_ROOT/curseddrone/licenses"
+mkdir -p \
+    "$PACKAGE_ROOT/curseddrone/licenses" \
+    "$PACKAGE_ROOT/curseddrone/assets" \
+    "$PACKAGE_ROOT/curseddrone/docs"
 
 cp "$ASSETS/port.json" "$PACKAGE_ROOT/port.json"
 cp "$ASSETS/gameinfo.xml" "$PACKAGE_ROOT/gameinfo.xml"
 cp "$ASSETS/README.md" "$PACKAGE_ROOT/README.md"
 cp "$ASSETS/Cursed Drone.sh" "$PACKAGE_ROOT/Cursed Drone.sh"
+cp "$ROOT_DIR/assets/branding/cursed-drone-splash.bmp" \
+    "$PACKAGE_ROOT/curseddrone/assets/cursed-drone-splash.bmp"
+cp "$ROOT_DIR/docs/install.en.md" "$PACKAGE_ROOT/curseddrone/docs/install.en.md"
+cp "$ROOT_DIR/docs/install.ru.md" "$PACKAGE_ROOT/curseddrone/docs/install.ru.md"
 cp "$ROOT_DIR/LICENSE" "$PACKAGE_ROOT/curseddrone/licenses/GPL-3.0.txt"
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$PACKAGE_ROOT/curseddrone/licenses/THIRD_PARTY_NOTICES.md"
 cp "$ROOT_DIR/third_party/font512/LICENSE" "$PACKAGE_ROOT/curseddrone/licenses/font512-UNLICENSE.txt"
