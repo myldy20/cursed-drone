@@ -11,7 +11,8 @@ on:
       - include/**
       - src/**
       - tests/**
-      - tools/package_portmaster.sh
+      - tools/package_portmaster_lab.sh
+      - packaging/portmaster/experiment/**
       - assets/scales/**
       - docs/experiment-lab.*
       - third_party/PLAITS_LICENSE.txt
@@ -85,17 +86,23 @@ jobs:
               cmake --build build-aarch64 --parallel 2
               ctest --test-dir build-aarch64 --output-on-failure
               strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-              ./tools/package_portmaster.sh build-aarch64 dist-experiment
+              chmod +x tools/package_portmaster_lab.sh
+              ./tools/package_portmaster_lab.sh build-aarch64 dist-experiment
             '
       - name: Inspect package
         run: |
           file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-          unzip -l dist-experiment/curseddrone-aarch64-test.zip | tee /tmp/package.txt
-          grep -q 'curseddrone/conf/scales/19-edo.scl' /tmp/package.txt
-          grep -q 'curseddrone/docs/experiment-lab.ru.md' /tmp/package.txt
-          grep -q 'curseddrone/licenses/Plaits-MIT.txt' /tmp/package.txt
-          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package.txt
+          unzip -l dist-experiment/curseddrone-lab-aarch64-test.zip | tee /tmp/package.txt
+          grep -q 'Cursed Drone Lab.sh' /tmp/package.txt
+          grep -q 'curseddrone-lab/conf/scales/19-edo.scl' /tmp/package.txt
+          grep -q 'curseddrone-lab/docs/experiment-lab.ru.md' /tmp/package.txt
+          grep -q 'curseddrone-lab/licenses/Plaits-MIT.txt' /tmp/package.txt
+          grep -q 'curseddrone-lab/assets/cursed-drone-splash.bmp' /tmp/package.txt
+          if grep -q 'Cursed Drone.sh' /tmp/package.txt; then
+            echo 'public launcher leaked into Lab package' >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-performance-lab-aarch64
-          path: dist-experiment/curseddrone-aarch64-test.zip
+          path: dist-experiment/curseddrone-lab-aarch64-test.zip
