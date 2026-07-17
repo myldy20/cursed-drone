@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/cursed-drone-probe.dir/link.d "CMakeFiles/cursed-drone-probe.dir/tools/device_probe.cpp.o" -o cursed-drone-probe  libcursed_drone_core.a /usr/lib/x86_64-linux-gnu/libSDL2.so /usr/lib/x86_64-linux-gnu/libSDL2main.a libcursed_drone_daisysp.a

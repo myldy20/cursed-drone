@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/cursed-drone-tests.dir/link.d "CMakeFiles/cursed-drone-tests.dir/tests/test_main.cpp.o" -o cursed-drone-tests  libcursed_drone_core.a libcursed_drone_daisysp.a

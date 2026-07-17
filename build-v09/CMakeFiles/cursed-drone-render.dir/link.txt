@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/cursed-drone-render.dir/link.d "CMakeFiles/cursed-drone-render.dir/tools/render_demo.cpp.o" -o cursed-drone-render  libcursed_drone_core.a libcursed_drone_daisysp.a
