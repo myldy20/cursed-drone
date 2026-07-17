@@ -34,11 +34,13 @@ if start >= 0:
         raise SystemExit('cannot locate gameinfo replacement end')
     text = text[:start] + text[end + len(end_marker):]
 
-# New enum values can use the existing neutral visual until the dedicated visual catalogue lands.
-start = text.find('# Add generic visual behavior for all new effects')
-end = text.find('# ---------------------------------------------------------------------------\n# README/package metadata', start)
-if start >= 0 and end >= 0:
-    text = text[:start] + text[end:]
+# The live effect_visual block differs from the old prototype. Leave its neutral
+# fallback in place for this integration instead of failing on a stale selector.
+visual_start = text.find(
+    "replace_once('src/sdl_main.cpp',\n'''        case cd::EffectKind::comb:")
+readme_start = text.find("replace_once('README.md',", visual_start)
+if visual_start >= 0 and readme_start >= 0:
+    text = text[:visual_start] + text[readme_start:]
 
 # The patch normalizes the live source hints before replacing the picker block.
 # Match that normalized source only inside the old picker literal.
