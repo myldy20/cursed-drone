@@ -6,6 +6,7 @@
   <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
   <img src="https://img.shields.io/badge/version-0.9.0-eee2c5" alt="version 0.9.0">
   <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified on TrimUI Brick with Knulli">
+  <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified on TrimUI Brick with NextUI">
   <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
 </p>
 
@@ -17,7 +18,7 @@
 
 **Cursed Drone** is a native procedural drone and soundscape instrument for small Linux handhelds. It generates continuous beds, mechanical movement, environmental events and controllable sonic disasters without samples, a tracker grid or conventional note programming.
 
-> **Hardware status:** real-device testing has only been completed on a **TrimUI Brick running Knulli**. The Knulli/PortMaster package is verified there. The separate NextUI Tool Pak is built and inspected in AArch64 CI but remains **unverified on physical NextUI hardware**.
+> **Hardware status:** real-device testing has been completed on a **TrimUI Brick with Knulli/PortMaster** and on a **TrimUI Brick with NextUI**. Both installation methods are verified. Other handheld models remain unverified.
 
 ## Install
 
@@ -136,7 +137,7 @@ NextUI stores its autosave and launch log separately:
 .userdata/tg5040/logs/Cursed Drone.txt
 ```
 
-The verified Knulli probe reported Mali/OpenGL ES 2 rendering, ALSA audio at 48 kHz stereo with a 512-sample buffer, and a correctly detected `TRIMUI Brick Controller`.
+The verified Knulli probe reported Mali/OpenGL ES 2 rendering, ALSA audio at 48 kHz stereo with a 512-sample buffer, and a correctly detected `TRIMUI Brick Controller`. A separate community hardware test confirmed that the NextUI Tool Pak also launches and works correctly on TrimUI Brick.
 
 ## Landscapes
 
@@ -190,7 +191,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. Third-party components
 
 **Проклятый гудёж** — нативный процедурный дрон-синтезатор и генератор звуковых ландшафтов для небольших Linux-консолей. Он создаёт непрерывные фоны, механическое движение, события среды и управляемые звуковые катастрофы без семплов, трекерной сетки и обычного программирования нот.
 
-> **Статус железа:** реальная проверка выполнена только на **TrimUI Brick с Knulli**. Пакет Knulli/PortMaster на ней проверен. Отдельный Tool Pak для NextUI собирается и проверяется в AArch64 CI, но пока **не проверен на реальной консоли с NextUI**.
+> **Статус железа:** реальная проверка выполнена на **TrimUI Brick с Knulli/PortMaster** и на **TrimUI Brick с NextUI**. Оба способа установки подтверждены. Другие модели консолей пока не проверены.
 
 ## Установка
 
@@ -288,7 +289,7 @@ NextUI хранит данные отдельно:
 .userdata/tg5040/logs/Cursed Drone.txt
 ```
 
-По логам проверенного TrimUI Brick с Knulli приложение корректно использует Mali/OpenGL ES 2, ALSA 48 кГц stereo с буфером 512 сэмплов и контроллер `TRIMUI Brick Controller`.
+По логам проверенного TrimUI Brick с Knulli приложение корректно использует Mali/OpenGL ES 2, ALSA 48 кГц stereo с буфером 512 сэмплов и контроллер `TRIMUI Brick Controller`. Отдельный внешний тест подтвердил, что NextUI Tool Pak также запускается и корректно работает на TrimUI Brick.
 
 ## Авторство и лицензия
 

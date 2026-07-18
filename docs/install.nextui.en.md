@@ -1,6 +1,6 @@
 # Installing Cursed Drone on NextUI
 
-> Status: the package is built and validated in AArch64 CI, but has not yet been tested on a physical TrimUI Brick running NextUI.
+> Status: **verified on a physical TrimUI Brick running NextUI**. Video, audio, controls and normal application startup were confirmed in a community hardware test.
 
 Do not install the Knulli/PortMaster package on NextUI. NextUI uses its own Tool Pak layout.
 
@@ -34,6 +34,15 @@ Launch log:
 ```
 
 If the application immediately returns to the menu, provide that log.
+
+## Verified configuration
+
+- Device: TrimUI Brick
+- Firmware: NextUI
+- Pak location: `Tools/tg5040/Cursed Drone.pak/`
+- Result: application launched and worked correctly
+
+Other NextUI devices and platform folders remain unverified.
 
 ## Limitations
 
