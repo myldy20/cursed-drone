@@ -57,7 +57,7 @@ jobs:
         run: |
           chmod +x tools/package_portmaster_lab.sh
           tools/package_portmaster_lab.sh build-v011 dist-v011
-          unzip -l dist-v011/cursed-drone-performance-lab-aarch64-test.zip | tee /tmp/package.txt
+          unzip -l dist-v011/curseddrone-lab-aarch64-test.zip | tee /tmp/package.txt
           grep -q 'Cursed Drone Lab.sh' /tmp/package.txt
           grep -q 'curseddrone-lab/cursed-drone-sdl.aarch64' /tmp/package.txt
           grep -q 'curseddrone-lab/docs/experiment-lab.ru.md' /tmp/package.txt
