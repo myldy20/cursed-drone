@@ -927,6 +927,7 @@ public:
         for (std::size_t index = 0; index < kSlotCount; ++index) {
             slots_[index].prepare(config_.sample_rate, effective_slots_[index], index);
         }
+        for (auto& effect : master_effects_) effect.prepare(config_.sample_rate);
         reset();
         prepared_ = true;
     }
@@ -946,9 +947,8 @@ public:
         performance_chaos_.snap();
         performance_space_.snap();
         performance_events_.snap();
-        for (auto& slot : slots_) {
-            slot.reset();
-        }
+        for (auto& slot : slots_) slot.reset();
+        for (auto& effect : master_effects_) effect.reset();
         clear_telemetry();
     }
 
@@ -1305,6 +1305,12 @@ public:
                     slot_peak[slot_index], std::max(std::abs(slot_frame.left), std::abs(slot_frame.right)));
             }
 
+            for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
+                const auto& settings = session_.master_effects[effect_index];
+                mix = master_effects_[effect_index].process(
+                    mix, settings.kind, settings.amount, settings.tone, settings.feedback);
+            }
+
             constexpr float dc_coefficient = 0.995F;
             const StereoFrame dc_removed{
                 mix.left - dc_input_.left + dc_coefficient * dc_output_.left,
@@ -1423,6 +1429,7 @@ private:
     Session session_{};
     std::array<SlotSettings, kSlotCount> effective_slots_{};
     std::array<SlotRuntime, kSlotCount> slots_{};
+    std::array<EffectRuntime, kMasterEffects> master_effects_{};
     SpscQueue<Session, 8> sessions_{};
     SmoothedValue master_{};
     SmoothedValue performance_texture_{};

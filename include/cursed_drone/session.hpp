@@ -11,6 +11,8 @@ namespace cursed_drone {
 inline constexpr std::size_t kSlotCount = 4;
 inline constexpr std::size_t kEffectsPerSlot = 4;
 inline constexpr std::size_t kModulatorsPerSlot = 4;
+inline constexpr std::size_t kMasterEffects = 4;
+inline constexpr std::size_t kMemorySlots = 8;
 inline constexpr std::size_t kScaleDegreeCount = 24;
 inline constexpr std::size_t kScaleNameLength = 32;
 
@@ -179,7 +181,7 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{9};
+    unsigned schema_version{10};
     Locale locale{Locale::en};
     SceneKind scene{SceneKind::derelict};
     bool scene_modified{false};
@@ -189,6 +191,7 @@ struct Session {
     float fade_out_seconds{4.0F};
     PerformanceSettings performance{};
     std::array<SlotSettings, kSlotCount> slots{};
+    std::array<EffectSettings, kMasterEffects> master_effects{};
 };
 
 [[nodiscard]] Session make_default_session();

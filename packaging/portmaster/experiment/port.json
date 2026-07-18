@@ -8,7 +8,7 @@
   "items_opt": null,
   "attr": {
     "title": "Cursed Drone Lab",
-    "desc": "Experimental performance lab with original macro-oscillator engines, Scala tuning, Euclidean events, reverse grains and landscape morphing.",
+    "desc": "Guided soundscape workflow with musical actors, Scala tuning, Euclidean events, actor and master effects, and eight memory slots.",
     "inst": "Isolated experimental build. Verified target: TrimUI Brick with Knulli. Installs beside public Cursed Drone and keeps a separate autosave.",
     "genres": ["music"],
     "porter": ["myldy20"],

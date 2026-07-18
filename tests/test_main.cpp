@@ -303,6 +303,8 @@ void test_session_roundtrip() {
     original.performance.fade = 0.381F;
     original.performance.morph_target = cd::SceneKind::ash_field;
     original.performance.morph = 0.44F;
+    original.master_effects[0] = {cd::EffectKind::delay, 0.42F, 0.77F, 0.68F};
+    original.master_effects[1] = {cd::EffectKind::diffuser, 0.31F, 0.54F, 0.59F};
     original.slots[1].engine = cd::EngineKind::plaits;
     original.slots[1].plaits_model = cd::PlaitsModel::wavetable;
     original.slots[1].plaits_output = cd::PlaitsOutputMode::aux;
@@ -319,7 +321,7 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 9, "session should upgrade to schema 9");
+    expect(loaded.schema_version == 10, "session should upgrade to schema 10");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
@@ -332,6 +334,9 @@ void test_session_roundtrip() {
     expect(std::abs(loaded.performance.fade - 0.381F) < 0.0001F, "performance fade should roundtrip");
     expect(loaded.performance.morph_target == cd::SceneKind::ash_field, "morph target should roundtrip");
     expect(std::abs(loaded.performance.morph - 0.44F) < 0.0001F, "morph amount should roundtrip");
+    expect(loaded.master_effects[0].kind == cd::EffectKind::delay, "master delay should roundtrip");
+    expect(std::abs(loaded.master_effects[0].feedback - 0.68F) < 0.0001F, "master delay feedback should roundtrip");
+    expect(loaded.master_effects[1].kind == cd::EffectKind::diffuser, "master diffuser should roundtrip");
     expect(loaded.slots[1].engine == cd::EngineKind::plaits, "macro actor should roundtrip");
     expect(loaded.slots[1].plaits_model == cd::PlaitsModel::wavetable, "macro model should roundtrip");
     expect(loaded.slots[1].plaits_output == cd::PlaitsOutputMode::aux, "macro output should roundtrip");

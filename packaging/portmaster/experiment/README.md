@@ -1,4 +1,4 @@
-# Cursed Drone Experimental 0.10 — TrimUI Brick test
+# Cursed Drone Experimental 0.11 — TrimUI Brick test
 
 ## Important / Важно
 
@@ -54,43 +54,27 @@ curseddrone-lab/conf/device-probe.log
 curseddrone-lab/conf/cursed-drone.log
 ```
 
-## Simplified controls / Упрощённое управление
+## Guided controls / Единое управление
 
-| Button | Action |
+| Button | Stable action |
 | --- | --- |
-| D-pad | navigation only / только навигация |
-| L/R | change value / изменить значение |
-| A | open, act, confirm / открыть, выполнить, подтвердить |
+| D-pad | select or change / выбрать или изменить |
+| A | open, apply, execute / открыть, применить, выполнить |
 | B | back or cancel; hold for Kill / назад или отмена; удерживать для Kill |
-| X | next main page / следующий основной экран |
-| Y | next actor / следующий актёр |
+| X | next section on page / следующий раздел экрана |
+| Y | contextual help / контекстная помощь |
+| L/R | previous / next page / предыдущая / следующая страница |
 | Select | output fade / fade выхода |
-| Start | open Performance Lab / открыть Performance Lab |
+| Start | quick menu / быстрое меню |
 | Start + Select | save and exit / сохранить и выйти |
 
-## Performance Lab
+Workflow: **Place → Actor → FX → Master → Memory**. The advanced musical source, Scala, Euclidean events and modulation are now part of the Actor page instead of a separate Lab overlay. Four additional FX slots process the final master signal.
 
-Press **Start**. The advanced functions are kept in this overlay and do not add more pages to the normal live workflow.
-
-Нажмите **Start**. Расширенные функции находятся в отдельном оверлее и не раздувают обычный цикл экранов.
-
-Lab sections:
-
-- `ACTOR`: original upstream macro actor, 16 models, MAIN/AUX/MIX/STEREO, Scala and root;
-- `MOD`: four bipolar modulation rows with safe rate cross-modulation;
-- `EVENT`: Euclidean steps, pulses, rotation, probability and Reverse Grains;
-- `MORPH`: target landscape and continuous morph;
-- `STAGE`: minimal performance screen.
-
-User Scala files go to:
-
-```text
-curseddrone-lab/conf/scales/
-```
+Путь работы: **Место → Актёр → FX → Мастер → Память**. Музыкальный источник, Scala, Euclidean-события и модуляция находятся внутри страницы актёра, а не в отдельном Lab. Ещё четыре FX-слота обрабатывают итоговый Master.
 
 ## Saves / Сохранения
 
-Experimental 0.10 stores its schema-9 session separately:
+Experimental 0.11 stores its schema-9 session separately:
 
 ```text
 curseddrone-lab/conf/autosave.cdrone

@@ -1,92 +1,57 @@
-# Cursed Drone Experimental 0.10 — Performance Lab
+# Cursed Drone Experimental 0.11 — Guided Workflow
 
-This build exists only on `experiment/plaits-performance-lab`. It does not replace public v0.9 and must not be merged into `main` before a real TrimUI Brick test.
+This build exists only on `experiment/v0.11-guided-workflow`. It installs beside the public version as **Cursed Drone Lab** and keeps separate saves.
 
-## Simplified controls
+## One coherent path
 
-| Button | Normal operation |
+1. **PLACE** — choose a landscape, shape its state and balance four actors;
+2. **ACTOR** — edit the selected sound source;
+3. **FX** — four serial effects for that actor;
+4. **MASTER** — final level, process tempo and four master effects;
+5. **MEMORY** — eight user states, landscape restore and settings.
+
+A landscape is a place. Four actors live in it. Each actor passes through its own FX chain. Their mix then passes through Master FX.
+
+## Controls
+
+| Button | Stable meaning |
 | --- | --- |
-| D-pad | navigation only |
-| L/R | decrease / increase the selected value |
-| A | open, perform or confirm |
+| D-pad | select a field or change its value |
+| A | open, apply or execute |
 | B | back or cancel; hold for emergency Kill |
-| X | next main page |
-| Y | next actor |
-| Select | output fade |
-| Start | open Performance Lab |
-| Start + Select | save and exit |
+| X | next section on the current page |
+| Y | contextual help |
+| L / R | previous / next page |
+| Select | fade the final output |
+| Start | quick menu |
+| Start + Select | save the last state and exit |
 
-Physical A/B labels on TrimUI Brick follow this table regardless of SDL's internal button numbering.
+Holding a direction while editing a number accelerates to 2× and then 5×. It also works in musical-source, event and modulation settings.
 
-## Performance Lab
+## Place
 
-Press `Start`. D-pad Left/Right changes the section and Up/Down changes the field. L/R edits. A performs an action. Y selects the actor. B closes the Lab.
+X cycles Landscape, Macros and Actors. Landscape opens with A. Macros use Up/Down to select and Left/Right to change. Actors use Left/Right to select, Up/Down for level and A for mute.
 
-### ACTOR
+## Actor
 
-- `ENGINE` activates the original macro-oscillator actor;
-- `MODEL` selects one of 16 musical engines;
-- `OUTPUT` selects `MAIN`, `AUX`, `MIX` or true `STEREO`;
-- `SCALA` selects a built-in or user `.scl` tuning;
-- `ROOT` sets the scale's MIDI root note.
+X switches Basic and Advanced. Basic controls active state, Landscape/Musical source, engine and sound character. Switching a Musical actor back to Landscape restores only that actor from the current place recipe.
 
-Put user Scala files in `curseddrone/conf/scales/`. They are discovered on the next launch.
+Advanced contains 16 musical models, MAIN/AUX/MIX/STEREO output, Scala tuning, a note-name root, Euclidean events and four modulation rows with bounded cross-modulation.
 
-### MOD
+## FX and Master FX
 
-Four modulation rows per actor. X selects the row.
+Every actor retains four effects. Master now has four additional effects after the actor mix. A long Delay or Diffuser can preserve a tail while changing landscapes.
 
-- enabled;
-- sine, triangle, sample-and-hold or random-walk source;
-- destination;
-- rate;
-- bipolar depth from −100% to +100%;
-- a previous modulator as a rate-modulation source;
-- bipolar cross-mod amount.
+## Memory and recovery
 
-A modulator can only change an earlier row's output. This prevents accidental instantaneous digital feedback loops.
+Autosave always resumes the last state. Eight explicit memory files live beside it:
 
-### EVENT
+```text
+conf/memory-1.cdrone ... conf/memory-8.cdrone
+```
 
-Euclidean event generator:
+Restore Landscape returns the four actors to the place recipe while preserving the Master FX chain.
 
-- 1–32 steps;
-- pulse count;
-- rotation;
-- probability;
-- install `Reverse Grains` into FX4.
+## Removed from the normal path
 
-It excites musical and physical actors without turning the primary UI into a sequencer.
-
-### MORPH
-
-- target landscape;
-- continuous 0–100% morph;
-- `COMMIT` applies the target and returns morph to zero.
-
-Parameters and levels interpolate continuously. Engine and FX topology changes near the midpoint, avoiding the DSP cost of four duplicate actors.
-
-### STAGE
-
-A opens the minimal performance view:
-
-- five performance macros;
-- morph;
-- four actor levels and mute states;
-- output fade.
-
-B returns to the normal interface. Detailed controls stay in Lab and do not pollute live operation.
-
-## Reverse Grains
-
-Two overlapping reverse grains read a shared circular buffer at different offsets. Controls:
-
-- Mix;
-- Grain duration and spread;
-- Feedback.
-
-The effect reuses the memory owned by its FX slot instead of allocating another global multi-megabyte buffer.
-
-## Macro-oscillator source
-
-The branch pins upstream `pichenettes/eurorack` and uses original Plaits and stmlib code under the MIT licence. Cursed Drone uses neutral product labels and does not present this derivative work as an official Mutable Instruments product.
+The separate Morph and Stage modes are hidden. Their extra modes and vocabulary cost more than they returned. The advanced sound engine remains, but it now lives inside Place → Actor → FX → Master → Memory.

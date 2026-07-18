@@ -175,6 +175,10 @@ std::string mod_key(std::size_t slot, std::size_t mod, std::string_view field) {
     return "slot." + std::to_string(slot) + ".mod." + std::to_string(mod) + "." + std::string{field};
 }
 
+std::string master_effect_key(std::size_t effect, std::string_view field) {
+    return "master.effect." + std::to_string(effect) + "." + std::string{field};
+}
+
 bool parse_float(const std::unordered_map<std::string, std::string>& values, const std::string& name, float& value) {
     const auto found = values.find(name);
     if (found == values.end()) {
@@ -474,6 +478,13 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
     output << "performance.fade=" << session.performance.fade << '\n';
     output << "performance.morph_target=" << to_string(session.performance.morph_target) << '\n';
     output << "performance.morph=" << session.performance.morph << '\n';
+    for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
+        const auto& effect = session.master_effects[effect_index];
+        output << master_effect_key(effect_index, "kind") << '=' << to_string(effect.kind) << '\n';
+        output << master_effect_key(effect_index, "amount") << '=' << effect.amount << '\n';
+        output << master_effect_key(effect_index, "tone") << '=' << effect.tone << '\n';
+        output << master_effect_key(effect_index, "feedback") << '=' << effect.feedback << '\n';
+    }
     for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
         const auto& slot = session.slots[slot_index];
         output << key(slot_index, "enabled") << '=' << (slot.enabled ? 1 : 0) << '\n';
@@ -554,7 +565,8 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     if (schema == values.end() ||
         (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
             schema->second != "4" && schema->second != "5" && schema->second != "6" &&
-            schema->second != "7" && schema->second != "8" && schema->second != "9")) {
+            schema->second != "7" && schema->second != "8" && schema->second != "9" &&
+            schema->second != "10")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -587,6 +599,17 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         !parse_float(values, "performance.morph", loaded.performance.morph)) {
         error = "invalid master value";
         return false;
+    }
+
+    for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
+        auto& effect = loaded.master_effects[effect_index];
+        if (!parse_enum_value(values, master_effect_key(effect_index, "kind"), effect.kind, kEffects) ||
+            !parse_float(values, master_effect_key(effect_index, "amount"), effect.amount) ||
+            !parse_float(values, master_effect_key(effect_index, "tone"), effect.tone) ||
+            !parse_float(values, master_effect_key(effect_index, "feedback"), effect.feedback)) {
+            error = "invalid master effect " + std::to_string(effect_index + 1U);
+            return false;
+        }
     }
 
     for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
@@ -659,6 +682,11 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     loaded.performance.events = std::clamp(loaded.performance.events, 0.0F, 1.0F);
     loaded.performance.fade = std::clamp(loaded.performance.fade, 0.0F, 1.0F);
     loaded.performance.morph = std::clamp(loaded.performance.morph, 0.0F, 1.0F);
+    for (auto& effect : loaded.master_effects) {
+        effect.amount = std::clamp(effect.amount, 0.0F, 1.0F);
+        effect.tone = std::clamp(effect.tone, 0.0F, 1.0F);
+        effect.feedback = std::clamp(effect.feedback, 0.0F, 1.0F);
+    }
     for (auto& slot : loaded.slots) {
         slot.tuning.root_midi = std::clamp(slot.tuning.root_midi, 0, 127);
         slot.tuning.degree_count = std::clamp(slot.tuning.degree_count, 1, static_cast<int>(kScaleDegreeCount));
@@ -674,10 +702,11 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         }
     }
     if (schema->second != "4" && schema->second != "5" && schema->second != "6" &&
-        schema->second != "7" && schema->second != "8" && schema->second != "9") {
+        schema->second != "7" && schema->second != "8" && schema->second != "9" &&
+        schema->second != "10") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 9;
+    loaded.schema_version = 10;
     session = loaded;
     return true;
 }
