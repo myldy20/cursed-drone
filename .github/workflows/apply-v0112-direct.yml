@@ -1,0 +1,136 @@
+name: apply-v0112-direct
+
+on:
+  push:
+    branches: [experiment/v0.11-guided-workflow]
+    paths:
+      - .github/workflows/apply-v0112-direct.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/v0.11-guided-workflow
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply exact mute fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old!r}')
+              file.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_once('CMakeLists.txt',
+              'project(cursed_drone VERSION 0.11.1 LANGUAGES CXX)',
+              'project(cursed_drone VERSION 0.11.2 LANGUAGES CXX)')
+
+          replace_once('src/audio.cpp',
+              '            result.enabled = source.enabled || destination.enabled;',
+              '''            // Actor mute is authoritative. The old Morph implementation OR-ed
+            // this flag with the target landscape, which re-enabled every muted actor.
+            result.enabled = source.enabled;''')
+
+          replace_once('src/audio.cpp',
+              '''                for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
+                    slot_frame = runtime.effects[effect_index].process(
+                        slot_frame,
+                        settings.effects[effect_index].kind,
+                        parameters.effect_amount[effect_index],
+                        parameters.effect_tone[effect_index],
+                        parameters.effect_feedback[effect_index]);
+                }
+                if (capture_scope) {''',
+              '''                for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
+                    slot_frame = runtime.effects[effect_index].process(
+                        slot_frame,
+                        settings.effects[effect_index].kind,
+                        parameters.effect_amount[effect_index],
+                        parameters.effect_tone[effect_index],
+                        parameters.effect_feedback[effect_index]);
+                }
+                // Keep feeding silence into the processors so their buffers decay,
+                // but do not let an existing per-actor FX tail bypass mute.
+                if (!settings.enabled) slot_frame = {};
+                if (capture_scope) {''')
+
+          replace_once('tests/test_main.cpp',
+              '''    expect(panic_peak == 0.0F, "panic should clear output and effect tails");
+    expect(graph.telemetry().master_peak == 0.0F, "panic should clear telemetry");
+
+    auto restrained = default_session;''',
+              '''    expect(panic_peak == 0.0F, "panic should clear output and effect tails");
+    expect(graph.telemetry().master_peak == 0.0F, "panic should clear telemetry");
+
+    auto mute_session = default_session;
+    for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) {
+        mute_session.slots[slot].enabled = false;
+    }
+    mute_session.slots[0].effects[0] = {
+        cd::EffectKind::delay, 0.72F, 0.45F, 0.82F};
+    cd::AudioGraph mute_graph;
+    mute_graph.prepare({48'000.0F, 256U}, mute_session);
+    std::array<cd::StereoFrame, 256> mute_block{};
+    double active_energy = 0.0;
+    for (int iteration = 0; iteration < 120; ++iteration) {
+        mute_graph.process({mute_block.data(), mute_block.size()});
+        for (const auto frame : mute_block) {
+            active_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
+        }
+    }
+    expect(active_energy > 0.01, "the actor used by the mute test should initially produce sound");
+
+    mute_session.slots[0].enabled = false;
+    expect(mute_graph.submit_session(mute_session), "mute session should enter the audio queue");
+    float muted_peak = 0.0F;
+    for (int iteration = 0; iteration < 24; ++iteration) {
+        mute_graph.process({mute_block.data(), mute_block.size()});
+        if (iteration < 12) continue;
+        for (const auto frame : mute_block) {
+            muted_peak = std::max(muted_peak, std::max(std::abs(frame.left), std::abs(frame.right)));
+        }
+    }
+    expect(muted_peak < 0.0001F,
+        "muting the last actor should silence its oscillator and existing FX tail");
+
+    auto restrained = default_session;''')
+          PY
+          git diff --check
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+
+      - name: Build and test
+        run: |
+          cmake -S . -B build-v0112 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-v0112 --parallel 2
+          ctest --test-dir build-v0112 --output-on-failure
+
+      - name: Handheld SDL smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            CURSED_DRONE_DATA_DIR="$PWD/test-conf" \
+            timeout 4s build-v0112/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+
+      - name: Commit validated source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CMakeLists.txt src/audio.cpp tests/test_main.cpp
+          git commit -m 'v0.11.2: make actor mute authoritative in the audio graph'
+          git push origin HEAD:experiment/v0.11-guided-workflow
