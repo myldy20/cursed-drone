@@ -1,0 +1,24 @@
+name: export-v011-source
+
+on:
+  push:
+    branches: [experiment/v0.11-guided-workflow]
+    paths:
+      - .github/workflows/export-v011-source.yml
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Export source tree
+        run: |
+          rm -rf .git
+          tar -czf /tmp/cursed-drone-v011-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-v011-source
+          path: /tmp/cursed-drone-v011-source.tar.gz
+          if-no-files-found: error
