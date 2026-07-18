@@ -1,0 +1,78 @@
+name: apply-v0111-fixes
+
+on:
+  pull_request:
+    branches: [experiment/plaits-performance-lab]
+    paths:
+      - tools/v0111.patch.gz.b64
+      - .github/workflows/apply-v0111-fixes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/v0.11-guided-workflow
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Reconstruct and verify patch
+        run: |
+          test "$(wc -c < tools/v0111.patch.gz.b64)" -eq 17124
+          echo '2f4db65af58a78984c7b8781b40ba0f655a0217becdef1deaf84a6a6fce29134  tools/v0111.patch.gz.b64' | sha256sum -c -
+          base64 -d tools/v0111.patch.gz.b64 | gzip -d > /tmp/v0111.patch
+          echo '9a11910199c2c3555a566c0a83e9aadbaf7aeea7934eca03b34467ca00691e77  /tmp/v0111.patch' | sha256sum -c -
+          git apply --check /tmp/v0111.patch
+
+      - name: Apply v0.11.1 fixes
+        run: git apply /tmp/v0111.patch
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build-v0111-fix -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-v0111-fix --parallel 2
+
+      - name: Run tests
+        run: ctest --test-dir build-v0111-fix --output-on-failure
+
+      - name: Handheld SDL smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            CURSED_DRONE_DATA_DIR="$PWD/test-conf" \
+            timeout 4s build-v0111-fix/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+
+      - name: Build and inspect package
+        run: |
+          chmod +x tools/package_portmaster_lab.sh
+          tools/package_portmaster_lab.sh build-v0111-fix dist-v0111-fix
+          unzip -l dist-v0111-fix/curseddrone-lab-aarch64-test.zip | tee /tmp/package.txt
+          grep -q 'Cursed Drone Lab.sh' /tmp/package.txt
+          grep -q 'curseddrone-lab/cursed-drone-sdl.aarch64' /tmp/package.txt
+          grep -q 'curseddrone-lab/docs/experiment-lab.ru.md' /tmp/package.txt
+
+      - name: Commit validated source only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            CMakeLists.txt \
+            docs/experiment-lab.en.md \
+            docs/experiment-lab.ru.md \
+            packaging/portmaster/experiment/README.md \
+            src/audio.cpp \
+            src/sdl_main.cpp \
+            src/session.cpp \
+            tests/test_main.cpp
+          git commit -m 'v0.11.1: fix handheld navigation and effects workflow'
+          git push origin HEAD:experiment/v0.11-guided-workflow
