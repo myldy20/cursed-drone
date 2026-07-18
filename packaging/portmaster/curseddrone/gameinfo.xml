@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<gameList>
-  <game>
-    <path>./Cursed Drone.sh</path>
-    <name>Cursed Drone</name>
-    <desc>Procedural drone synth with ten controllable environmental and bass-first soundscapes.</desc>
-    <releasedate>20260717T000000</releasedate>
-    <developer>Myldy design</developer>
-    <publisher>Myldy design</publisher>
-    <genre>Music</genre>
-  </game>
-</gameList>
+<gameList><game>
+  <path>./Cursed Drone.sh</path><name>Cursed Drone</name>
+  <desc>Live procedural instrument for shaping the atmosphere of a place through four actors, effects and performance macros.</desc>
+  <releasedate>20260719T000000</releasedate><developer>Myldy design</developer><publisher>Myldy design</publisher><genre>Music</genre>
+</game></gameList>

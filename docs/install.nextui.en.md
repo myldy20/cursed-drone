@@ -1,51 +1,40 @@
-# Installing Cursed Drone on NextUI
+# Install Cursed Drone 0.12 on NextUI
 
-> Status: **verified on a physical TrimUI Brick running NextUI**. Video, audio, controls and normal application startup were confirmed in a community hardware test.
+> Verified on a real TrimUI Brick with NextUI: launch, video, audio and controls work.
 
-Do not install the Knulli/PortMaster package on NextUI. NextUI uses its own Tool Pak layout.
+1. Download the `cursed-drone-nextui-tg5040` artifact.
+2. Open GitHub's outer ZIP and locate `cursed-drone-nextui-tg5040-test.zip`.
+3. Extract the inner ZIP to the **root of the NextUI SD card**.
+4. Confirm `Tools/tg5040/Cursed Drone.pak/launch.sh` exists.
+5. Open **Tools → Cursed Drone**.
 
-## Installation
+Do not install the PortMaster ZIP on NextUI and do not place third-party Paks in the hidden `.system` folder.
 
-1. Download the `cursed-drone-nextui-tg5040` artifact from a successful GitHub Actions run.
-2. GitHub may wrap it in an outer ZIP. Inside, locate `cursed-drone-nextui-tg5040-test.zip`.
-3. Extract the inner archive to the **root of the NextUI SD card**.
-4. Confirm the final path:
+## Update without losing work
 
-```text
-Tools/tg5040/Cursed Drone.pak/launch.sh
-```
+Replace `Tools/tg5040/Cursed Drone.pak/`. Runtime data remains under `.userdata/tg5040/cursed-drone/`.
 
-5. Safely eject the card, insert it into the handheld, and open **Tools → Cursed Drone**.
+## Controls
 
-Do not place the Pak under the hidden `.system` folder. NextUI replaces that folder during updates.
+| Button | Meaning |
+| --- | --- |
+| D-pad | navigate; edit the selected value; hold to accelerate |
+| A | open, confirm, perform the selected action, or mute an actor |
+| B | back/cancel; hold for emergency Kill |
+| X | next focus section on the current page |
+| Y | contextual help |
+| L / R | previous / next page |
+| Select | fade the final output |
+| Start | quick menu |
+| Start + Select | save the current state and exit |
 
-## Data and logs
-
-Autosave:
+## Data and log
 
 ```text
 .userdata/tg5040/cursed-drone/autosave.cdrone
-```
-
-Launch log:
-
-```text
+.userdata/tg5040/cursed-drone/memory-1.cdrone ... memory-8.cdrone
+.userdata/tg5040/cursed-drone/scales/*.scl
 .userdata/tg5040/logs/Cursed Drone.txt
 ```
 
-If the application immediately returns to the menu, provide that log.
-
-## Verified configuration
-
-- Device: TrimUI Brick
-- Firmware: NextUI
-- Pak location: `Tools/tg5040/Cursed Drone.pak/`
-- Result: application launched and worked correctly
-
-Other NextUI devices and platform folders remain unverified.
-
-## Limitations
-
-Cursed Drone runs as a standalone SDL application. NextUI save states, auto-resume, and its standard in-game menu do not apply.
-
-To save and exit Cursed Drone, hold **Start**, then press **Select**.
+NextUI save states and auto-resume do not apply because Cursed Drone is a standalone SDL app.

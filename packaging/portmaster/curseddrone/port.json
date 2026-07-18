@@ -8,8 +8,8 @@
   "items_opt": null,
   "attr": {
     "title": "Cursed Drone",
-    "desc": "Procedural drone synth with ten soundscapes, thirty-two engines and basic or compound ambient effects.",
-    "inst": "Verified on TrimUI Brick with Knulli. The first launch checks video, audio and controls, then stores logs under curseddrone/conf.",
+    "desc": "Live procedural soundscape instrument with ten places, four actors, musical engines, actor and master FX, modulation and eight memories.",
+    "inst": "Verified on TrimUI Brick with Knulli. Install into Ports; first launch checks video, audio and controls. Saves and logs live under curseddrone/conf.",
     "genres": [
       "music"
     ],

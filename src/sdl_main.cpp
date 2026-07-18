@@ -5,6 +5,7 @@
 #include "bitmap_text.hpp"
 #include "cursed_drone/audio.hpp"
 #include "cursed_drone/i18n.hpp"
+#include "cursed_drone/scala.hpp"
 #include "cursed_drone/session.hpp"
 
 #include <algorithm>
@@ -17,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace cd = cursed_drone;
 
@@ -24,6 +26,7 @@ namespace {
 
 constexpr int kWidth = 512;
 constexpr int kHeight = 384;
+constexpr float kMinimumAudibleFrequency = 20.0F;
 constexpr SDL_Color kInk{238, 226, 197, 255};
 constexpr SDL_Color kDim{151, 143, 158, 255};
 constexpr SDL_Color kPurple{117, 67, 171, 255};
@@ -32,7 +35,7 @@ constexpr std::array<SDL_Color, 4> kFxColors{{
     {216, 88, 88, 255}, {224, 154, 63, 255}, {80, 169, 154, 255}, {91, 122, 187, 255},
 }};
 
-enum class Page { perform, slot, effects, master, setup };
+enum class Page { perform, slot, effects, master, memory };
 enum class Picker { none, scene, engine, effect };
 
 struct AudioBridge {
@@ -46,11 +49,19 @@ struct UiState {
     int slot{0};
     std::array<int, 5> selected{};
     std::array<int, 4> slot_selected{};
+    int focus_zone{1};
     int effect_field{0};
+    int actor_advanced_field{0};
+    int actor_modulator{0};
+    int master_effect{0};
+    int master_effect_field{0};
+    int memory_slot{0};
+    int memory_action{0};
+    int memory_setting{0};
     Picker picker{Picker::none};
+    bool picker_master{false};
     int picker_group{0};
     int picker_item{0};
-    bool scene_track_focus{false};
     int held_direction{0};
     Uint32 held_since{0};
     Uint32 last_repeat{0};
@@ -61,7 +72,20 @@ struct UiState {
     Uint32 cpu_display_updated_at{0};
     bool start_held{false};
     bool select_held{false};
+    bool back_held{false};
+    bool back_long_action{false};
+    Uint32 back_held_since{0};
+    bool help_open{false};
+    bool menu_open{false};
+    int menu_item{0};
+    bool request_exit{false};
+    std::string toast{};
+    Uint32 toast_until{0};
 };
+
+std::vector<cd::ParsedScale> g_scales{};
+std::filesystem::path g_data_root{};
+std::array<std::filesystem::path, cd::kMemorySlots> g_memory_paths{};
 
 void audio_callback(void* userdata, Uint8* bytes, int byte_count) {
     auto& bridge = *static_cast<AudioBridge*>(userdata);
@@ -148,17 +172,20 @@ bool show_startup_splash(SDL_Renderer* renderer) {
     }
     SDL_RenderPresent(renderer);
 
-    const Uint32 deadline = SDL_GetTicks() + (handheld() ? 1'350U : 1'000U);
+    const Uint32 shown_at = SDL_GetTicks();
+    const Uint32 minimum = handheld() ? 2'200U : 1'500U;
+    const Uint32 maximum = handheld() ? 4'200U : 3'000U;
     bool keep_running = true;
     bool skip = false;
-    while (keep_running && !skip && SDL_TICKS_PASSED(deadline, SDL_GetTicks()) == SDL_FALSE) {
+    while (keep_running && !skip && SDL_GetTicks() - shown_at < maximum) {
         SDL_Event event{};
         while (SDL_PollEvent(&event) != 0) {
             if (event.type == SDL_QUIT) {
                 keep_running = false;
-            } else if (event.type == SDL_KEYDOWN ||
-                       event.type == SDL_CONTROLLERBUTTONDOWN ||
-                       event.type == SDL_JOYBUTTONDOWN) {
+            } else if (SDL_GetTicks() - shown_at >= minimum &&
+                       (event.type == SDL_KEYDOWN ||
+                        event.type == SDL_CONTROLLERBUTTONDOWN ||
+                        event.type == SDL_JOYBUTTONDOWN)) {
                 skip = true;
             }
         }
@@ -170,11 +197,11 @@ bool show_startup_splash(SDL_Renderer* renderer) {
 
 std::string_view page_name(Page page, bool russian) noexcept {
     switch (page) {
-    case Page::perform: return russian ? "СЦЕНА" : "SCENE";
-    case Page::slot: return russian ? "СЛОТЫ" : "SLOTS";
+    case Page::perform: return russian ? "МЕСТО" : "PLACE";
+    case Page::slot: return russian ? "АКТЕР" : "ACTOR";
     case Page::effects: return "FX";
     case Page::master: return russian ? "МАСТЕР" : "MASTER";
-    case Page::setup: return russian ? "НАСТР." : "SETUP";
+    case Page::memory: return russian ? "ПАМЯТЬ" : "MEMORY";
     }
     return {};
 }
@@ -238,6 +265,7 @@ std::string_view engine_name(cd::EngineKind kind, bool russian) noexcept {
     case cd::EngineKind::tape_drone: return russian ? "ЛЕНТА" : "TAPE DRONE";
     case cd::EngineKind::bowed_metal: return russian ? "СМЫЧОК" : "BOWED METAL";
     case cd::EngineKind::earth_rumble: return russian ? "ГУД ЗЕМЛИ" : "EARTH RUMBLE";
+    case cd::EngineKind::plaits: return russian ? "МУЗЫКАЛЬНЫЙ" : "MUSICAL";
     }
     return {};
 }
@@ -410,6 +438,11 @@ std::string_view slot_name(int index, const cd::SlotSettings& slot, cd::Locale l
         constexpr std::array<std::string_view, 4> e{"MASS", "GROUND", "HEAVE", "IMPACTS"};
         return (russian ? r : e)[static_cast<std::size_t>(character)];
     }
+    case cd::EngineKind::plaits: {
+        constexpr std::array<std::string_view, 4> r{"ГАРМОНИКИ", "ТЕМБР", "МОРФ", "РАСПАД"};
+        constexpr std::array<std::string_view, 4> e{"HARMONICS", "TIMBRE", "MORPH", "DECAY"};
+        return (russian ? r : e)[static_cast<std::size_t>(character)];
+    }
     case cd::EngineKind::diagnostic:
         break;
     }
@@ -439,6 +472,7 @@ std::string_view effect_name(cd::EffectKind kind, bool russian) noexcept {
     case cd::EffectKind::ritual_gate: return russian ? "РИТУАЛЬНЫЙ ГЕЙТ" : "RITUAL GATE";
     case cd::EffectKind::rust_cloud: return russian ? "ОБЛАКО РЖАВЧИНЫ" : "RUST CLOUD";
     case cd::EffectKind::deep_sea: return russian ? "ГЛУБИНА" : "DEEP SEA";
+    case cd::EffectKind::granular_reverse: return russian ? "ОБРАТНЫЕ ЗЕРНА" : "REVERSE GRAINS";
     }
     return {};
 }
@@ -464,7 +498,8 @@ int effect_field_count(cd::EffectKind kind) noexcept {
     case cd::EffectKind::black_hole:
     case cd::EffectKind::ritual_gate:
     case cd::EffectKind::rust_cloud:
-    case cd::EffectKind::deep_sea: return 3;
+    case cd::EffectKind::deep_sea:
+    case cd::EffectKind::granular_reverse: return 3;
     }
     return 0;
 }
@@ -517,6 +552,10 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
         if (index == 0) return russian ? "ИНТЕНСИВН." : "INTENSITY";
         if (index == 1) return russian ? "ХАРАКТЕР" : "CHARACTER";
         return russian ? "ДВИЖЕНИЕ" : "MOTION";
+    case cd::EffectKind::granular_reverse:
+        if (index == 0) return russian ? "ПОДМЕСЬ" : "MIX";
+        if (index == 1) return russian ? "ЗЕРНО" : "GRAIN";
+        return russian ? "ОБР. СВЯЗЬ" : "FEEDBACK";
     }
     return {};
 }
@@ -539,9 +578,10 @@ constexpr std::array<cd::EffectKind, 15> kBasicEffects{
     cd::EffectKind::comb, cd::EffectKind::chorus, cd::EffectKind::flanger,
     cd::EffectKind::phaser, cd::EffectKind::diffuser, cd::EffectKind::ahdr};
 
-constexpr std::array<cd::EffectKind, 5> kCompoundEffects{
+constexpr std::array<cd::EffectKind, 6> kCompoundEffects{
     cd::EffectKind::tape_void, cd::EffectKind::black_hole,
-    cd::EffectKind::ritual_gate, cd::EffectKind::rust_cloud, cd::EffectKind::deep_sea};
+    cd::EffectKind::ritual_gate, cd::EffectKind::rust_cloud,
+    cd::EffectKind::deep_sea, cd::EffectKind::granular_reverse};
 
 int effect_group_size(int group) noexcept {
     return group == 0 ? static_cast<int>(kBasicEffects.size())
@@ -551,6 +591,39 @@ int effect_group_size(int group) noexcept {
 cd::EffectKind effect_at(int group, int item) noexcept {
     if (group == 0) return kBasicEffects[static_cast<std::size_t>(item)];
     return kCompoundEffects[static_cast<std::size_t>(item)];
+}
+
+int effect_catalog_index(cd::EffectKind kind) noexcept {
+    for (int item = 0; item < static_cast<int>(kBasicEffects.size()); ++item) {
+        if (kBasicEffects[static_cast<std::size_t>(item)] == kind) return item;
+    }
+    for (int item = 0; item < static_cast<int>(kCompoundEffects.size()); ++item) {
+        if (kCompoundEffects[static_cast<std::size_t>(item)] == kind)
+            return static_cast<int>(kBasicEffects.size()) + item;
+    }
+    return 0;
+}
+
+cd::EffectKind effect_from_catalog_index(int index) noexcept {
+    const int total = static_cast<int>(kBasicEffects.size() + kCompoundEffects.size());
+    index = (index % total + total) % total;
+    if (index < static_cast<int>(kBasicEffects.size()))
+        return kBasicEffects[static_cast<std::size_t>(index)];
+    return kCompoundEffects[static_cast<std::size_t>(index - static_cast<int>(kBasicEffects.size()))];
+}
+
+void cycle_effect_kind(cd::EffectSettings& effect, int direction) noexcept {
+    const int index = effect_catalog_index(effect.kind) + direction;
+    effect.kind = effect_from_catalog_index(index);
+    if (effect.kind == cd::EffectKind::bypass) {
+        effect.amount = 0.0F;
+        effect.tone = 0.50F;
+        effect.feedback = 0.0F;
+    } else if (effect.amount <= 0.001F) {
+        effect.amount = 0.20F;
+        effect.tone = 0.50F;
+        effect.feedback = 0.20F;
+    }
 }
 
 std::string_view effect_group_name(int group, bool russian) noexcept {
@@ -598,9 +671,11 @@ void open_scene_picker(UiState& state, const cd::Session& session) noexcept {
     }
 }
 
-void open_effect_picker(UiState& state, const cd::Session& session) noexcept {
-    const auto current = session.slots[static_cast<std::size_t>(state.slot)]
-        .effects[static_cast<std::size_t>(parameter(state))].kind;
+void open_effect_picker(UiState& state, const cd::Session& session, bool master = false) noexcept {
+    state.picker_master = master;
+    const auto current = master
+        ? session.master_effects[static_cast<std::size_t>(state.master_effect)].kind
+        : session.slots[static_cast<std::size_t>(state.slot)].effects[static_cast<std::size_t>(parameter(state))].kind;
     state.picker = Picker::effect;
     state.picker_group = 0;
     state.picker_item = 0;
@@ -616,20 +691,44 @@ void open_effect_picker(UiState& state, const cd::Session& session) noexcept {
 
 void move_picker(UiState& state, int horizontal, int vertical) noexcept {
     if (state.picker == Picker::scene) {
-        state.picker_item = (state.picker_item + horizontal + vertical +
-            static_cast<int>(kScenes.size())) % static_cast<int>(kScenes.size());
-    } else if (state.picker == Picker::engine) {
+        constexpr int rows = 5;
+        constexpr int columns = 2;
+        int row = state.picker_item % rows;
+        int column = state.picker_item / rows;
+        row = (row + vertical + rows) % rows;
+        column = (column + horizontal + columns) % columns;
+        state.picker_item = column * rows + row;
+        return;
+    }
+    if (state.picker == Picker::engine) {
         const int groups = static_cast<int>(kEngineGroups.size());
         state.picker_group = (state.picker_group + horizontal + groups) % groups;
         state.picker_item = (state.picker_item + vertical + 4) % 4;
-    } else if (state.picker == Picker::effect) {
-        if (horizontal != 0) {
-            state.picker_group = (state.picker_group + horizontal + 2) % 2;
-            state.picker_item = std::min(state.picker_item, effect_group_size(state.picker_group) - 1);
-        }
+        return;
+    }
+    if (state.picker == Picker::effect) {
+        int count = effect_group_size(state.picker_group);
+        const int rows = state.picker_group == 0 ? 8 : 5;
+        int row = state.picker_item % rows;
+        int column = state.picker_item / rows;
         if (vertical != 0) {
-            const int effects = effect_group_size(state.picker_group);
-            state.picker_item = (state.picker_item + vertical + effects) % effects;
+            for (int attempt = 0; attempt < rows; ++attempt) {
+                row = (row + vertical + rows) % rows;
+                const int candidate = column * rows + row;
+                if (candidate < count) { state.picker_item = candidate; break; }
+            }
+        }
+        if (horizontal != 0) {
+            const int candidate = (column + horizontal) * rows + row;
+            if (candidate >= 0 && candidate < count) {
+                state.picker_item = candidate;
+            } else {
+                state.picker_group = (state.picker_group + horizontal + 2) % 2;
+                count = effect_group_size(state.picker_group);
+                const int target_rows = state.picker_group == 0 ? 8 : 5;
+                state.picker_item = std::min(row, count - 1);
+                if (state.picker_item >= target_rows) state.picker_item = target_rows - 1;
+            }
         }
     }
 }
@@ -643,13 +742,20 @@ void confirm_picker(UiState& state, cd::Session& session) noexcept {
                 [static_cast<std::size_t>(state.picker_item)];
         session.scene_modified = true;
     } else if (state.picker == Picker::effect) {
-        session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(parameter(state))].kind =
-            effect_at(state.picker_group, state.picker_item);
-        state.effect_field = 0;
-        session.scene_modified = true;
+        if (state.picker_master) {
+            session.master_effects[static_cast<std::size_t>(state.master_effect)].kind =
+                effect_at(state.picker_group, state.picker_item);
+            state.master_effect_field = 0;
+        } else {
+            session.slots[static_cast<std::size_t>(state.slot)]
+                .effects[static_cast<std::size_t>(parameter(state))].kind =
+                effect_at(state.picker_group, state.picker_item);
+            state.effect_field = 0;
+            session.scene_modified = true;
+        }
     }
     state.picker = Picker::none;
+    state.picker_master = false;
 }
 
 int page_index(Page page) noexcept { return static_cast<int>(page); }
@@ -657,25 +763,32 @@ int page_index(Page page) noexcept { return static_cast<int>(page); }
 int parameter_count(Page page) noexcept {
     switch (page) {
     case Page::perform: return 5;
-    case Page::slot: return 8;
+    case Page::slot: return 10;
     case Page::effects: return 4;
     case Page::master: return 2;
-    case Page::setup: return 3;
+    case Page::memory: return 3;
+    }
+    return 1;
+}
+
+int focus_zone_count(Page page) noexcept {
+    switch (page) {
+    case Page::perform: return 3; // landscape, macros, actors
+    case Page::slot: return 3;    // actor selector, basic, advanced
+    case Page::effects: return 5; // actor selector, FX1..FX4
+    case Page::master: return 5;  // signal, master FX1..FX4
+    case Page::memory: return 3;  // slots, actions, settings
     }
     return 1;
 }
 
 int& parameter(UiState& state) noexcept {
-    if (state.page == Page::slot) {
-        return state.slot_selected[static_cast<std::size_t>(state.slot)];
-    }
+    if (state.page == Page::slot) return state.slot_selected[static_cast<std::size_t>(state.slot)];
     return state.selected[static_cast<std::size_t>(page_index(state.page))];
 }
 
 int parameter(const UiState& state) noexcept {
-    if (state.page == Page::slot) {
-        return state.slot_selected[static_cast<std::size_t>(state.slot)];
-    }
+    if (state.page == Page::slot) return state.slot_selected[static_cast<std::size_t>(state.slot)];
     return state.selected[static_cast<std::size_t>(page_index(state.page))];
 }
 
@@ -699,30 +812,6 @@ float* macro_value(cd::PerformanceSettings& settings, int index) noexcept {
     }
 }
 
-float slot_value(const cd::SlotSettings& slot, int index) noexcept {
-    switch (index) {
-    case 1: return slot.frequency_hz;
-    case 2: return slot.timbre;
-    case 3: return slot.color;
-    case 4: return slot.motion;
-    case 5: return slot.texture;
-    case 6: return slot.level;
-    default: return slot.pan;
-    }
-}
-
-float* slot_value(cd::SlotSettings& slot, int index) noexcept {
-    switch (index) {
-    case 1: return &slot.frequency_hz;
-    case 2: return &slot.timbre;
-    case 3: return &slot.color;
-    case 4: return &slot.motion;
-    case 5: return &slot.texture;
-    case 6: return &slot.level;
-    default: return &slot.pan;
-    }
-}
-
 float effect_value(const cd::EffectSettings& effect, int field) noexcept {
     return field == 0 ? effect.amount : (field == 1 ? effect.tone : effect.feedback);
 }
@@ -731,145 +820,312 @@ float* effect_value(cd::EffectSettings& effect, int field) noexcept {
     return field == 0 ? &effect.amount : (field == 1 ? &effect.tone : &effect.feedback);
 }
 
-std::string value_text(const cd::Session& session, const UiState& state, int slot_override = -1) {
-    char result[40]{};
-    const int selected = parameter(state);
-    switch (state.page) {
-    case Page::perform:
-        std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
-            (state.scene_track_focus
-                    ? session.slots[static_cast<std::size_t>(state.slot)].level
-                    : macro_value(session.performance, selected)) * 100.0F)));
-        break;
-    case Page::slot: {
-        const int slot = slot_override >= 0 ? slot_override : state.slot;
-        if (selected == 0) {
-            return std::string{engine_name(
-                session.slots[static_cast<std::size_t>(slot)].engine, ru(session))};
-        }
-        const float value = slot_value(session.slots[static_cast<std::size_t>(slot)], selected);
-        if (selected == 1) {
-            std::snprintf(result, sizeof(result), "%.1f HZ", static_cast<double>(value));
-        } else if (selected == 7) {
-            std::snprintf(result, sizeof(result), "%+.2f", static_cast<double>(value));
-        } else {
-            std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(value * 100.0F)));
-        }
-        break;
-    }
-    case Page::effects: {
-        const auto& effect = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(selected)];
-        if (effect_field_count(effect.kind) == 0) {
-            return std::string{effect_name(effect.kind, ru(session))};
-        }
-        std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
-            effect_value(effect, state.effect_field) * 100.0F)));
-        break;
-    }
-    case Page::master:
-        if (selected == 0) {
-            std::snprintf(result, sizeof(result), "%d%%", static_cast<int>(std::lround(
-                session.master_level * 100.0F)));
-        } else if (selected == 1) {
-            std::snprintf(result, sizeof(result), "%.0f BPM", static_cast<double>(session.tempo_bpm));
-        }
-        break;
-    case Page::setup:
-        if (selected == 0) {
-            return session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
-        }
-        std::snprintf(result, sizeof(result), "%.2f S", static_cast<double>(
-            selected == 1 ? session.fade_in_seconds : session.fade_out_seconds));
-        break;
-    }
+std::string note_name(int midi, bool russian) {
+    constexpr std::array<std::string_view, 12> notes{
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    midi = std::clamp(midi, 0, 127);
+    const int octave = midi / 12 - 1;
+    std::string result{notes[static_cast<std::size_t>(midi % 12)]};
+    result += std::to_string(octave);
+    if (russian) result += "  (НОТА " + std::to_string(midi) + ")";
     return result;
 }
 
-std::string current_label(const cd::Session& session, const UiState& state) {
-    switch (state.page) {
-    case Page::perform:
-        if (state.scene_track_focus) {
-            return std::string{ru(session) ? "УРОВЕНЬ ДОРОЖКИ " : "TRACK LEVEL "} +
-                std::to_string(state.slot + 1);
+std::string friendly_scale_name(const cd::ScalaTuning& tuning, bool russian) {
+    const std::string name{tuning.name.data()};
+    if (name.find("12") != std::string::npos) return russian ? "СТАНДАРТНЫЙ 12" : "STANDARD 12";
+    if (name.find("19") != std::string::npos) return "19 EDO";
+    if (name.find("minor") != std::string::npos || name.find("MINOR") != std::string::npos)
+        return russian ? "ЧИСТЫЙ МИНОР" : "JUST MINOR";
+    return name.empty() ? (russian ? "СТАНДАРТНЫЙ" : "STANDARD") : name;
+}
+
+std::string_view musical_model_name(cd::PlaitsModel model, bool russian) noexcept {
+    constexpr std::array<std::string_view, 16> en{
+        "FILTER TONE", "PHASE TONE", "WAVE TERRAIN", "STRING MACHINE",
+        "CHIP TONE", "ANALOG", "WAVESHAPER", "FM",
+        "GRAIN", "ADDITIVE", "WAVETABLE", "CHORD",
+        "SWARM", "NOISE", "STRING", "MODAL BODY"};
+    constexpr std::array<std::string_view, 16> ru_names{
+        "ФИЛЬТР-ТОН", "ФАЗОВЫЙ ТОН", "ВОЛНОВОЙ РЕЛЬЕФ", "СТРУННАЯ МАШИНА",
+        "ЧИП-ТОН", "АНАЛОГ", "ФОРМИРОВАТЕЛЬ", "FM",
+        "ЗЕРНО", "АДДИТИВНЫЙ", "ВОЛНОВАЯ ТАБЛИЦА", "АККОРД",
+        "РОЙ", "ШУМ", "СТРУНА", "МОДАЛЬНЫЙ КОРПУС"};
+    return (russian ? ru_names : en)[static_cast<std::size_t>(model)];
+}
+
+std::string_view output_mode_name(cd::PlaitsOutputMode mode, bool russian) noexcept {
+    constexpr std::array<std::string_view, 4> en{"MAIN", "AUX", "MIX", "STEREO"};
+    constexpr std::array<std::string_view, 4> ru_names{"ОСНОВНОЙ", "ДОП.", "СМЕСЬ", "СТЕРЕО"};
+    return (russian ? ru_names : en)[static_cast<std::size_t>(mode)];
+}
+
+std::string_view mod_wave_name(cd::ModWave wave, bool russian) noexcept {
+    constexpr std::array<std::string_view, 4> en{"SINE", "TRIANGLE", "S&H", "RANDOM WALK"};
+    constexpr std::array<std::string_view, 4> ru_names{"СИНУС", "ТРЕУГОЛЬНИК", "СЛУЧ. ШАГ", "БЛУЖДАНИЕ"};
+    return (russian ? ru_names : en)[static_cast<std::size_t>(wave)];
+}
+
+std::string_view mod_destination_name(cd::ModDestination destination, bool russian) noexcept {
+    constexpr std::array<std::string_view, 11> en{
+        "PITCH", "TIMBRE", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN",
+        "FX1", "FX2", "FX3", "FX4"};
+    constexpr std::array<std::string_view, 11> ru_names{
+        "ВЫСОТА", "ТЕМБР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА",
+        "FX1", "FX2", "FX3", "FX4"};
+    return (russian ? ru_names : en)[static_cast<std::size_t>(destination)];
+}
+
+std::string_view actor_basic_label(int field, bool russian) noexcept {
+    constexpr std::array<std::string_view, 10> en{
+        "ACTIVE", "SOURCE", "ENGINE", "PITCH", "CHARACTER", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN"};
+    constexpr std::array<std::string_view, 10> ru_names{
+        "АКТИВЕН", "ИСТОЧНИК", "ДВИЖОК", "ВЫСОТА", "ХАРАКТЕР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА"};
+    return (russian ? ru_names : en)[static_cast<std::size_t>(field)];
+}
+
+std::string_view actor_advanced_label(int field, bool russian) noexcept {
+    constexpr std::array<std::string_view, 17> en{
+        "MODEL", "OUTPUT", "TUNING", "ROOT", "EVENTS", "STEPS", "PULSES", "ROTATE", "PROBABILITY",
+        "MOD ROW", "MOD ACTIVE", "MOD SHAPE", "MOD TARGET", "MOD RATE", "MOD DEPTH", "RATE SOURCE", "CROSS AMOUNT"};
+    constexpr std::array<std::string_view, 17> ru_names{
+        "МОДЕЛЬ", "ВЫХОД", "СТРОЙ", "ОСНОВА", "СОБЫТИЯ", "ШАГИ", "ИМПУЛЬСЫ", "СДВИГ", "ВЕРОЯТНОСТЬ",
+        "СТРОКА MOD", "MOD АКТИВЕН", "ФОРМА MOD", "ЦЕЛЬ MOD", "СКОРОСТЬ MOD", "ГЛУБИНА MOD", "ИСТОЧНИК СКОР.", "ГЛУБИНА СВЯЗИ"};
+    return (russian ? ru_names : en)[static_cast<std::size_t>(field)];
+}
+
+std::string actor_basic_value(const cd::Session& session, const UiState& state, int field) {
+    const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
+    char value[40]{};
+    if (field == 0) return slot.enabled ? (ru(session) ? "ДА" : "YES") : (ru(session) ? "НЕТ" : "NO");
+    if (field == 1) return slot.engine == cd::EngineKind::plaits
+        ? (ru(session) ? "МУЗЫКАЛЬНЫЙ" : "MUSICAL")
+        : (ru(session) ? "ЛАНДШАФТ" : "LANDSCAPE");
+    if (field == 2) return std::string{engine_name(slot.engine, ru(session))};
+    if (field == 3) std::snprintf(value, sizeof(value), "%.1f HZ", static_cast<double>(slot.frequency_hz));
+    else if (field == 9) std::snprintf(value, sizeof(value), "%+.0f%%", static_cast<double>(slot.pan * 100.0F));
+    else {
+        const float values[]{slot.timbre, slot.color, slot.motion, slot.texture, slot.level};
+        std::snprintf(value, sizeof(value), "%.0f%%", static_cast<double>(values[field - 4] * 100.0F));
+    }
+    return value;
+}
+
+std::string actor_advanced_value(const cd::Session& session, const UiState& state, int field) {
+    const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
+    const auto& mod = slot.modulators[static_cast<std::size_t>(state.actor_modulator)];
+    char value[48]{};
+    if (field == 0) return std::string{musical_model_name(slot.plaits_model, ru(session))};
+    if (field == 1) return std::string{output_mode_name(slot.plaits_output, ru(session))};
+    if (field == 2) return friendly_scale_name(slot.tuning, ru(session));
+    if (field == 3) return note_name(slot.tuning.root_midi, ru(session));
+    if (field == 4) return slot.euclidean.enabled ? (ru(session) ? "ВКЛ" : "ON") : (ru(session) ? "ВЫКЛ" : "OFF");
+    if (field == 5) return std::to_string(slot.euclidean.steps);
+    if (field == 6) return std::to_string(slot.euclidean.pulses);
+    if (field == 7) return std::to_string(slot.euclidean.rotation);
+    if (field == 8) { std::snprintf(value, sizeof(value), "%.0f%%", static_cast<double>(slot.euclidean.probability * 100.0F)); return value; }
+    if (field == 9) return std::to_string(state.actor_modulator + 1) + " / 4";
+    if (field == 10) return mod.enabled ? (ru(session) ? "ВКЛ" : "ON") : (ru(session) ? "ВЫКЛ" : "OFF");
+    if (field == 11) return std::string{mod_wave_name(mod.wave, ru(session))};
+    if (field == 12) return std::string{mod_destination_name(mod.destination, ru(session))};
+    if (field == 13) { std::snprintf(value, sizeof(value), "%.3f HZ", static_cast<double>(mod.rate_hz)); return value; }
+    if (field == 14) { std::snprintf(value, sizeof(value), "%+.0f%%", static_cast<double>(mod.depth * 100.0F)); return value; }
+    if (field == 15) return mod.rate_mod_source < 0 ? (ru(session) ? "НЕТ" : "NONE") : "MOD " + std::to_string(mod.rate_mod_source + 1);
+    std::snprintf(value, sizeof(value), "%+.0f%%", static_cast<double>(mod.rate_mod_amount * 100.0F));
+    return value;
+}
+
+void restore_landscape_actor(cd::Session& session, int actor) {
+    cd::Session recipe = session;
+    cd::apply_scene_recipe(recipe, session.scene);
+    session.slots[static_cast<std::size_t>(actor)] = recipe.slots[static_cast<std::size_t>(actor)];
+    session.scene_modified = true;
+}
+
+void toggle_actor_source(cd::Session& session, int actor) {
+    auto& slot = session.slots[static_cast<std::size_t>(actor)];
+    if (slot.engine == cd::EngineKind::plaits) {
+        restore_landscape_actor(session, actor);
+    } else {
+        slot.engine = cd::EngineKind::plaits;
+        slot.enabled = true;
+        slot.frequency_hz = std::clamp(slot.frequency_hz, 24.0F, 880.0F);
+        slot.plaits_output = cd::PlaitsOutputMode::stereo;
+        session.scene_modified = true;
+    }
+}
+
+std::string value_text(const cd::Session& session, const UiState& state, int = -1) {
+    if (state.page == Page::perform) {
+        if (state.focus_zone == 0) return std::string{scene_name(session.scene, ru(session))};
+        if (state.focus_zone == 1) {
+            char value[16]{};
+            std::snprintf(value, sizeof(value), "%.0f%%", static_cast<double>(macro_value(session.performance, parameter(state)) * 100.0F));
+            return value;
         }
-        return std::string{macro_name(parameter(state), ru(session))};
-    case Page::slot: return std::string{slot_name(
-        parameter(state), session.slots[static_cast<std::size_t>(state.slot)], session.locale)};
-    case Page::effects:
-    {
-        const auto kind = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(parameter(state))].kind;
-        return "FX " + std::to_string(parameter(state) + 1) + " " +
-            std::string{effect_field(kind, state.effect_field, ru(session))};
+        return session.slots[static_cast<std::size_t>(state.slot)].enabled
+            ? (ru(session) ? "ЗВУЧИТ" : "ACTIVE") : (ru(session) ? "ЗАГЛУШЕН" : "MUTED");
     }
-    case Page::master:
-        if (parameter(state) == 0) return std::string{cd::tr(session.locale, cd::TextId::master)};
-        return ru(session) ? "ТЕМП ПРОЦЕССОВ" : "PROCESS TEMPO";
-    case Page::setup:
-        if (parameter(state) == 0) return std::string{cd::tr(session.locale, cd::TextId::language)};
-        return parameter(state) == 1
-            ? (ru(session) ? "ФЕЙД ВХОДА" : "FADE IN")
-            : (ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT");
+    if (state.page == Page::slot) {
+        if (state.focus_zone == 0) return std::to_string(state.slot + 1);
+        return state.focus_zone == 1
+            ? actor_basic_value(session, state, parameter(state))
+            : actor_advanced_value(session, state, state.actor_advanced_field);
     }
-    return {};
+    if (state.page == Page::effects) {
+        if (state.focus_zone == 0) return std::to_string(state.slot + 1);
+        const int effect_index = std::clamp(state.focus_zone - 1, 0, 3);
+        const auto& effect = session.slots[static_cast<std::size_t>(state.slot)].effects[static_cast<std::size_t>(effect_index)];
+        if (state.effect_field == 0) return std::string{effect_name(effect.kind, ru(session))};
+        return std::to_string(static_cast<int>(std::lround(effect_value(effect, state.effect_field - 1) * 100.0F))) + "%";
+    }
+    if (state.page == Page::master) {
+        if (state.focus_zone == 0) {
+            if (parameter(state) == 0) return std::to_string(static_cast<int>(std::lround(session.master_level * 100.0F))) + "%";
+            return std::to_string(static_cast<int>(std::lround(session.tempo_bpm))) + " BPM";
+        }
+        const int effect_index = std::clamp(state.focus_zone - 1, 0, 3);
+        const auto& effect = session.master_effects[static_cast<std::size_t>(effect_index)];
+        if (state.master_effect_field == 0) return std::string{effect_name(effect.kind, ru(session))};
+        return std::to_string(static_cast<int>(std::lround(effect_value(effect, state.master_effect_field - 1) * 100.0F))) + "%";
+    }
+    return std::to_string(state.memory_slot + 1);
+}
+
+std::string current_label(const cd::Session& session, const UiState& state) {
+    if (state.page == Page::perform) {
+        if (state.focus_zone == 0) return ru(session) ? "ЛАНДШАФТ" : "LANDSCAPE";
+        if (state.focus_zone == 1) return std::string{macro_name(parameter(state), ru(session))};
+        return std::string{ru(session) ? "АКТЕР " : "ACTOR "} + std::to_string(state.slot + 1);
+    }
+    if (state.page == Page::slot) {
+        if (state.focus_zone == 0) return ru(session) ? "ВЫБОР АКТЕРА" : "ACTOR SELECT";
+        return state.focus_zone == 1
+            ? std::string{actor_basic_label(parameter(state), ru(session))}
+            : std::string{actor_advanced_label(state.actor_advanced_field, ru(session))};
+    }
+    if (state.page == Page::effects) {
+        if (state.focus_zone == 0) return ru(session) ? "ВЫБОР АКТЕРА" : "ACTOR SELECT";
+        const int effect_index = std::clamp(state.focus_zone - 1, 0, 3);
+        const auto kind = session.slots[static_cast<std::size_t>(state.slot)].effects[static_cast<std::size_t>(effect_index)].kind;
+        return state.effect_field == 0
+            ? "FX " + std::to_string(effect_index + 1) + " " + std::string{ru(session) ? "ТИП" : "TYPE"}
+            : std::string{effect_field(kind, state.effect_field - 1, ru(session))};
+    }
+    if (state.page == Page::master) {
+        if (state.focus_zone == 0)
+            return parameter(state) == 0 ? (ru(session) ? "ГРОМКОСТЬ" : "LEVEL") : (ru(session) ? "ТЕМП" : "TEMPO");
+        const int effect_index = std::clamp(state.focus_zone - 1, 0, 3);
+        const auto kind = session.master_effects[static_cast<std::size_t>(effect_index)].kind;
+        return state.master_effect_field == 0
+            ? "MASTER FX " + std::to_string(effect_index + 1) + " " + std::string{ru(session) ? "ТИП" : "TYPE"}
+            : std::string{effect_field(kind, state.master_effect_field - 1, ru(session))};
+    }
+    return ru(session) ? "СЛОТ ПАМЯТИ" : "MEMORY SLOT";
+}
+
+bool current_adjustable(const cd::Session& session, const UiState& state) {
+    if (state.page == Page::perform) return state.focus_zone == 1 || state.focus_zone == 2;
+    if (state.page == Page::slot) {
+        if (state.focus_zone == 1) return parameter(state) >= 3;
+        if (state.focus_zone == 2) {
+            switch (state.actor_advanced_field) {
+            case 3: case 5: case 6: case 7: case 8: case 13: case 14: case 16: return true;
+            default: return false;
+            }
+        }
+        return false;
+    }
+    if (state.page == Page::effects && state.focus_zone > 0) {
+        const int effect_index = state.focus_zone - 1;
+        return state.effect_field > 0 && state.effect_field <=
+            effect_field_count(session.slots[static_cast<std::size_t>(state.slot)].effects[static_cast<std::size_t>(effect_index)].kind);
+    }
+    if (state.page == Page::master) {
+        if (state.focus_zone == 0) return true;
+        const int effect_index = state.focus_zone - 1;
+        return state.master_effect_field > 0 && state.master_effect_field <=
+            effect_field_count(session.master_effects[static_cast<std::size_t>(effect_index)].kind);
+    }
+    return state.page == Page::memory && state.focus_zone == 2 && state.memory_setting > 0;
 }
 
 void adjust(cd::Session& session, UiState& state, float steps) {
-    const int selected = parameter(state);
-    switch (state.page) {
-    case Page::perform: {
-        if (state.scene_track_focus) {
+    const int direction = steps < 0.0F ? -1 : 1;
+    if (state.page == Page::perform) {
+        if (state.focus_zone == 1) {
+            float* value = macro_value(session.performance, parameter(state));
+            *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
+        } else if (state.focus_zone == 2) {
             auto& level = session.slots[static_cast<std::size_t>(state.slot)].level;
             level = std::clamp(level + steps * 0.01F, 0.0F, 1.0F);
             session.scene_modified = true;
-        } else {
-            float* value = macro_value(session.performance, selected);
-            *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
         }
-        break;
+        return;
     }
-    case Page::slot: {
-        if (selected == 0) {
-            break;
-        }
-        float* value = slot_value(session.slots[static_cast<std::size_t>(state.slot)], selected);
-        if (selected == 1) {
-            *value = std::clamp(*value * std::pow(2.0F, steps / 12.0F), 8.0F, 2'000.0F);
-        } else if (selected == 7) {
-            *value = std::clamp(*value + steps * 0.02F, -1.0F, 1.0F);
-        } else {
-            *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
+    if (state.page == Page::slot) {
+        auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
+        if (state.focus_zone == 1) {
+            switch (parameter(state)) {
+            case 3: slot.frequency_hz = std::clamp(slot.frequency_hz * std::pow(2.0F, steps / 12.0F), kMinimumAudibleFrequency, 2'000.0F); break;
+            case 4: slot.timbre = std::clamp(slot.timbre + steps * 0.01F, 0.0F, 1.0F); break;
+            case 5: slot.color = std::clamp(slot.color + steps * 0.01F, 0.0F, 1.0F); break;
+            case 6: slot.motion = std::clamp(slot.motion + steps * 0.01F, 0.0F, 1.0F); break;
+            case 7: slot.texture = std::clamp(slot.texture + steps * 0.01F, 0.0F, 1.0F); break;
+            case 8: slot.level = std::clamp(slot.level + steps * 0.01F, 0.0F, 1.0F); break;
+            case 9: slot.pan = std::clamp(slot.pan + steps * 0.02F, -1.0F, 1.0F); break;
+            default: break;
+            }
+        } else if (state.focus_zone == 2) {
+            auto& mod = slot.modulators[static_cast<std::size_t>(state.actor_modulator)];
+            switch (state.actor_advanced_field) {
+            case 0: slot.plaits_model = static_cast<cd::PlaitsModel>((static_cast<int>(slot.plaits_model) + direction + 16) % 16); break;
+            case 1: slot.plaits_output = static_cast<cd::PlaitsOutputMode>((static_cast<int>(slot.plaits_output) + direction + 4) % 4); break;
+            case 2: if (!g_scales.empty()) { int i = 0; for (std::size_t n=0;n<g_scales.size();++n) if (g_scales[n].name==slot.tuning.name.data()) i=static_cast<int>(n); i=(i+direction+static_cast<int>(g_scales.size()))%static_cast<int>(g_scales.size()); cd::apply_scale(slot.tuning,g_scales[static_cast<std::size_t>(i)]); } break;
+            case 3: slot.tuning.root_midi = std::clamp(slot.tuning.root_midi + static_cast<int>(steps), 0, 127); break;
+            case 5: slot.euclidean.steps = std::clamp(slot.euclidean.steps + static_cast<int>(steps), 1, 32); slot.euclidean.pulses=std::min(slot.euclidean.pulses,slot.euclidean.steps); break;
+            case 6: slot.euclidean.pulses = std::clamp(slot.euclidean.pulses + static_cast<int>(steps), 0, slot.euclidean.steps); break;
+            case 7: slot.euclidean.rotation = (slot.euclidean.rotation + direction + slot.euclidean.steps) % slot.euclidean.steps; break;
+            case 8: slot.euclidean.probability = std::clamp(slot.euclidean.probability + steps * 0.01F, 0.0F, 1.0F); break;
+            case 9: state.actor_modulator = (state.actor_modulator + direction + 4) % 4; break;
+            case 11: mod.wave = static_cast<cd::ModWave>((static_cast<int>(mod.wave) + direction + 4) % 4); break;
+            case 12: mod.destination = static_cast<cd::ModDestination>((static_cast<int>(mod.destination) + direction + 11) % 11); break;
+            case 13: mod.rate_hz = std::clamp(mod.rate_hz * std::pow(2.0F, steps / 12.0F), 0.001F, 40.0F); break;
+            case 14: mod.depth = std::clamp(mod.depth + steps * 0.01F, -1.0F, 1.0F); break;
+            case 15: { const int max_source=state.actor_modulator-1; if(max_source<0) mod.rate_mod_source=-1; else {const int count=max_source+2; mod.rate_mod_source=((mod.rate_mod_source+1+direction+count)%count)-1;} break; }
+            case 16: mod.rate_mod_amount = std::clamp(mod.rate_mod_amount + steps * 0.01F, -1.0F, 1.0F); break;
+            default: break;
+            }
         }
         session.scene_modified = true;
-        break;
+        return;
     }
-    case Page::effects: {
-        auto& effect = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(selected)];
-        if (effect_field_count(effect.kind) == 0) {
-            break;
-        }
-        float* value = effect_value(effect, state.effect_field);
-        *value = std::clamp(*value + steps * 0.01F, 0.0F, 1.0F);
+    if (state.page == Page::effects && state.focus_zone > 0) {
+        const int effect_index = state.focus_zone - 1;
+        auto& effect = session.slots[static_cast<std::size_t>(state.slot)].effects[static_cast<std::size_t>(effect_index)];
+        if (state.effect_field > 0 && state.effect_field <= effect_field_count(effect.kind))
+            *effect_value(effect, state.effect_field - 1) = std::clamp(*effect_value(effect, state.effect_field - 1) + steps * 0.01F, 0.0F, 1.0F);
         session.scene_modified = true;
-        break;
+        return;
     }
-    case Page::master:
-        if (selected == 0) {
-            session.master_level = std::clamp(session.master_level + steps * 0.01F, 0.0F, 1.0F);
-        } else if (selected == 1) {
-            session.tempo_bpm = std::clamp(session.tempo_bpm + steps, 10.0F, 300.0F);
-        }
-        break;
-    case Page::setup:
-        if (selected == 0) {
-            session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
+    if (state.page == Page::master) {
+        if (state.focus_zone == 0) {
+            if (parameter(state) == 0) session.master_level = std::clamp(session.master_level + steps * 0.01F, 0.0F, 1.0F);
+            else session.tempo_bpm = std::clamp(session.tempo_bpm + steps, 10.0F, 300.0F);
         } else {
-            float& seconds = selected == 1 ? session.fade_in_seconds : session.fade_out_seconds;
+            const int effect_index = state.focus_zone - 1;
+            auto& effect = session.master_effects[static_cast<std::size_t>(effect_index)];
+            if (state.master_effect_field > 0 && state.master_effect_field <= effect_field_count(effect.kind))
+                *effect_value(effect, state.master_effect_field - 1) = std::clamp(*effect_value(effect, state.master_effect_field - 1) + steps * 0.01F, 0.0F, 1.0F);
+        }
+        return;
+    }
+    if (state.page == Page::memory && state.focus_zone == 2) {
+        if (state.memory_setting == 0) session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
+        else {
+            float& seconds = state.memory_setting == 1 ? session.fade_in_seconds : session.fade_out_seconds;
             seconds = std::clamp(seconds + steps * 0.25F, 0.25F, 30.0F);
         }
-        break;
     }
 }
 
@@ -878,34 +1134,22 @@ void start_adjust(cd::Session& session, UiState& state, int direction, Uint32 no
     state.held_since = now;
     state.last_repeat = now;
     adjust(session, state, static_cast<float>(direction));
-    if ((state.page == Page::slot && parameter(state) == 0) ||
-        (state.page == Page::effects && effect_field_count(
-            session.slots[static_cast<std::size_t>(state.slot)]
-                .effects[static_cast<std::size_t>(parameter(state))].kind) == 0) ||
-        (state.page == Page::setup && parameter(state) == 0)) {
-        state.held_direction = 0;
-    }
+    if (!current_adjustable(session, state)) state.held_direction = 0;
 }
 
 bool repeat_adjust(cd::Session& session, UiState& state, Uint32 now) {
-    if (state.held_direction == 0 || now - state.held_since < 330U) {
-        return false;
-    }
+    if (state.held_direction == 0 || now - state.held_since < 330U) return false;
     const Uint32 elapsed = now - state.held_since;
     const Uint32 interval = elapsed >= 2'200U ? 16U : (elapsed >= 1'050U ? 35U : 70U);
-    const float multiplier = elapsed >= 2'200U ? 4.0F : (elapsed >= 1'050U ? 2.0F : 1.0F);
-    if (now - state.last_repeat < interval) {
-        return false;
-    }
+    const float multiplier = elapsed >= 2'200U ? 5.0F : (elapsed >= 1'050U ? 2.0F : 1.0F);
+    if (now - state.last_repeat < interval) return false;
     state.last_repeat = now;
     adjust(session, state, static_cast<float>(state.held_direction) * multiplier);
     return true;
 }
 
 void stop_adjust(UiState& state, int direction) noexcept {
-    if (state.held_direction == direction) {
-        state.held_direction = 0;
-    }
+    if (state.held_direction == direction) state.held_direction = 0;
 }
 
 void update_title(SDL_Window* window, const cd::Session& session, const UiState& state) {
@@ -1043,7 +1287,7 @@ void draw_header(
     segmented_output_meter(renderer, meter_x, 8, meter_width, 9,
         telemetry.master_rms, telemetry.master_peak);
     constexpr std::array<Page, 5> pages{
-        Page::perform, Page::slot, Page::effects, Page::master, Page::setup};
+        Page::perform, Page::slot, Page::effects, Page::master, Page::memory};
     for (int index = 0; index < 5; ++index) {
         const int x = 10 + index * 99;
         const bool selected = pages[static_cast<std::size_t>(index)] == state.page;
@@ -1076,60 +1320,54 @@ void draw_scene(
     const cd::AudioTelemetry& telemetry,
     const UiState& state) {
     fill(renderer, {10, 48, 492, 306}, kPanel);
+    const bool landscape_focus = state.focus_zone == 0;
+    const bool macro_focus = state.focus_zone == 1;
+    const bool actor_focus = state.focus_zone == 2;
+
+    fill(renderer, {16, 52, 480, 25}, landscape_focus ? SDL_Color{73, 46, 104, 255} : SDL_Color{27, 23, 36, 255});
+    if (landscape_focus) outline(renderer, {16, 52, 480, 25}, kInk);
     const std::string landscape = std::string{ru(session) ? "ЛАНДШАФТ: " : "LANDSCAPE: "} +
         std::string{scene_name(session.scene, ru(session))} + (session.scene_modified ? " *" : "");
-    cd::ui::draw_text(renderer, 22, 56, landscape, session.scene_modified ? kFxColors[1] : kInk);
-    cd::ui::draw_text(renderer, 350, 56,
-        session.scene_modified ? (ru(session) ? "ИЗМЕНЕН" : "MODIFIED")
-                               : (ru(session) ? "ПРЕСЕТ" : "PRESET"),
-        session.scene_modified ? kFxColors[1] : kDim);
+    cd::ui::draw_text(renderer, 24, 59, landscape, landscape_focus ? kInk : kDim);
+    cd::ui::draw_text(renderer, 462, 59, landscape_focus ? "A" : "", kInk);
+
+    fill(renderer, {16, 80, 480, 157}, macro_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (macro_focus) outline(renderer, {16, 80, 480, 157}, kInk);
     for (int index = 0; index < 5; ++index) {
-        const int y = 78 + index * 34;
-        const bool selected = !state.scene_track_focus && parameter(state) == index;
-        if (selected) {
-            fill(renderer, {18, y - 4, 476, 31}, {73, 46, 104, 255});
-            outline(renderer, {18, y - 4, 476, 31}, kInk);
-        }
-        cd::ui::draw_text(renderer, 26, y, macro_name(index, ru(session)), selected ? kInk : kDim);
+        const int y = 88 + index * 28;
+        const bool selected = macro_focus && parameter(state) == index;
+        if (selected) fill(renderer, {21, y - 4, 470, 23}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, 28, y, macro_name(index, ru(session)), selected ? kInk : kDim);
         char number[12]{};
         std::snprintf(number, sizeof(number), "%d%%", static_cast<int>(std::lround(
             macro_value(session.performance, index) * 100.0F)));
-        cd::ui::draw_text(renderer, 168 - cd::ui::text_width(number), y, number, selected ? kInk : kDim);
-        bar(renderer, 190, y, 294, 9, macro_value(session.performance, index),
+        cd::ui::draw_text(renderer, 174 - cd::ui::text_width(number), y, number, selected ? kInk : kDim);
+        bar(renderer, 194, y, 288, 10, macro_value(session.performance, index),
             selected ? kInk : kFxColors[static_cast<std::size_t>(index % 4)]);
-        const auto low = macro_endpoint(index, false, ru(session));
-        const auto high = macro_endpoint(index, true, ru(session));
-        cd::ui::draw_text(renderer, 190, y + 13, low, selected ? kInk : kDim);
-        cd::ui::draw_text(renderer, 484 - cd::ui::text_width(high), y + 13, high, selected ? kInk : kDim);
     }
 
-    const char* track_help = handheld()
-        ? (ru(session) ? "ДОРОЖКИ  LT/RT ВЫБОР  L/R УРОВЕНЬ  B MUTE"
-                       : "TRACKS  LT/RT SELECT  L/R LEVEL  B MUTE")
-        : (ru(session) ? "ДОРОЖКИ  LT/RT ВЫБОР  A/D УРОВЕНЬ  SPACE MUTE"
-                       : "TRACKS  LT/RT SELECT  A/D LEVEL  SPACE MUTE");
-    cd::ui::draw_text(renderer, 22, 250, track_help,
-        state.scene_track_focus ? kInk : kDim);
+    fill(renderer, {16, 241, 480, 107}, actor_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (actor_focus) outline(renderer, {16, 241, 480, 107}, kInk);
+    cd::ui::draw_text(renderer, 24, 248,
+        ru(session) ? "АКТЕРЫ ЛАНДШАФТА" : "LANDSCAPE ACTORS", actor_focus ? kInk : kDim);
     for (int index = 0; index < 4; ++index) {
-        const int x = 18 + index * 119;
+        const int x = 22 + index * 117;
         const auto& slot = session.slots[static_cast<std::size_t>(index)];
-        const bool active = state.slot == index;
-        fill(renderer, {x, 264, 111, 78}, active
-            ? (state.scene_track_focus ? SDL_Color{90, 53, 126, 255} : SDL_Color{73, 46, 104, 255})
-            : SDL_Color{27, 23, 36, 255});
-        if (active) outline(renderer, {x, 264, 111, 78}, state.scene_track_focus ? kInk : kDim);
-        const std::string title = std::to_string(index + 1) + " " +
-            std::string{engine_name(slot.engine, ru(session))};
-        cd::ui::draw_text(renderer, x + 6, 272, title, active ? kInk : kDim);
+        const bool selected = actor_focus && state.slot == index;
+        fill(renderer, {x, 263, 109, 78}, selected ? SDL_Color{73, 46, 104, 255} : SDL_Color{20, 17, 28, 255});
+        if (selected) outline(renderer, {x, 263, 109, 78}, kInk);
+        cd::ui::draw_text(renderer, x + 6, 270,
+            std::to_string(index + 1) + " " + std::string{engine_name(slot.engine, ru(session))},
+            selected ? kInk : kDim);
         const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(index)] * 4.2F, 0.0F, 1.0F);
-        bar(renderer, x + 6, 291, 99, 10, meter, react(kFxColors[static_cast<std::size_t>(index)], meter));
-        char level[12]{};
-        std::snprintf(level, sizeof(level), "LVL %d%%", static_cast<int>(std::lround(slot.level * 100.0F)));
-        cd::ui::draw_text(renderer, x + 6, 309, level,
-            active && state.scene_track_focus ? kInk : kDim);
-        if (!slot.enabled) {
-            cd::ui::draw_text(renderer, x + 6, 325, "MUTE", kFxColors[0]);
-        }
+        bar(renderer, x + 6, 289, 97, 8, meter, react(kFxColors[static_cast<std::size_t>(index)], meter));
+        char level[16]{};
+        std::snprintf(level, sizeof(level), "%s %d%%", ru(session) ? "УРОВ" : "LEVEL",
+            static_cast<int>(std::lround(slot.level * 100.0F)));
+        cd::ui::draw_text(renderer, x + 6, 304, level, selected ? kInk : kDim);
+        cd::ui::draw_text(renderer, x + 6, 322,
+            slot.enabled ? "A: MUTE" : (ru(session) ? "A: ВКЛ" : "A: ON"),
+            slot.enabled ? kDim : kFxColors[0]);
     }
 }
 
@@ -1138,65 +1376,63 @@ void draw_tracks(
     const cd::Session& session,
     const cd::AudioTelemetry& telemetry,
     const UiState& state) {
-    constexpr int panel_width = 117;
-    for (int index = 0; index < 4; ++index) {
-        const int x = 10 + index * 125;
-        const float activity = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(index)] * 5.0F, 0.0F, 1.0F);
-        fill(renderer, {x, 48, panel_width, 306},
-            index == state.slot ? react(kPurple, activity * 0.35F) : react(kPanel, activity * 0.45F));
-        if (index == state.slot) {
-            outline(renderer, {x + 1, 49, panel_width - 2, 304}, kInk);
+    fill(renderer, {10, 48, 492, 306}, kPanel);
+    const bool actor_focus = state.focus_zone == 0;
+    fill(renderer, {14, 51, 484, 31}, actor_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (actor_focus) outline(renderer, {14, 51, 484, 31}, kInk);
+    for (int actor = 0; actor < 4; ++actor) {
+        const int x = 18 + actor * 119;
+        const bool selected = actor == state.slot;
+        if (selected) fill(renderer, {x, 55, 111, 23}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, x + 6, 61,
+            std::to_string(actor + 1) + " " + std::string{engine_name(session.slots[static_cast<std::size_t>(actor)].engine, ru(session))},
+            selected ? kInk : kDim);
+        const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(actor)] * 4.2F, 0.0F, 1.0F);
+        bar(renderer, x + 6, 73, 99, 4, meter, react(kFxColors[static_cast<std::size_t>(actor)], meter));
+    }
+
+    const bool show_advanced = state.focus_zone == 2;
+    const bool list_focus = state.focus_zone == 1 || state.focus_zone == 2;
+    const int tab_width = 236;
+    fill(renderer, {18, 87, tab_width, 23}, !show_advanced ? SDL_Color{73, 46, 104, 255} : SDL_Color{27, 23, 36, 255});
+    fill(renderer, {258, 87, tab_width, 23}, show_advanced ? SDL_Color{73, 46, 104, 255} : SDL_Color{27, 23, 36, 255});
+    cd::ui::draw_text(renderer, 26, 94, ru(session) ? "ОСНОВНОЕ" : "BASIC", !show_advanced ? kInk : kDim);
+    cd::ui::draw_text(renderer, 266, 94, ru(session) ? "РАСШИРЕННОЕ" : "ADVANCED", show_advanced ? kInk : kDim);
+
+    fill(renderer, {18, 114, 476, 225}, list_focus ? SDL_Color{38, 28, 50, 255} : SDL_Color{27, 23, 36, 255});
+    if (list_focus) outline(renderer, {18, 114, 476, 225}, kInk);
+    if (!show_advanced) {
+        for (int field = 0; field < 10; ++field) {
+            const int y = 121 + field * 21;
+            const bool active = state.focus_zone == 1 && parameter(state) == field;
+            if (active) fill(renderer, {23, y - 3, 466, 18}, {73, 46, 104, 255});
+            const std::string label{actor_basic_label(field, ru(session))};
+            const std::string value = actor_basic_value(session, state, field);
+            cd::ui::draw_text(renderer, 30, y, label, active ? kInk : kDim);
+            cd::ui::draw_text(renderer, 482 - cd::ui::text_width(value), y, value,
+                active ? kInk : kFxColors[static_cast<std::size_t>(state.slot)]);
         }
-        const std::string title = std::string{ru(session) ? "СЛОТ " : "SLOT "} + std::to_string(index + 1);
-        cd::ui::draw_text(renderer, x + 7, 56, title, kInk);
-        cd::ui::draw_text(renderer, x + 7, 69,
-            engine_name(session.slots[static_cast<std::size_t>(index)].engine, ru(session)), kDim);
-        scope(renderer, x + 8, 84, panel_width - 16, 62,
-            telemetry.slot_scope[static_cast<std::size_t>(index)],
-            telemetry.slot_rms[static_cast<std::size_t>(index)],
-            telemetry.slot_peak[static_cast<std::size_t>(index)]);
-        const auto& slot = session.slots[static_cast<std::size_t>(index)];
-        const int selected_parameter = state.slot_selected[static_cast<std::size_t>(index)];
-        for (int slot_parameter = 0; slot_parameter < 8; ++slot_parameter) {
-            const int y = 153 + slot_parameter * 24;
-            const bool selected = index == state.slot && selected_parameter == slot_parameter;
-            if (selected) fill(renderer, {x + 4, y - 3, panel_width - 8, 22}, {73, 46, 104, 255});
-            SDL_Color color = selected ? kInk : react(
-                kFxColors[static_cast<std::size_t>(slot_parameter % 4)], activity);
-            std::string label;
-            std::string shown;
-            float normalized = 0.0F;
-            char number[20]{};
-            if (slot_parameter == 0) {
-                label = ru(session) ? "ДВИЖ" : "ENG";
-                shown = std::string{engine_name(slot.engine, ru(session))};
-            } else {
-                label = std::string{slot_name(slot_parameter, slot, session.locale)};
-                const float value = slot_value(slot, slot_parameter);
-                if (slot_parameter == 1) {
-                    std::snprintf(number, sizeof(number), "%.0fH", static_cast<double>(value));
-                    normalized = std::clamp(std::log2(value / 8.0F) / std::log2(2000.0F / 8.0F), 0.0F, 1.0F);
-                } else if (slot_parameter == 7) {
-                    std::snprintf(number, sizeof(number), "%+.0f", static_cast<double>(value * 100.0F));
-                    normalized = value * 0.5F + 0.5F;
-                } else {
-                    std::snprintf(number, sizeof(number), "%d%%", static_cast<int>(std::lround(value * 100.0F)));
-                    normalized = value;
-                }
-                shown = number;
-            }
-            cd::ui::draw_text(renderer, x + 6, y, label, color);
-            cd::ui::draw_text(renderer, x + panel_width - 6 - cd::ui::text_width(shown), y, shown, color);
-            if (slot_parameter > 0) {
-                bar(renderer, x + 6, y + 12, panel_width - 12, 5, normalized, color);
-            }
-        }
-        if (!slot.enabled) {
-            fill(renderer, {x, 48, panel_width, 306}, {0, 0, 0, 168});
-            cd::ui::draw_text(renderer, x + 7, 122, ru(session) ? "MUTE / ХВОСТ" : "MUTE / TAIL",
-                {239, 112, 112, 255});
+    } else {
+        for (int field = 0; field < 17; ++field) {
+            const bool right = field >= 9;
+            const int row = right ? field - 9 : field;
+            const int x = right ? 258 : 23;
+            const int width = right ? 231 : 231;
+            const int y = 121 + row * 24;
+            const bool active = state.focus_zone == 2 && state.actor_advanced_field == field;
+            if (active) fill(renderer, {x, y - 3, width, 20}, {73, 46, 104, 255});
+            const std::string label{actor_advanced_label(field, ru(session))};
+            const std::string value = actor_advanced_value(session, state, field);
+            cd::ui::draw_text(renderer, x + 7, y, label, active ? kInk : kDim);
+            cd::ui::draw_text(renderer, x + width - 7 - cd::ui::text_width(value), y, value,
+                active ? kInk : kFxColors[static_cast<std::size_t>(state.slot)]);
         }
     }
+    cd::ui::draw_text(renderer, 22, 344,
+        actor_focus
+            ? (ru(session) ? "D-PAD: АКТЕР  A: MUTE  X: ОСНОВНОЕ" : "D-PAD: ACTOR  A: MUTE  X: BASIC")
+            : (ru(session) ? "UP/DN: ПАРАМЕТР  LT/RT: ЗНАЧЕНИЕ  A: ДЕЙСТВИЕ" : "UP/DN: PARAMETER  LT/RT: VALUE  A: ACTION"),
+        kDim);
 }
 
 void effect_visual(
@@ -1305,6 +1541,7 @@ void effect_visual(
         case cd::EffectKind::ritual_gate:
         case cd::EffectKind::rust_cloud:
         case cd::EffectKind::deep_sea:
+        case cd::EffectKind::granular_reverse:
             value = std::tanh((std::sin(t * 6.2831853F * (1.0F + effect.tone * 5.0F)) +
                 std::sin(t * 18.8495559F * (1.0F + effect.feedback * 2.0F)) * 0.62F +
                 std::sin(t * 50.2654825F) * effect.feedback * 0.24F) *
@@ -1325,56 +1562,66 @@ void draw_effects(
     const cd::Session& session,
     const cd::AudioTelemetry& telemetry,
     const UiState& state) {
-    constexpr int panel_width = 117;
-    const int active_effect = parameter(state);
+    fill(renderer, {10, 48, 492, 306}, kPanel);
+    const bool actor_focus = state.focus_zone == 0;
+    fill(renderer, {14, 51, 484, 31}, actor_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (actor_focus) outline(renderer, {14, 51, 484, 31}, kInk);
+    for (int actor = 0; actor < 4; ++actor) {
+        const int x = 18 + actor * 119;
+        const bool selected = actor == state.slot;
+        if (selected) fill(renderer, {x, 55, 111, 23}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, x + 6, 61,
+            std::to_string(actor + 1) + " " + std::string{engine_name(session.slots[static_cast<std::size_t>(actor)].engine, ru(session))},
+            selected ? kInk : kDim);
+        const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(actor)] * 4.2F, 0.0F, 1.0F);
+        bar(renderer, x + 6, 73, 99, 4, meter, react(kFxColors[static_cast<std::size_t>(actor)], meter));
+    }
+
     const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
-    for (int track = 0; track < 4; ++track) {
-        const int x = 10 + track * 125;
-        const bool selected = track == state.slot;
-        const float meter = std::clamp(
-            telemetry.slot_rms[static_cast<std::size_t>(track)] * 4.2F, 0.0F, 1.0F);
-        fill(renderer, {x, 48, panel_width, 32}, selected ? SDL_Color{73, 46, 104, 255} : kPanel);
-        if (selected) outline(renderer, {x, 48, panel_width, 32}, kInk);
-        const auto& track_slot = session.slots[static_cast<std::size_t>(track)];
-        const std::string source = std::to_string(track + 1) + " " +
-            std::string{engine_name(track_slot.engine, ru(session))};
-        cd::ui::draw_text(renderer, x + 6, 54, source, selected ? kInk : kDim);
-        bar(renderer, x + 6, 68, panel_width - 12, 6, meter,
-            react(kFxColors[static_cast<std::size_t>(track)], meter));
-    }
+    const int active_effect = state.focus_zone > 0 ? state.focus_zone - 1 : parameter(state);
     for (int index = 0; index < 4; ++index) {
-        const int x = 10 + index * 125;
-        fill(renderer, {x, 84, panel_width, 270}, index == active_effect ? kPurple : kPanel);
-        if (index == active_effect) {
-            outline(renderer, {x + 1, 85, panel_width - 2, 268}, kInk);
-        }
-        const std::string title = "FX " + std::to_string(index + 1);
-        const auto& effect = slot.effects[static_cast<std::size_t>(index)];
-        cd::ui::draw_text(renderer, x + 7, 93, title, kInk);
-        cd::ui::draw_text(renderer, x + 7, 107, effect_name(effect.kind, ru(session)),
-            kFxColors[static_cast<std::size_t>(index)]);
-        effect_visual(renderer, x + 8, 125, panel_width - 16, 66, effect,
-            kFxColors[static_cast<std::size_t>(index)]);
-        const int fields = effect_field_count(effect.kind);
-        if (fields == 0) {
-            cd::ui::draw_text(renderer, x + 7, 214,
-                ru(session) ? "СИГНАЛ БЕЗ" : "SIGNAL PASSES", kDim);
-            cd::ui::draw_text(renderer, x + 7, 228,
-                ru(session) ? "ОБРАБОТКИ" : "UNCHANGED", kDim);
-        }
-        for (int field = 0; field < fields; ++field) {
-            const int y = 205 + field * 47;
-            const bool selected = index == active_effect && field == state.effect_field;
-            cd::ui::draw_text(renderer, x + 7, y, effect_field(effect.kind, field, ru(session)),
-                selected ? kInk : kDim);
-            bar(renderer, x + 7, y + 14, panel_width - 14, 10, effect_value(effect, field),
-                selected ? kInk : kFxColors[static_cast<std::size_t>(index)]);
-            char number[12]{};
-            std::snprintf(number, sizeof(number), "%d%%", static_cast<int>(std::lround(
-                effect_value(effect, field) * 100.0F)));
-            cd::ui::draw_text(renderer, x + 7, y + 28, number, selected ? kInk : kDim);
-        }
+        const int x = 18 + index * 119;
+        const bool selected = index == active_effect;
+        const bool focused = state.focus_zone == index + 1;
+        fill(renderer, {x, 87, 111, 38}, focused ? SDL_Color{73, 46, 104, 255} : SDL_Color{27, 23, 36, 255});
+        if (focused) outline(renderer, {x, 87, 111, 38}, kInk);
+        cd::ui::draw_text(renderer, x + 6, 93, "FX " + std::to_string(index + 1), selected ? kInk : kDim);
+        cd::ui::draw_text(renderer, x + 6, 108, effect_name(slot.effects[static_cast<std::size_t>(index)].kind, ru(session)),
+            selected ? kFxColors[static_cast<std::size_t>(index)] : kDim);
     }
+
+    const auto& effect = slot.effects[static_cast<std::size_t>(active_effect)];
+    const bool editor_focus = state.focus_zone > 0;
+    fill(renderer, {18, 131, 476, 210}, editor_focus ? SDL_Color{38, 28, 50, 255} : SDL_Color{27, 23, 36, 255});
+    if (editor_focus) outline(renderer, {18, 131, 476, 210}, kInk);
+    cd::ui::draw_text(renderer, 28, 140,
+        "FX " + std::to_string(active_effect + 1) + "  " + std::string{effect_name(effect.kind, ru(session))},
+        kFxColors[static_cast<std::size_t>(active_effect)], 2);
+    effect_visual(renderer, 28, 174, 190, 104, effect, kFxColors[static_cast<std::size_t>(active_effect)]);
+
+    const int fields = effect_field_count(effect.kind);
+    const int rows = 1 + fields;
+    for (int row = 0; row < rows; ++row) {
+        const int y = 174 + row * 38;
+        const bool active = editor_focus && state.effect_field == row;
+        if (active) fill(renderer, {234, y - 5, 248, 29}, {73, 46, 104, 255});
+        const std::string label = row == 0
+            ? (ru(session) ? "ТИП ЭФФЕКТА" : "EFFECT TYPE")
+            : std::string{effect_field(effect.kind, row - 1, ru(session))};
+        const std::string value = row == 0
+            ? std::string{effect_name(effect.kind, ru(session))}
+            : std::to_string(static_cast<int>(std::lround(effect_value(effect, row - 1) * 100.0F))) + "%";
+        cd::ui::draw_text(renderer, 242, y, label, active ? kInk : kDim);
+        cd::ui::draw_text(renderer, 474 - cd::ui::text_width(value), y, value,
+            active ? kInk : kFxColors[static_cast<std::size_t>(active_effect)]);
+        if (row > 0) bar(renderer, 242, y + 16, 230, 7, effect_value(effect, row - 1),
+            active ? kInk : kFxColors[static_cast<std::size_t>(active_effect)]);
+    }
+    cd::ui::draw_text(renderer, 22, 344,
+        actor_focus
+            ? (ru(session) ? "D-PAD: АКТЕР  A: MUTE  X: FX1" : "D-PAD: ACTOR  A: MUTE  X: FX1")
+            : (ru(session) ? "X: СЛЕДУЮЩИЙ FX  UP/DN: СТРОКА  LT/RT: ЗНАЧЕНИЕ  A: СПИСОК" : "X: NEXT FX  UP/DN: ROW  LT/RT: VALUE  A: LIST"),
+        kDim);
 }
 
 void draw_master(
@@ -1383,110 +1630,179 @@ void draw_master(
     const cd::AudioTelemetry& telemetry,
     const UiState& state) {
     fill(renderer, {10, 48, 492, 306}, kPanel);
-    cd::ui::draw_text(renderer, 24, 58, ru(session) ? "ИТОГОВЫЙ СИГНАЛ" : "MASTER SIGNAL", kDim);
-    scope(renderer, 24, 74, 464, 72, telemetry.master_scope, telemetry.master_rms, telemetry.master_peak);
-    const std::array<std::string, 2> labels{
-        ru(session) ? "ОБЩАЯ ГРОМКОСТЬ" : "MASTER LEVEL",
-        ru(session) ? "ТЕМП ПРОЦЕССОВ" : "PROCESS TEMPO",
-    };
-    const std::array<float, 2> values{
-        session.master_level, (session.tempo_bpm - 10.0F) / 290.0F};
-    for (int index = 0; index < 2; ++index) {
-        const int y = 164 + index * 57;
-        const bool selected = parameter(state) == index;
-        cd::ui::draw_text(renderer, 24, y, labels[static_cast<std::size_t>(index)], selected ? kInk : kDim);
-        bar(renderer, 160, y, 328, 15, values[static_cast<std::size_t>(index)], selected ? kInk : kPurple);
-        char number[24]{};
-        if (index == 1) {
-            std::snprintf(number, sizeof(number), "%.0f BPM", static_cast<double>(session.tempo_bpm));
-        } else {
-            std::snprintf(number, sizeof(number), "%d%%", static_cast<int>(std::lround(
-                values[static_cast<std::size_t>(index)] * 100.0F)));
-        }
-        cd::ui::draw_text(renderer, 24, y + 20, number, kInk);
+    const bool signal_focus = state.focus_zone == 0;
+    fill(renderer, {16, 51, 480, 105}, signal_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (signal_focus) outline(renderer, {16, 51, 480, 105}, kInk);
+    cd::ui::draw_text(renderer, 24, 58, ru(session) ? "ИТОГОВЫЙ СИГНАЛ" : "MASTER SIGNAL", signal_focus ? kInk : kDim);
+    scope(renderer, 24, 74, 460, 43, telemetry.master_scope, telemetry.master_rms, telemetry.master_peak);
+    const std::array<std::string_view, 2> labels{ru(session) ? "ГРОМКОСТЬ" : "LEVEL", ru(session) ? "ТЕМП" : "TEMPO"};
+    for (int field = 0; field < 2; ++field) {
+        const int y = 124 + field * 22;
+        const bool selected = signal_focus && parameter(state) == field;
+        if (selected) fill(renderer, {22, y - 3, 466, 18}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, 30, y, labels[static_cast<std::size_t>(field)], selected ? kInk : kDim);
+        const float normalized = field == 0 ? session.master_level : (session.tempo_bpm - 10.0F) / 290.0F;
+        bar(renderer, 136, y + 1, 270, 8, normalized, selected ? kInk : kPurple);
+        const std::string value = field == 0
+            ? std::to_string(static_cast<int>(std::lround(session.master_level * 100.0F))) + "%"
+            : std::to_string(static_cast<int>(std::lround(session.tempo_bpm))) + " BPM";
+        cd::ui::draw_text(renderer, 480 - cd::ui::text_width(value), y, value, selected ? kInk : kDim);
     }
-    std::string fade_status;
-    if (state.auto_fade) {
-        fade_status = state.fade_target > session.performance.fade
-            ? (ru(session) ? "ВЫХОД: ОТКРЫВАЕТСЯ" : "OUTPUT: OPENING")
-            : (ru(session) ? "ВЫХОД: ЗАКРЫВАЕТСЯ" : "OUTPUT: CLOSING");
-    } else if (session.performance.fade >= 0.999F) {
-        fade_status = ru(session) ? "ВЫХОД: ОТКРЫТ" : "OUTPUT: OPEN";
-    } else if (session.performance.fade <= 0.001F) {
-        fade_status = ru(session) ? "ВЫХОД: ЗАКРЫТ" : "OUTPUT: CLOSED";
-    } else {
-        fade_status = ru(session) ? "ВЫХОД: ПАУЗА" : "OUTPUT: PAUSED";
+
+    const int active_effect = state.focus_zone > 0 ? state.focus_zone - 1 : state.master_effect;
+    for (int index = 0; index < 4; ++index) {
+        const int x = 18 + index * 119;
+        const bool focused = state.focus_zone == index + 1;
+        fill(renderer, {x, 162, 111, 37}, focused ? SDL_Color{73, 46, 104, 255} : SDL_Color{27, 23, 36, 255});
+        if (focused) outline(renderer, {x, 162, 111, 37}, kInk);
+        cd::ui::draw_text(renderer, x + 6, 168, "FX " + std::to_string(index + 1), focused ? kInk : kDim);
+        cd::ui::draw_text(renderer, x + 6, 183, effect_name(session.master_effects[static_cast<std::size_t>(index)].kind, ru(session)),
+            focused ? kFxColors[static_cast<std::size_t>(index)] : kDim);
     }
-    char fade_value[16]{};
-    std::snprintf(fade_value, sizeof(fade_value), "%d%%",
-        static_cast<int>(std::lround(session.performance.fade * 100.0F)));
-    cd::ui::draw_text(renderer, 24, 278, fade_status, state.auto_fade ? SDL_Color{91, 218, 179, 255} : kDim);
-    cd::ui::draw_text(renderer, 454 - cd::ui::text_width(fade_value), 278, fade_value, kInk);
-    bar(renderer, 24, 293, 464, 11, session.performance.fade,
-        state.auto_fade ? SDL_Color{91, 218, 179, 255} : kPurple);
-    char next_fade[64]{};
-    const bool will_open = session.performance.fade <= 0.5F;
-    const char* fade_button = handheld() ? "SELECT" : "F";
-    std::snprintf(next_fade, sizeof(next_fade), "%s %s: %s %.1fS",
-        ru(session) ? "КНОПКА" : "BUTTON", fade_button,
-        will_open ? (ru(session) ? "ОТКРЫТЬ ЗА" : "OPEN IN")
-                  : (ru(session) ? "ЗАКРЫТЬ ЗА" : "CLOSE IN"),
-        static_cast<double>(will_open ? session.fade_in_seconds : session.fade_out_seconds));
-    cd::ui::draw_text(renderer, 24, 309, next_fade, kDim);
-    char cpu[24]{};
-    std::snprintf(cpu, sizeof(cpu), "DSP %d%%", state.displayed_cpu_percent);
-    cd::ui::draw_text(renderer, 24, 329, cpu, state.displayed_cpu_percent < 75 ? kDim : kFxColors[0]);
-    for (int slot = 0; slot < 4; ++slot) {
-        const float value = telemetry.slot_rms[static_cast<std::size_t>(slot)] * 4.0F;
-        bar(renderer, 112 + slot * 94, 330, 84, 8, value, react(kFxColors[static_cast<std::size_t>(slot)], value));
+
+    const auto& effect = session.master_effects[static_cast<std::size_t>(active_effect)];
+    const bool editor_focus = state.focus_zone > 0;
+    fill(renderer, {18, 204, 476, 137}, editor_focus ? SDL_Color{38, 28, 50, 255} : SDL_Color{27, 23, 36, 255});
+    if (editor_focus) outline(renderer, {18, 204, 476, 137}, kInk);
+    effect_visual(renderer, 28, 216, 174, 105, effect, kFxColors[static_cast<std::size_t>(active_effect)]);
+    const int fields = effect_field_count(effect.kind);
+    for (int row = 0; row < 1 + fields; ++row) {
+        const int y = 216 + row * 28;
+        const bool active = editor_focus && state.master_effect_field == row;
+        if (active) fill(renderer, {216, y - 4, 268, 22}, {73, 46, 104, 255});
+        const std::string label = row == 0
+            ? (ru(session) ? "ТИП ЭФФЕКТА" : "EFFECT TYPE")
+            : std::string{effect_field(effect.kind, row - 1, ru(session))};
+        const std::string value = row == 0
+            ? std::string{effect_name(effect.kind, ru(session))}
+            : std::to_string(static_cast<int>(std::lround(effect_value(effect, row - 1) * 100.0F))) + "%";
+        cd::ui::draw_text(renderer, 224, y, label, active ? kInk : kDim);
+        cd::ui::draw_text(renderer, 476 - cd::ui::text_width(value), y, value,
+            active ? kInk : kFxColors[static_cast<std::size_t>(active_effect)]);
     }
+    cd::ui::draw_text(renderer, 22, 344,
+        signal_focus
+            ? (ru(session) ? "UP/DN: ПАРАМЕТР  LT/RT: ЗНАЧЕНИЕ  X: MASTER FX1" : "UP/DN: PARAMETER  LT/RT: VALUE  X: MASTER FX1")
+            : (ru(session) ? "X: СЛЕДУЮЩИЙ FX  UP/DN: СТРОКА  LT/RT: ЗНАЧЕНИЕ  A: СПИСОК" : "X: NEXT FX  UP/DN: ROW  LT/RT: VALUE  A: LIST"),
+        kDim);
+}
+
+bool memory_slot_exists(int index) {
+    if (index < 0 || index >= static_cast<int>(cd::kMemorySlots)) return false;
+    std::error_code error;
+    return std::filesystem::is_regular_file(g_memory_paths[static_cast<std::size_t>(index)], error);
+}
+
+void set_toast(UiState& state, std::string text) {
+    state.toast = std::move(text);
+    state.toast_until = SDL_GetTicks() + 1'800U;
+}
+
+bool save_memory_slot(const cd::Session& session, UiState& state) {
+    if (g_memory_paths[static_cast<std::size_t>(state.memory_slot)].empty()) return false;
+    std::string error;
+    const bool ok = cd::save_session(session, g_memory_paths[static_cast<std::size_t>(state.memory_slot)], error);
+    set_toast(state, ok ? (ru(session) ? "СОХРАНЕНО В СЛОТ " : "SAVED TO SLOT ") + std::to_string(state.memory_slot + 1)
+                        : (ru(session) ? "ОШИБКА СОХРАНЕНИЯ" : "SAVE FAILED"));
+    return ok;
+}
+
+bool load_memory_slot(cd::Session& session, UiState& state) {
+    const auto path = g_memory_paths[static_cast<std::size_t>(state.memory_slot)];
+    if (path.empty() || !memory_slot_exists(state.memory_slot)) {
+        set_toast(state, ru(session) ? "СЛОТ ПУСТ" : "SLOT IS EMPTY");
+        return false;
+    }
+    cd::Session loaded{};
+    std::string error;
+    if (!cd::load_session(path, loaded, error)) {
+        set_toast(state, ru(session) ? "ОШИБКА ЗАГРУЗКИ" : "LOAD FAILED");
+        return false;
+    }
+    const auto locale = session.locale;
+    const float fade_in = session.fade_in_seconds;
+    const float fade_out = session.fade_out_seconds;
+    session = loaded;
+    session.locale = locale;
+    session.fade_in_seconds = fade_in;
+    session.fade_out_seconds = fade_out;
+    session.performance.morph = 0.0F;
+    session.performance.morph_target = session.scene;
+    set_toast(state, (ru(session) ? "ЗАГРУЖЕН СЛОТ " : "LOADED SLOT ") + std::to_string(state.memory_slot + 1));
+    return true;
+}
+
+void reset_landscape(cd::Session& session, UiState& state) {
+    const auto master_effects = session.master_effects;
+    cd::apply_scene_recipe(session, session.scene);
+    session.master_effects = master_effects;
+    session.performance.morph = 0.0F;
+    session.performance.morph_target = session.scene;
+    set_toast(state, ru(session) ? "ЛАНДШАФТ ВОССТАНОВЛЕН" : "LANDSCAPE RESTORED");
 }
 
 void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
     fill(renderer, {10, 48, 492, 306}, kPanel);
-    const std::array<std::string, 3> labels{
-        std::string{cd::tr(session.locale, cd::TextId::language)},
-        ru(session) ? "СКОРОСТЬ ФЕЙДА ВВЕРХ" : "FADE-IN TIME",
-        ru(session) ? "СКОРОСТЬ ФЕЙДА ВНИЗ" : "FADE-OUT TIME",
-    };
-    for (int index = 0; index < 3; ++index) {
-        const int y = 72 + index * 70;
-        const bool selected = parameter(state) == index;
-        if (selected) fill(renderer, {22, y - 10, 466, 55}, {73, 46, 104, 255});
-        cd::ui::draw_text(renderer, 32, y, labels[static_cast<std::size_t>(index)], selected ? kInk : kDim);
-        std::string shown_value;
-        if (index == 0) {
-            shown_value = session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
-        } else {
-            char seconds_text[16]{};
-            std::snprintf(seconds_text, sizeof(seconds_text), "%.2f S", static_cast<double>(
-                index == 1 ? session.fade_in_seconds : session.fade_out_seconds));
-            shown_value = seconds_text;
-        }
-        cd::ui::draw_text(renderer, 338, y, shown_value, selected ? kInk : kDim);
-        if (index > 0) {
-            const float seconds = index == 1 ? session.fade_in_seconds : session.fade_out_seconds;
-            bar(renderer, 32, y + 20, 436, 10, (seconds - 0.25F) / 29.75F,
-                selected ? kInk : kPurple);
-        }
+    const bool slots_focus = state.focus_zone == 0;
+    const bool actions_focus = state.focus_zone == 1;
+    const bool settings_focus = state.focus_zone == 2;
+    fill(renderer, {16, 51, 480, 137}, slots_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (slots_focus) outline(renderer, {16, 51, 480, 137}, kInk);
+    cd::ui::draw_text(renderer, 24, 58,
+        ru(session) ? "8 СЛОТОВ ДЛЯ СВОИХ СОСТОЯНИЙ" : "8 SLOTS FOR YOUR STATES", slots_focus ? kInk : kDim);
+    for (int index = 0; index < 8; ++index) {
+        const int column = index % 4;
+        const int row = index / 4;
+        const int x = 22 + column * 118;
+        const int y = 82 + row * 49;
+        const bool selected = slots_focus && state.memory_slot == index;
+        fill(renderer, {x, y, 106, 39}, selected ? SDL_Color{73, 46, 104, 255} : SDL_Color{20, 17, 28, 255});
+        if (selected) outline(renderer, {x, y, 106, 39}, kInk);
+        cd::ui::draw_text(renderer, x + 8, y + 7,
+            (ru(session) ? "СЛОТ " : "SLOT ") + std::to_string(index + 1), selected ? kInk : kDim);
+        cd::ui::draw_text(renderer, x + 8, y + 23,
+            memory_slot_exists(index) ? (ru(session) ? "СОХРАНЕН" : "SAVED") : (ru(session) ? "ПУСТ" : "EMPTY"),
+            memory_slot_exists(index) ? kFxColors[2] : kDim);
     }
-    SDL_SetRenderDrawColor(renderer, 75, 67, 86, 255);
-    SDL_RenderDrawLine(renderer, 32, 267, 468, 267);
-    draw_myldy_mark(renderer, 32, 275, 1, kInk);
-    cd::ui::draw_text(renderer, 68, 276, "MYLDY DESIGN  @MYLDY20", kInk);
-    cd::ui::draw_text(renderer, 68, 292, "DSP: DAISYSP  UI: FONT512  PORTMASTER", kDim);
-    constexpr std::string_view version{"V0.9.0"};
-    cd::ui::draw_text(renderer, 468 - cd::ui::text_width(version), 276, version, kDim);
-    char cpu[48]{};
-    std::snprintf(cpu, sizeof(cpu), "DSP %d%%", state.displayed_cpu_percent);
-    cd::ui::draw_text(renderer, 468 - cd::ui::text_width(cpu), 292, cpu,
-        state.displayed_cpu_percent < 75 ? kDim : kFxColors[0]);
-    cd::ui::draw_text(renderer, 32, 328,
-        handheld()
-            ? (ru(session) ? "L/R: ИЗМЕНИТЬ / АВТОСОХРАНЕНИЕ" : "L/R: CHANGE / AUTOSAVE")
-            : (ru(session) ? "A/D: ИЗМЕНИТЬ / НАСТРОЙКИ СОХРАНЯЮТСЯ АВТОМАТИЧЕСКИ"
-                           : "A/D: CHANGE / SETTINGS ARE SAVED AUTOMATICALLY"),
-        kDim);
+
+    fill(renderer, {16, 193, 274, 103}, actions_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (actions_focus) outline(renderer, {16, 193, 274, 103}, kInk);
+    const std::array<std::string, 3> actions{
+        ru(session) ? "ЗАГРУЗИТЬ ВЫБРАННЫЙ СЛОТ" : "LOAD SELECTED SLOT",
+        ru(session) ? "СОХРАНИТЬ В ВЫБРАННЫЙ СЛОТ" : "SAVE TO SELECTED SLOT",
+        ru(session) ? "ВОССТАНОВИТЬ ЛАНДШАФТ" : "RESTORE LANDSCAPE"};
+    for (int index = 0; index < 3; ++index) {
+        const int y = 204 + index * 28;
+        const bool selected = actions_focus && state.memory_action == index;
+        if (selected) fill(renderer, {22, y - 4, 260, 23}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, 28, y, actions[static_cast<std::size_t>(index)], selected ? kInk : kDim);
+    }
+
+    fill(renderer, {296, 193, 200, 103}, settings_focus ? SDL_Color{44, 31, 58, 255} : SDL_Color{27, 23, 36, 255});
+    if (settings_focus) outline(renderer, {296, 193, 200, 103}, kInk);
+    const std::array<std::string, 3> settings{
+        ru(session) ? "ЯЗЫК" : "LANGUAGE",
+        ru(session) ? "ФЕЙД ВХОДА" : "FADE IN",
+        ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT"};
+    for (int index = 0; index < 3; ++index) {
+        const int y = 204 + index * 28;
+        const bool selected = settings_focus && state.memory_setting == index;
+        if (selected) fill(renderer, {302, y - 4, 188, 23}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, 308, y, settings[static_cast<std::size_t>(index)], selected ? kInk : kDim);
+        std::string value;
+        if (index == 0) value = session.locale == cd::Locale::ru ? "РУССКИЙ" : "ENGLISH";
+        else {
+            char number[16]{};
+            std::snprintf(number, sizeof(number), "%.2f S", static_cast<double>(index == 1 ? session.fade_in_seconds : session.fade_out_seconds));
+            value = number;
+        }
+        cd::ui::draw_text(renderer, 484 - cd::ui::text_width(value), y, value, selected ? kInk : kDim);
+    }
+    cd::ui::draw_text(renderer, 22, 306,
+        ru(session) ? "АВТОСОХРАНЕНИЕ: ПОСЛЕДНЕЕ СОСТОЯНИЕ" : "AUTOSAVE: LAST STATE IS ALWAYS RESUMED", kDim);
+    draw_myldy_mark(renderer, 22, 326, 1, kDim);
+    cd::ui::draw_text(renderer, 58, 330, "DEVELOPED BY MYLDY DESIGN  @MYLDY20", kDim);
+    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.0"), 330, "V0.12.0", kDim);
 }
 
 void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
@@ -1508,10 +1824,10 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
         }
         cd::ui::draw_text(renderer, 92, 334,
             handheld()
-                ? (ru(session) ? "UP/DN ВЫБОР   B ПРИНЯТЬ   A НАЗАД"
-                               : "UP/DN SELECT   B APPLY   A BACK")
-                : (ru(session) ? "UP/DN ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
-                               : "UP/DN SELECT   E APPLY   ESC BACK"), kDim);
+                ? (ru(session) ? "D-PAD ВЫБОР   A ПРИНЯТЬ   B НАЗАД"
+                               : "D-PAD SELECT   A APPLY   B BACK")
+                : (ru(session) ? "D-PAD ВЫБОР   E ПРИНЯТЬ   ESC НАЗАД"
+                               : "D-PAD SELECT   E APPLY   ESC BACK"), kDim);
     } else if (state.picker == Picker::engine) {
         cd::ui::draw_text(renderer, 92, 78,
             ru(session) ? "ВЫБОР ДВИЖКА" : "CHOOSE ENGINE", kInk, 2);
@@ -1533,8 +1849,8 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
         }
         cd::ui::draw_text(renderer, 92, 334,
             handheld()
-                ? (ru(session) ? "LT/RT ГРУППА  UP/DN ДВИЖОК  B OK  A НАЗАД"
-                               : "LT/RT GROUP  UP/DN ENGINE  B OK  A BACK")
+                ? (ru(session) ? "D-PAD ВЫБОР  A OK  B НАЗАД"
+                               : "D-PAD SELECT  A OK  B BACK")
                 : (ru(session) ? "LT/RT ГРУППА  UP/DN ДВИЖОК  E OK  ESC НАЗАД"
                                : "LT/RT GROUP  UP/DN ENGINE  E OK  ESC BACK"), kDim);
     } else if (state.picker == Picker::effect) {
@@ -1562,11 +1878,99 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
         }
         cd::ui::draw_text(renderer, 92, 334,
             handheld()
-                ? (ru(session) ? "LT/RT ГРУППА  UP/DN ЭФФЕКТ  B OK  A НАЗАД"
-                               : "LT/RT GROUP  UP/DN EFFECT  B OK  A BACK")
+                ? (ru(session) ? "D-PAD ВЫБОР  A OK  B НАЗАД"
+                               : "D-PAD SELECT  A OK  B BACK")
                 : (ru(session) ? "LT/RT ГРУППА  UP/DN ЭФФЕКТ  E OK  ESC НАЗАД"
                                : "LT/RT GROUP  UP/DN EFFECT  E OK  ESC BACK"), kDim);
     }
+}
+
+
+int draw_wrapped_text(SDL_Renderer* renderer, int x, int y, int max_width,
+    std::string text, SDL_Color color, int line_height = 18) {
+    std::string line;
+    std::string word;
+    auto flush_word = [&]() mutable {
+        if (word.empty()) return;
+        const std::string candidate = line.empty() ? word : line + " " + word;
+        if (!line.empty() && cd::ui::text_width(candidate) > max_width) {
+            cd::ui::draw_text(renderer, x, y, line, color);
+            y += line_height;
+            line = word;
+        } else {
+            line = candidate;
+        }
+        word.clear();
+    };
+    for (char character : text) {
+        if (character == ' ') flush_word();
+        else word.push_back(character);
+    }
+    flush_word();
+    if (!line.empty()) {
+        cd::ui::draw_text(renderer, x, y, line, color);
+        y += line_height;
+    }
+    return y;
+}
+
+std::string page_purpose(const cd::Session& session, Page page) {
+    switch (page) {
+    case Page::perform: return ru(session) ? "ВЫБЕРИТЕ МЕСТО, ЗАТЕМ УПРАВЛЯЙТЕ ЕГО СОСТОЯНИЕМ И АКТЕРАМИ."
+                                           : "CHOOSE A PLACE, THEN SHAPE ITS STATE AND ACTORS.";
+    case Page::slot: return ru(session) ? "НАСТРОЙТЕ ОДНОГО АКТЕРА. X ПЕРЕКЛЮЧАЕТ ОСНОВНОЕ И РАСШИРЕННОЕ."
+                                        : "SHAPE ONE ACTOR. X SWITCHES BASIC AND ADVANCED.";
+    case Page::effects: return ru(session) ? "ЧЕТЫРЕ ЭФФЕКТА В ЦЕПОЧКЕ ВЫБРАННОГО АКТЕРА."
+                                           : "FOUR SERIAL EFFECTS FOR THE SELECTED ACTOR.";
+    case Page::master: return ru(session) ? "ОБЩИЙ СИГНАЛ И ЧЕТЫРЕ ЭФФЕКТА ПОСЛЕ СМЕШИВАНИЯ АКТЕРОВ."
+                                          : "FINAL SIGNAL AND FOUR EFFECTS AFTER THE ACTOR MIX.";
+    case Page::memory: return ru(session) ? "СОХРАНЯЙТЕ СОСТОЯНИЯ, ВОЗВРАЩАЙТЕСЬ К НИМ И ВОССТАНАВЛИВАЙТЕ МЕСТО."
+                                          : "SAVE STATES, RETURN TO THEM, OR RESTORE THE PLACE.";
+    }
+    return {};
+}
+
+void draw_help_overlay(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
+    fill(renderer, {24, 52, 464, 292}, {8, 7, 12, 248});
+    outline(renderer, {24, 52, 464, 292}, kInk);
+    cd::ui::draw_text(renderer, 38, 68,
+        std::string{ru(session) ? "ПОМОЩЬ: " : "HELP: "} + std::string{page_name(state.page, ru(session))}, kInk, 2);
+    int y = draw_wrapped_text(renderer, 38, 108, 420, page_purpose(session, state.page), kDim, 18) + 10;
+    const std::array<std::pair<std::string_view, std::string_view>, 7> controls{{
+        {"D-PAD", ru(session) ? "ВЫБОР И ИЗМЕНЕНИЕ" : "SELECT AND CHANGE"},
+        {"A", ru(session) ? "ОТКРЫТЬ / ПРИМЕНИТЬ" : "OPEN / APPLY"},
+        {"B", ru(session) ? "НАЗАД / ОТМЕНА" : "BACK / CANCEL"},
+        {"X", ru(session) ? "СЛЕДУЮЩИЙ РАЗДЕЛ ЭКРАНА" : "NEXT SECTION ON PAGE"},
+        {"L / R", ru(session) ? "ПРЕДЫДУЩАЯ / СЛЕДУЮЩАЯ СТРАНИЦА" : "PREVIOUS / NEXT PAGE"},
+        {"START", ru(session) ? "БЫСТРОЕ МЕНЮ" : "QUICK MENU"},
+        {"SELECT", ru(session) ? "ПЛАВНО ОТКРЫТЬ / ЗАКРЫТЬ ВЫХОД" : "FADE OUTPUT IN / OUT"},
+    }};
+    for (const auto& control : controls) {
+        cd::ui::draw_text(renderer, 42, y, control.first, kInk);
+        cd::ui::draw_text(renderer, 142, y, control.second, kDim);
+        y += 22;
+    }
+    cd::ui::draw_text(renderer, 38, 322, ru(session) ? "Y: ЗАКРЫТЬ ПОМОЩЬ" : "Y: CLOSE HELP", kInk);
+}
+
+void draw_menu_overlay(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
+    fill(renderer, {92, 62, 328, 272}, {8, 7, 12, 250});
+    outline(renderer, {92, 62, 328, 272}, kInk);
+    cd::ui::draw_text(renderer, 112, 78, ru(session) ? "БЫСТРОЕ МЕНЮ" : "QUICK MENU", kInk, 2);
+    const std::array<std::string, 6> items{
+        ru(session) ? "ПРОДОЛЖИТЬ" : "CONTINUE",
+        (ru(session) ? "СОХРАНИТЬ В СЛОТ " : "SAVE TO SLOT ") + std::to_string(state.memory_slot + 1),
+        (ru(session) ? "ЗАГРУЗИТЬ СЛОТ " : "LOAD SLOT ") + std::to_string(state.memory_slot + 1),
+        ru(session) ? "ВОССТАНОВИТЬ ЛАНДШАФТ" : "RESTORE LANDSCAPE",
+        ru(session) ? "ОТКРЫТЬ ПАМЯТЬ" : "OPEN MEMORY",
+        ru(session) ? "СОХРАНИТЬ И ВЫЙТИ" : "SAVE AND EXIT"};
+    for (int item = 0; item < static_cast<int>(items.size()); ++item) {
+        const int y = 126 + item * 31;
+        const bool selected = item == state.menu_item;
+        if (selected) fill(renderer, {106, y - 5, 300, 25}, {73, 46, 104, 255});
+        cd::ui::draw_text(renderer, 116, y, items[static_cast<std::size_t>(item)], selected ? kInk : kDim);
+    }
+    cd::ui::draw_text(renderer, 112, 316, ru(session) ? "LT/RT: СЛОТ  A: OK  B: НАЗАД" : "LT/RT: SLOT  A: OK  B: BACK", kDim);
 }
 
 void draw(
@@ -1579,61 +1983,146 @@ void draw(
     SDL_SetRenderDrawColor(renderer, 8, 7, 12, 255);
     SDL_RenderClear(renderer);
     draw_header(renderer, session, telemetry, state);
-    if (state.page == Page::perform) {
-        draw_scene(renderer, session, telemetry, state);
-    } else if (state.page == Page::slot) {
-        draw_tracks(renderer, session, telemetry, state);
-    } else if (state.page == Page::effects) {
-        draw_effects(renderer, session, telemetry, state);
-    } else if (state.page == Page::master) {
-        draw_master(renderer, session, telemetry, state);
-    } else {
-        draw_setup(renderer, session, state);
+    if (state.page == Page::perform) draw_scene(renderer, session, telemetry, state);
+    else if (state.page == Page::slot) draw_tracks(renderer, session, telemetry, state);
+    else if (state.page == Page::effects) draw_effects(renderer, session, telemetry, state);
+    else if (state.page == Page::master) draw_master(renderer, session, telemetry, state);
+    else draw_setup(renderer, session, state);
+
+    if (state.picker != Picker::none) draw_picker(renderer, session, state);
+    if (state.menu_open) draw_menu_overlay(renderer, session, state);
+    if (state.help_open) draw_help_overlay(renderer, session, state);
+
+    if (!state.help_open && !state.menu_open && state.picker == Picker::none) {
+        cd::ui::draw_text(renderer, 10, 370,
+            ru(session) ? "L/R СТРАНИЦА  X РАЗДЕЛ  A ДЕЙСТВИЕ  Y ПОМОЩЬ  START МЕНЮ"
+                        : "L/R PAGE  X SECTION  A ACTION  Y HELP  START MENU", kDim);
     }
-    if (state.picker != Picker::none) {
-        draw_picker(renderer, session, state);
-    }
-    std::string help;
-    if (handheld()) {
-        if (state.picker != Picker::none) {
-            help = ru(session) ? "B ВЫБРАТЬ  A НАЗАД" : "B SELECT  A BACK";
-        } else if (state.page == Page::effects) {
-            help = ru(session) ? "LT/RT FX  UP/DN ПАРАМ.  Y ДОРОЖКА  L/R ЗНАЧ.  START ТИП"
-                               : "LT/RT FX  UP/DN PARAM  Y TRACK  L/R VALUE  START TYPE";
-        } else if (state.page == Page::perform) {
-            help = ru(session) ? "UP/DN РУЧКА/УРОВ.  LT/RT ДОРОЖКА  B MUTE  START ЛАНДШАФТ"
-                               : "UP/DN MACRO/LEVEL  LT/RT TRACK  B MUTE  START LANDSCAPE";
-        } else if (state.page == Page::master || state.page == Page::setup) {
-            help = ru(session) ? "UP/DN ПАРАМ.  L/R ЗНАЧ.  X ЭКРАН  SELECT ФЕЙД  A KILL"
-                               : "UP/DN PARAM  L/R VALUE  X PAGE  SELECT FADE  A KILL";
-        } else {
-            help = ru(session) ? "LT/RT СЛОТ  UP/DN ПАРАМ.  L/R ЗНАЧ.  START ВЫБОР  B MUTE"
-                               : "LT/RT SLOT  UP/DN PARAM  L/R VALUE  START CHOOSE  B MUTE";
-        }
-    } else if (state.picker != Picker::none) {
-        help = ru(session) ? "E ВЫБРАТЬ  ESC НАЗАД" : "E SELECT  ESC BACK";
-    } else if (state.page == Page::effects) {
-        help = ru(session) ? "LT/RT FX  UP/DN ПАРАМ.  S ДОРОЖКА  A/D ЗНАЧ.  E ТИП"
-                           : "LT/RT FX  UP/DN PARAM  S TRACK  A/D VALUE  E TYPE";
-    } else if (state.page == Page::perform) {
-        help = ru(session) ? "UP/DN РУЧКА/УРОВ.  LT/RT ДОРОЖКА  SPACE MUTE  E ЛАНДШАФТ"
-                           : "UP/DN MACRO/LEVEL  LT/RT TRACK  SPACE MUTE  E LANDSCAPE";
-    } else if (state.page == Page::master || state.page == Page::setup) {
-        help = ru(session) ? "UP/DN ПАРАМ.  A/D ЗНАЧ.  TAB ЭКРАН  F ФЕЙД  K KILL"
-                           : "UP/DN PARAM  A/D VALUE  TAB PAGE  F FADE  K KILL";
-    } else {
-        help = ru(session) ? "LT/RT СЛОТ  UP/DN ПАРАМ.  A/D ЗНАЧ.  E ВЫБОР  SPACE MUTE"
-                           : "LT/RT SLOT  UP/DN PARAM  A/D VALUE  E CHOOSE  SPACE MUTE";
-    }
-    cd::ui::draw_text(renderer, 10, 370, help, kDim);
     if (state.held_direction != 0 && now - state.held_since >= 1'050U) {
         cd::ui::draw_text(renderer, 466, 357, now - state.held_since >= 2'200U ? ">>>" : ">>", {239, 169, 80, 255});
+    }
+    if (!state.toast.empty() && now < state.toast_until) {
+        const int width = std::min(470, cd::ui::text_width(state.toast) + 20);
+        fill(renderer, {(kWidth - width) / 2, 341, width, 25}, {15, 13, 20, 238});
+        outline(renderer, {(kWidth - width) / 2, 341, width, 25}, kFxColors[2]);
+        cd::ui::draw_text(renderer, (kWidth - cd::ui::text_width(state.toast)) / 2, 348, state.toast, kInk);
     }
     if (now < state.kill_flash_until) {
         outline(renderer, {2, 2, kWidth - 4, kHeight - 4}, {242, 70, 82, 255});
         cd::ui::draw_text(renderer, 206, 180, ru(session) ? "KILL: ТИШИНА" : "KILL: SILENCE", {242, 70, 82, 255});
     }
     SDL_RenderPresent(renderer);
+}
+
+void cycle_focus(UiState& state) noexcept {
+    state.focus_zone = (state.focus_zone + 1) % focus_zone_count(state.page);
+    if (state.page == Page::effects && state.focus_zone > 0) {
+        parameter(state) = state.focus_zone - 1;
+        state.effect_field = 0;
+    }
+    if (state.page == Page::master && state.focus_zone > 0) {
+        state.master_effect = state.focus_zone - 1;
+        state.master_effect_field = 0;
+    }
+    state.held_direction = 0;
+}
+
+void change_page(UiState& state, int direction) noexcept {
+    constexpr int count = 5;
+    state.page = static_cast<Page>((page_index(state.page) + direction + count) % count);
+    switch (state.page) {
+    case Page::perform: state.focus_zone = 1; break;
+    case Page::slot: state.focus_zone = 1; break;
+    case Page::effects: state.focus_zone = 1; parameter(state) = 0; state.effect_field = 0; break;
+    case Page::master: state.focus_zone = 0; break;
+    case Page::memory: state.focus_zone = 0; break;
+    }
+    state.held_direction = 0;
+}
+
+bool execute_memory_action(cd::Session& session, UiState& state) {
+    if (state.memory_action == 0) return load_memory_slot(session, state);
+    if (state.memory_action == 1) return save_memory_slot(session, state);
+    reset_landscape(session, state);
+    return true;
+}
+
+void activate_current(cd::Session& session, UiState& state) {
+    if (state.page == Page::perform) {
+        if (state.focus_zone == 0) open_scene_picker(state, session);
+        else if (state.focus_zone == 2) {
+            auto& actor = session.slots[static_cast<std::size_t>(state.slot)];
+            actor.enabled = !actor.enabled;
+            session.scene_modified = true;
+            set_toast(state, actor.enabled ? (ru(session) ? "АКТЕР ВКЛЮЧЕН" : "ACTOR ON")
+                                           : (ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR MUTED"));
+        }
+        return;
+    }
+    if (state.page == Page::slot) {
+        auto& actor = session.slots[static_cast<std::size_t>(state.slot)];
+        if (state.focus_zone == 0) {
+            actor.enabled = !actor.enabled;
+            set_toast(state, actor.enabled ? (ru(session) ? "АКТЕР ВКЛЮЧЕН" : "ACTOR ON")
+                                           : (ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR MUTED"));
+        } else if (state.focus_zone == 1) {
+            if (parameter(state) == 0) actor.enabled = !actor.enabled;
+            else if (parameter(state) == 1) toggle_actor_source(session, state.slot);
+            else if (parameter(state) == 2) {
+                if (actor.engine == cd::EngineKind::plaits) {
+                    state.focus_zone = 2;
+                    state.actor_advanced_field = 0;
+                } else open_engine_picker(state, session);
+            }
+        } else {
+            auto& mod = actor.modulators[static_cast<std::size_t>(state.actor_modulator)];
+            if (state.actor_advanced_field == 4) actor.euclidean.enabled = !actor.euclidean.enabled;
+            else if (state.actor_advanced_field == 9) state.actor_modulator = (state.actor_modulator + 1) % 4;
+            else if (state.actor_advanced_field == 10) mod.enabled = !mod.enabled;
+        }
+        session.scene_modified = true;
+        return;
+    }
+    if (state.page == Page::effects) {
+        if (state.focus_zone == 0) {
+            auto& actor = session.slots[static_cast<std::size_t>(state.slot)];
+            actor.enabled = !actor.enabled;
+            session.scene_modified = true;
+        } else if (state.effect_field == 0) {
+            parameter(state) = state.focus_zone - 1;
+            open_effect_picker(state, session, false);
+        }
+        return;
+    }
+    if (state.page == Page::master) {
+        if (state.focus_zone > 0 && state.master_effect_field == 0) {
+            state.master_effect = state.focus_zone - 1;
+            open_effect_picker(state, session, true);
+        }
+        return;
+    }
+    if (state.page == Page::memory) {
+        if (state.focus_zone == 0) load_memory_slot(session, state);
+        else if (state.focus_zone == 1) execute_memory_action(session, state);
+    }
+}
+
+void execute_quick_menu(cd::Session& session, UiState& state) {
+    switch (state.menu_item) {
+    case 0: state.menu_open = false; break;
+    case 1: save_memory_slot(session, state); state.menu_open = false; break;
+    case 2: load_memory_slot(session, state); state.menu_open = false; break;
+    case 3: reset_landscape(session, state); state.menu_open = false; break;
+    case 4: state.page = Page::memory; state.focus_zone = 0; state.menu_open = false; break;
+    case 5: state.request_exit = true; break;
+    }
+}
+
+void go_back(UiState& state) noexcept {
+    if (state.help_open) state.help_open = false;
+    else if (state.menu_open) state.menu_open = false;
+    else if (state.picker != Picker::none) { state.picker = Picker::none; state.picker_master = false; }
+    else if (state.page != Page::perform) { state.page = Page::perform; state.focus_zone = 1; }
 }
 
 void toggle_fade(cd::Session& session, UiState& state) noexcept {
@@ -1658,51 +2147,106 @@ bool update_fade(cd::Session& session, UiState& state, float seconds) noexcept {
     return true;
 }
 
-void navigate_horizontal(UiState& state, const cd::Session& session, int direction) noexcept {
-    if (state.page == Page::effects) {
-        parameter(state) = (parameter(state) + direction + 4) % 4;
-        const auto kind = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(parameter(state))].kind;
-        state.effect_field = std::min(state.effect_field, std::max(0, effect_field_count(kind) - 1));
-    } else if (state.page == Page::perform || state.page == Page::slot) {
-        state.slot = (state.slot + direction + 4) % 4;
+bool handle_dpad(cd::Session& session, UiState& state, int horizontal, int vertical, Uint32 now) {
+    if (state.help_open) return false;
+    if (state.menu_open) {
+        if (vertical != 0) state.menu_item = (state.menu_item + vertical + 6) % 6;
+        if (horizontal != 0 && (state.menu_item == 1 || state.menu_item == 2))
+            state.memory_slot = (state.memory_slot + horizontal + static_cast<int>(cd::kMemorySlots)) % static_cast<int>(cd::kMemorySlots);
+        return false;
     }
-}
+    if (state.picker != Picker::none) { move_picker(state, horizontal, vertical); return false; }
 
-void navigate_vertical(UiState& state, const cd::Session& session, int direction) noexcept {
-    if (state.page == Page::effects) {
-        const auto kind = session.slots[static_cast<std::size_t>(state.slot)]
-            .effects[static_cast<std::size_t>(parameter(state))].kind;
-        const int count = effect_field_count(kind);
-        if (count > 0) state.effect_field = (state.effect_field + direction + count) % count;
-    } else if (state.page == Page::perform) {
-        if (state.scene_track_focus) {
-            if (direction < 0) {
-                state.scene_track_focus = false;
-                parameter(state) = 4;
-            }
-        } else if (direction > 0 && parameter(state) == 4) {
-            state.scene_track_focus = true;
-        } else {
-            parameter(state) = std::clamp(parameter(state) + direction, 0, 4);
-        }
-    } else {
-        const int count = parameter_count(state.page);
-        parameter(state) = (parameter(state) + direction + count) % count;
-    }
-}
-
-void open_context_picker(UiState& state, const cd::Session& session) noexcept {
     if (state.page == Page::perform) {
-        open_scene_picker(state, session);
-    } else if (state.page == Page::slot) {
-        open_engine_picker(state, session);
-    } else if (state.page == Page::effects) {
-        open_effect_picker(state, session);
+        if (state.focus_zone == 0) return false;
+        if (state.focus_zone == 1) {
+            if (vertical != 0) parameter(state) = (parameter(state) + vertical + 5) % 5;
+            if (horizontal != 0) { start_adjust(session, state, horizontal, now); return true; }
+        } else {
+            if (horizontal != 0) state.slot = (state.slot + horizontal + 4) % 4;
+            if (vertical != 0) { start_adjust(session, state, -vertical, now); return true; }
+        }
+        return false;
     }
+    if (state.page == Page::slot) {
+        auto& actor = session.slots[static_cast<std::size_t>(state.slot)];
+        if (state.focus_zone == 0) {
+            if (horizontal != 0) state.slot = (state.slot + horizontal + 4) % 4;
+            return false;
+        }
+        if (state.focus_zone == 1) {
+            if (vertical != 0) parameter(state) = (parameter(state) + vertical + 10) % 10;
+            if (horizontal != 0 && parameter(state) >= 3) { start_adjust(session, state, horizontal, now); return true; }
+            if (horizontal != 0 && parameter(state) == 0) { actor.enabled = horizontal > 0; session.scene_modified = true; return true; }
+            if (horizontal != 0 && parameter(state) == 1) {
+                if (horizontal > 0 && actor.engine != cd::EngineKind::plaits) toggle_actor_source(session, state.slot);
+                else if (horizontal < 0 && actor.engine == cd::EngineKind::plaits) toggle_actor_source(session, state.slot);
+                return true;
+            }
+        } else {
+            if (vertical != 0) state.actor_advanced_field = (state.actor_advanced_field + vertical + 17) % 17;
+            if (horizontal != 0) { start_adjust(session, state, horizontal, now); return true; }
+        }
+        return false;
+    }
+    if (state.page == Page::effects) {
+        if (state.focus_zone == 0) {
+            if (horizontal != 0) state.slot = (state.slot + horizontal + 4) % 4;
+            return false;
+        }
+        const int effect_index = state.focus_zone - 1;
+        parameter(state) = effect_index;
+        auto& effect = session.slots[static_cast<std::size_t>(state.slot)].effects[static_cast<std::size_t>(effect_index)];
+        const int rows = 1 + effect_field_count(effect.kind);
+        if (vertical != 0) state.effect_field = (state.effect_field + vertical + rows) % rows;
+        if (horizontal != 0) {
+            if (state.effect_field == 0) {
+                cycle_effect_kind(effect, horizontal);
+                state.effect_field = 0;
+                session.scene_modified = true;
+                return true;
+            }
+            start_adjust(session, state, horizontal, now);
+            return true;
+        }
+        return false;
+    }
+    if (state.page == Page::master) {
+        if (state.focus_zone == 0) {
+            if (vertical != 0) parameter(state) = (parameter(state) + vertical + 2) % 2;
+            if (horizontal != 0) { start_adjust(session, state, horizontal, now); return true; }
+            return false;
+        }
+        const int effect_index = state.focus_zone - 1;
+        state.master_effect = effect_index;
+        auto& effect = session.master_effects[static_cast<std::size_t>(effect_index)];
+        const int rows = 1 + effect_field_count(effect.kind);
+        if (vertical != 0) state.master_effect_field = (state.master_effect_field + vertical + rows) % rows;
+        if (horizontal != 0) {
+            if (state.master_effect_field == 0) {
+                cycle_effect_kind(effect, horizontal);
+                state.master_effect_field = 0;
+                return true;
+            }
+            start_adjust(session, state, horizontal, now);
+            return true;
+        }
+        return false;
+    }
+    if (state.focus_zone == 0) {
+        if (horizontal != 0) state.memory_slot = (state.memory_slot + horizontal + 8) % 8;
+        if (vertical != 0) state.memory_slot = (state.memory_slot + vertical * 4 + 8) % 8;
+    } else if (state.focus_zone == 1 && vertical != 0) {
+        state.memory_action = (state.memory_action + vertical + 3) % 3;
+    } else if (state.focus_zone == 2) {
+        if (vertical != 0) state.memory_setting = (state.memory_setting + vertical + 3) % 3;
+        if (horizontal != 0) { start_adjust(session, state, horizontal, now); return true; }
+    }
+    return false;
 }
 
 } // namespace
+
 
 int main(int, char**) {
     SDL_SetMainReady();
@@ -1738,11 +2282,24 @@ int main(int, char**) {
     if (const char* data_directory = std::getenv("CURSED_DRONE_DATA_DIR");
         data_directory != nullptr && data_directory[0] != '\0') {
         const std::filesystem::path root{data_directory};
+        g_data_root = root;
         autosave_path = root / "autosave.cdrone";
         legacy_autosave_path = root / "myldy20" / "cursed-drone" / "autosave.cdrone";
+        g_scales = cd::load_scala_scales({root / "scales", std::filesystem::path{"assets/scales"}});
     } else if (char* preference_path = SDL_GetPrefPath("myldy20", "cursed-drone")) {
-        autosave_path = std::filesystem::path{preference_path} / "autosave.cdrone";
+        g_data_root = std::filesystem::path{preference_path};
+        autosave_path = g_data_root / "autosave.cdrone";
+        g_scales = cd::load_scala_scales({g_data_root / "scales",
+            std::filesystem::path{"assets/scales"}});
         SDL_free(preference_path);
+    }
+    if (g_scales.empty()) g_scales.push_back(cd::equal_temperament_scale());
+    if (!g_data_root.empty()) {
+        std::error_code directory_error;
+        std::filesystem::create_directories(g_data_root, directory_error);
+        for (std::size_t index = 0; index < cd::kMemorySlots; ++index) {
+            g_memory_paths[index] = g_data_root / ("memory-" + std::to_string(index + 1U) + ".cdrone");
+        }
     }
 
     const std::filesystem::path load_path = std::filesystem::exists(autosave_path)
@@ -1756,6 +2313,10 @@ int main(int, char**) {
                 load_path.string().c_str());
         }
     }
+    // The guided workflow keeps landscape changes explicit. Legacy half-morph states
+    // are collapsed back to the currently selected landscape on startup.
+    session.performance.morph = 0.0F;
+    session.performance.morph_target = session.scene;
     AudioBridge audio{};
     SDL_AudioSpec desired{};
     SDL_AudioSpec obtained{};
@@ -1801,127 +2362,106 @@ int main(int, char**) {
                 running = false;
             } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
                 if (state.picker != Picker::none) {
-                    switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE: state.picker = Picker::none; break;
-                    case SDLK_LEFT: move_picker(state, -1, 0); break;
-                    case SDLK_RIGHT: move_picker(state, 1, 0); break;
-                    case SDLK_UP: move_picker(state, 0, -1); break;
-                    case SDLK_DOWN: move_picker(state, 0, 1); break;
-                    case SDLK_RETURN:
-                    case SDLK_SPACE: confirm_picker(state, session); changed = true; break;
-                    case SDLK_e: confirm_picker(state, session); changed = true; break;
-                    default: break;
+                    if (event.key.keysym.sym == SDLK_ESCAPE) state.picker = Picker::none;
+                    else if (event.key.keysym.sym == SDLK_LEFT) move_picker(state, -1, 0);
+                    else if (event.key.keysym.sym == SDLK_RIGHT) move_picker(state, 1, 0);
+                    else if (event.key.keysym.sym == SDLK_UP) move_picker(state, 0, -1);
+                    else if (event.key.keysym.sym == SDLK_DOWN) move_picker(state, 0, 1);
+                    else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE) {
+                        confirm_picker(state, session); changed = true;
                     }
+                } else if (state.menu_open) {
+                    if (event.key.keysym.sym == SDLK_ESCAPE) state.menu_open = false;
+                    else if (event.key.keysym.sym == SDLK_UP) state.menu_item = (state.menu_item + 5) % 6;
+                    else if (event.key.keysym.sym == SDLK_DOWN) state.menu_item = (state.menu_item + 1) % 6;
+                    else if (event.key.keysym.sym == SDLK_LEFT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 7) % 8;
+                    else if (event.key.keysym.sym == SDLK_RIGHT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 1) % 8;
+                    else if (event.key.keysym.sym == SDLK_RETURN) { execute_quick_menu(session, state); changed = true; }
+                } else if (state.help_open) {
+                    if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_h) state.help_open = false;
                 } else {
                     switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE: running = false; break;
-                    case SDLK_LEFT: navigate_horizontal(state, session, -1); break;
-                    case SDLK_RIGHT: navigate_horizontal(state, session, 1); break;
-                    case SDLK_UP: navigate_vertical(state, session, -1); break;
-                    case SDLK_DOWN: navigate_vertical(state, session, 1); break;
-                    case SDLK_a:
-                        if (state.page == Page::slot && parameter(state) == 0) open_engine_picker(state, session);
-                        else { start_adjust(session, state, -1, now); changed = true; }
-                        break;
-                    case SDLK_d:
-                        if (state.page == Page::slot && parameter(state) == 0) open_engine_picker(state, session);
-                        else { start_adjust(session, state, 1, now); changed = true; }
-                        break;
-                    case SDLK_TAB:
-                        state.page = static_cast<Page>((page_index(state.page) + 1) % 5);
-                        break;
-                    case SDLK_1: state.page = Page::perform; break;
-                    case SDLK_2: state.page = Page::slot; break;
-                    case SDLK_3: state.page = Page::effects; break;
-                    case SDLK_4: state.page = Page::master; break;
-                    case SDLK_5: state.page = Page::setup; break;
-                    case SDLK_s:
-                        if (state.page == Page::effects) state.slot = (state.slot + 1) % 4;
-                        break;
-                    case SDLK_e:
-                        open_context_picker(state, session);
-                        break;
+                    case SDLK_ESCAPE: go_back(state); break;
+                    case SDLK_LEFT: changed = handle_dpad(session, state, -1, 0, now) || changed; break;
+                    case SDLK_RIGHT: changed = handle_dpad(session, state, 1, 0, now) || changed; break;
+                    case SDLK_UP: changed = handle_dpad(session, state, 0, -1, now) || changed; break;
+                    case SDLK_DOWN: changed = handle_dpad(session, state, 0, 1, now) || changed; break;
+                    case SDLK_RETURN: activate_current(session, state); changed = true; break;
+                    case SDLK_TAB: change_page(state, 1); break;
+                    case SDLK_x: cycle_focus(state); break;
+                    case SDLK_h: state.help_open = true; break;
+                    case SDLK_m: state.menu_open = true; break;
                     case SDLK_f: toggle_fade(session, state); changed = true; break;
-                    case SDLK_k:
-                        audio.graph.panic();
-                        state.kill_flash_until = now + 700U;
-                        break;
-                    case SDLK_SPACE:
-                        session.slots[static_cast<std::size_t>(state.slot)].enabled =
-                            !session.slots[static_cast<std::size_t>(state.slot)].enabled;
-                        changed = true;
-                        break;
+                    case SDLK_k: audio.graph.panic(); state.kill_flash_until = now + 700U; break;
                     default: break;
                     }
                 }
             } else if (event.type == SDL_KEYUP) {
-                if (event.key.keysym.sym == SDLK_a) stop_adjust(state, -1);
-                if (event.key.keysym.sym == SDLK_d) stop_adjust(state, 1);
+                if (event.key.keysym.sym == SDLK_LEFT || event.key.keysym.sym == SDLK_RIGHT ||
+                    event.key.keysym.sym == SDLK_UP || event.key.keysym.sym == SDLK_DOWN) state.held_direction = 0;
             } else if (event.type == SDL_CONTROLLERBUTTONDOWN) {
                 if (event.cbutton.button == SDL_CONTROLLER_BUTTON_START) state.start_held = true;
                 if (event.cbutton.button == SDL_CONTROLLER_BUTTON_BACK) state.select_held = true;
-                if (state.start_held && state.select_held) {
-                    running = false;
-                    continue;
-                }
+                if (state.start_held && state.select_held) { running = false; continue; }
+
                 if (state.picker != Picker::none) {
-                    switch (event.cbutton.button) {
-                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: move_picker(state, -1, 0); break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: move_picker(state, 1, 0); break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_UP: move_picker(state, 0, -1); break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: move_picker(state, 0, 1); break;
-                    case SDL_CONTROLLER_BUTTON_A:
-                    case SDL_CONTROLLER_BUTTON_START: confirm_picker(state, session); changed = true; break;
-                    case SDL_CONTROLLER_BUTTON_B: state.picker = Picker::none; break;
-                    default: break;
-                    }
+                    if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) move_picker(state, -1, 0);
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) move_picker(state, 1, 0);
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP) move_picker(state, 0, -1);
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) move_picker(state, 0, 1);
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_B) { confirm_picker(state, session); changed = true; }
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A) { state.picker = Picker::none; state.picker_master = false; }
+                } else if (state.menu_open) {
+                    if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP) state.menu_item = (state.menu_item + 5) % 6;
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) state.menu_item = (state.menu_item + 1) % 6;
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 7) % 8;
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 1) % 8;
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_B) { execute_quick_menu(session, state); changed = true; }
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A) state.menu_open = false;
+                } else if (state.help_open) {
+                    if (event.cbutton.button == SDL_CONTROLLER_BUTTON_X || event.cbutton.button == SDL_CONTROLLER_BUTTON_A) state.help_open = false;
                 } else {
                     switch (event.cbutton.button) {
-                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: navigate_horizontal(state, session, -1); break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: navigate_horizontal(state, session, 1); break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_UP: navigate_vertical(state, session, -1); break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: navigate_vertical(state, session, 1); break;
-                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
-                        if (state.page == Page::slot && parameter(state) == 0) open_engine_picker(state, session);
-                        else { start_adjust(session, state, -1, now); changed = true; }
-                        break;
-                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
-                        if (state.page == Page::slot && parameter(state) == 0) open_engine_picker(state, session);
-                        else { start_adjust(session, state, 1, now); changed = true; }
-                        break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: changed = handle_dpad(session, state, -1, 0, now) || changed; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: changed = handle_dpad(session, state, 1, 0, now) || changed; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_UP: changed = handle_dpad(session, state, 0, -1, now) || changed; break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: changed = handle_dpad(session, state, 0, 1, now) || changed; break;
+                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: change_page(state, -1); break;
+                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: change_page(state, 1); break;
+                    // TrimUI physical A is SDL B; physical B is SDL A.
+                    case SDL_CONTROLLER_BUTTON_B: activate_current(session, state); changed = true; break;
                     case SDL_CONTROLLER_BUTTON_A:
-                        session.slots[static_cast<std::size_t>(state.slot)].enabled =
-                            !session.slots[static_cast<std::size_t>(state.slot)].enabled;
-                        changed = true;
-                        break;
-                    case SDL_CONTROLLER_BUTTON_B:
-                        audio.graph.panic();
-                        state.kill_flash_until = now + 700U;
-                        break;
-                    case SDL_CONTROLLER_BUTTON_X:
-                        state.page = static_cast<Page>((page_index(state.page) + 1) % 5);
-                        break;
-                    case SDL_CONTROLLER_BUTTON_Y:
-                        if (state.page == Page::effects) state.slot = (state.slot + 1) % 4;
-                        break;
+                        state.back_held = true; state.back_long_action = false; state.back_held_since = now; break;
+                    case SDL_CONTROLLER_BUTTON_Y: cycle_focus(state); break;
+                    case SDL_CONTROLLER_BUTTON_X: state.help_open = true; break;
                     case SDL_CONTROLLER_BUTTON_BACK: toggle_fade(session, state); changed = true; break;
-                    case SDL_CONTROLLER_BUTTON_START:
-                        open_context_picker(state, session);
-                        break;
+                    case SDL_CONTROLLER_BUTTON_START: state.menu_open = true; state.menu_item = 0; break;
                     default: break;
                     }
                 }
             } else if (event.type == SDL_CONTROLLERBUTTONUP) {
                 if (event.cbutton.button == SDL_CONTROLLER_BUTTON_START) state.start_held = false;
                 if (event.cbutton.button == SDL_CONTROLLER_BUTTON_BACK) state.select_held = false;
-                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER) stop_adjust(state, -1);
-                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) stop_adjust(state, 1);
+                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT ||
+                    event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT ||
+                    event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP ||
+                    event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) state.held_direction = 0;
+                if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A && state.back_held) {
+                    if (!state.back_long_action) go_back(state);
+                    state.back_held = false;
+                }
             }
         }
         const Uint32 now = SDL_GetTicks();
+        if (state.back_held && !state.back_long_action && now - state.back_held_since >= 1'100U) {
+            audio.graph.panic();
+            state.kill_flash_until = now + 700U;
+            state.back_long_action = true;
+        }
         changed = repeat_adjust(session, state, now) || changed;
         changed = update_fade(session, state, static_cast<float>(now - previous_frame) * 0.001F) || changed;
         previous_frame = now;
+        if (state.request_exit) running = false;
         if (now - state.cpu_display_updated_at >= 500U) {
             state.displayed_cpu_percent = static_cast<int>(std::lround(
                 audio.cpu_load.load(std::memory_order_relaxed) * 100.0F));
@@ -1935,12 +2475,8 @@ int main(int, char**) {
         }
         if (save_pending && !autosave_path.empty() && now - changed_at >= 750U) {
             std::string save_error;
-            if (cd::save_session(session, autosave_path, save_error)) {
-                save_pending = false;
-            } else {
-                std::fprintf(stderr, "autosave: %s\n", save_error.c_str());
-                changed_at = now;
-            }
+            if (cd::save_session(session, autosave_path, save_error)) save_pending = false;
+            else { std::fprintf(stderr, "autosave: %s\n", save_error.c_str()); changed_at = now; }
         }
         update_title(window, session, state);
         draw(renderer, session, audio.graph.telemetry(), state, now);

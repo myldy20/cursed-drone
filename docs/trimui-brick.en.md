@@ -1,34 +1,21 @@
-# TrimUI Brick and porting
+# TrimUI Brick support
 
-The reference target is the user's TrimUI Brick running Knulli Scarab. The observed unit reports aarch64, four CPU cores up to roughly 1416 MHz, about 1 GB RAM, and a `1024×768` screen. These are measurements of one device/firmware combination, not a promise for every revision.
+Cursed Drone 0.12 is verified on TrimUI Brick with **Knulli/PortMaster** and **NextUI**. Knulli uses `/userdata/roms/ports/Cursed Drone.sh`; NextUI uses `Tools/tg5040/Cursed Drone.pak/launch.sh`. The packages are not interchangeable.
 
-The UI renders at logical `512×384`, giving the Brick an exact 2× scale. The audio target is stereo float 48 kHz at 256 or 512 callback frames, selected only after xrun testing.
+The UI renders at 512×384 and scales to 1024×768. The verified Knulli probe reported Mali/OpenGL ES, ALSA at 48 kHz stereo and a 512-sample buffer.
 
-SDL2 is the common video/controller/audio layer and has strong PortMaster precedent. The audio core does not depend on SDL, so a direct ALSA/KMS adapter remains possible if a firmware needs one.
+## Controls
 
-## Required device probe
+| Button | Meaning |
+| --- | --- |
+| D-pad | navigate; edit the selected value; hold to accelerate |
+| A | open, confirm, perform the selected action, or mute an actor |
+| B | back/cancel; hold for emergency Kill |
+| X | next focus section on the current page |
+| Y | contextual help |
+| L / R | previous / next page |
+| Select | fade the final output |
+| Start | quick menu |
+| Start + Select | save the current state and exit |
 
-Record kernel, CPU/RAM, available governors/frequencies, input devices, audio devices, SDL driver/fullscreen behavior, actual audio format and callback size, every hardware button/chord, writable storage, atomic rename, suspend/resume and ten-minute callback overrun count. Stock, CrossMix, Knulli and Anbernic firmware must have explicit mapping profiles; identical SDL codes must never be assumed.
-
-The preliminary launcher is `platform/trimui-brick/launch.sh`. It intentionally changes no governor or system state until a safe firmware-specific API and reliable restoration path are proven.
-
-Expected package shape:
-
-```text
-CursedDrone/
-├── bin/aarch64/cursed-drone-sdl
-├── data/
-├── licenses/
-├── platform/trimui-brick/launch.sh
-└── README.txt
-```
-
-Writable data lives outside the read-only program area and is provided as `CURSED_DRONE_DATA_DIR`. Autosave will use a temporary file followed by atomic rename.
-
-## Performance gate
-
-Benchmark engine-only, 16 light effects, mixed medium/light patches and heavy algorithms at each available CPU frequency. No audio callback may allocate, access files, lock, format strings or clear large memory. Telemetry crosses a lock-free channel.
-
-The early success gate is ten uninterrupted minutes of four engines on the Brick at 1008 MHz. UI polish follows that result.
-
-The first public package is PortMaster aarch64 with a self-contained binary/dependency declaration, state-restoring launcher, mapping profiles, writable save path, bilingual notes, checksums and complete license bundle. armhf follows measurement. libretro is deferred because standalone code controls latency, autosave, system buttons and long-running audio more reliably.
+Other handhelds are welcome as community tests, but should not be described as supported until a useful log confirms video, audio and controls.

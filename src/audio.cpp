@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "cursed_drone/audio.hpp"
+#include "plaits_actor.hpp"
 #include "soundscape.hpp"
 
 #include "Noise/clockednoise.h"
@@ -63,7 +64,7 @@ public:
         walk_ = 0.0F;
     }
 
-    float next(const ModSettings& settings, float sample_rate) noexcept {
+    float next(const ModSettings& settings, float sample_rate, float rate_modulation = 0.0F) noexcept {
         if (!settings.enabled) {
             return 0.0F;
         }
@@ -84,9 +85,11 @@ public:
             break;
         }
 
-        phase_ += std::clamp(settings.rate_hz, 0.001F, 40.0F) / sample_rate;
+        const float rate = std::clamp(settings.rate_hz, 0.001F, 40.0F) *
+            std::pow(2.0F, std::clamp(rate_modulation, -1.0F, 1.0F) * 4.0F);
+        phase_ += std::clamp(rate, 0.0002F, 80.0F) / sample_rate;
         if (phase_ >= 1.0F) {
-            phase_ -= 1.0F;
+            phase_ -= std::floor(phase_);
             held_ = next_noise(random_state_);
             walk_ = std::clamp(walk_ + next_noise(random_state_) * 0.22F, -1.0F, 1.0F);
         }
@@ -98,6 +101,36 @@ private:
     float held_{0.0F};
     float walk_{0.0F};
     std::uint32_t random_state_{0xA341'316CU};
+};
+
+class EuclideanRuntime {
+public:
+    void reset() noexcept {
+        phase_ = 1.0F;
+        step_ = -1;
+        random_state_ = 0xE0C1'1DEA;
+    }
+
+    bool next(const EuclideanSettings& settings, float tempo_bpm, float sample_rate) noexcept {
+        if (!settings.enabled) return false;
+        const int steps = std::clamp(settings.steps, 1, 32);
+        const int pulses = std::clamp(settings.pulses, 0, steps);
+        const float rate = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F * 4.0F;
+        phase_ += rate / sample_rate;
+        if (phase_ < 1.0F) return false;
+        phase_ -= std::floor(phase_);
+        step_ = (step_ + 1) % steps;
+        const int rotated = (step_ + std::clamp(settings.rotation, 0, steps - 1)) % steps;
+        const bool hit = pulses > 0 && ((rotated * pulses) % steps) < pulses;
+        if (!hit) return false;
+        const float random_unit = next_noise(random_state_) * 0.5F + 0.5F;
+        return random_unit <= clamp01(settings.probability);
+    }
+
+private:
+    float phase_{1.0F};
+    int step_{-1};
+    std::uint32_t random_state_{0xE0C1'1DEAU};
 };
 
 class DiagnosticEngine {
@@ -116,7 +149,7 @@ public:
     }
 
     float next(float frequency, float timbre, float color, float motion, float texture, float sample_rate) noexcept {
-        frequency = std::clamp(frequency, 8.0F, sample_rate * 0.2F);
+        frequency = std::clamp(frequency, 20.0F, sample_rate * 0.2F);
         phase_a_ += frequency / sample_rate;
         phase_b_ += frequency * (1.001F + color * 0.127F) / sample_rate;
         phase_a_ -= std::floor(phase_a_);
@@ -170,6 +203,7 @@ public:
         sample_rate_ = sample_rate;
         slot_index_ = slot_index;
         random_state_ = 0x91E1'0DA5U ^ (0x9E37'79B9U * static_cast<std::uint32_t>(slot_index + 1U));
+        plaits_.prepare(sample_rate_);
         reset();
     }
 
@@ -190,9 +224,10 @@ public:
         grain_envelope_ = 0.0F;
         drift_phase_ = 0.0F;
         soundscape_.reset();
+        plaits_.reset();
     }
 
-    float next(
+    float next_mono(
         EngineKind kind,
         float frequency,
         float timbre,
@@ -202,8 +237,9 @@ public:
         float tempo_bpm,
         float pulse,
         float chaos,
-        float events) noexcept {
-        frequency = std::clamp(frequency, 8.0F, sample_rate_ * 0.2F);
+        float events,
+        bool external_trigger) noexcept {
+        frequency = std::clamp(frequency, 20.0F, sample_rate_ * 0.2F);
         timbre = clamp01(timbre);
         color = clamp01(color);
         motion = clamp01(motion);
@@ -213,7 +249,7 @@ public:
         const float beat_hz = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
         const float event_rate = beat_hz * (0.08F + events * events * 2.9F) * (0.65F + motion * 1.25F);
         event_phase_ += event_rate / sample_rate_;
-        bool trigger = false;
+        bool trigger = external_trigger;
         if (event_phase_ >= event_period_) {
             event_phase_ -= event_period_;
             const float random_unit = next_noise(random_state_) * 0.5F + 0.5F;
@@ -228,6 +264,8 @@ public:
         const float drift = std::sin(drift_phase_ * kTwoPi) * (0.0005F + motion * 0.018F);
 
         switch (kind) {
+        case EngineKind::plaits:
+            return 0.0F;
         case EngineKind::diagnostic:
             return diagnostic_.next(frequency, timbre, color, motion, texture, sample_rate_);
         case EngineKind::macro: {
@@ -312,6 +350,37 @@ public:
         return 0.0F;
     }
 
+    StereoFrame next(
+        const SlotSettings& settings,
+        float frequency,
+        float timbre,
+        float color,
+        float motion,
+        float texture,
+        float tempo_bpm,
+        float pulse,
+        float chaos,
+        float events,
+        bool external_trigger) noexcept {
+        if (settings.engine == EngineKind::plaits) {
+            return plaits_.next(
+                settings.plaits_model,
+                settings.plaits_output,
+                settings.tuning,
+                frequency,
+                timbre,
+                color,
+                motion,
+                texture,
+                external_trigger,
+                settings.euclidean.enabled);
+        }
+        const float mono = next_mono(
+            settings.engine, frequency, timbre, color, motion, texture,
+            tempo_bpm, pulse, chaos, events, external_trigger);
+        return {mono, mono};
+    }
+
 private:
     float sample_rate_{48'000.0F};
     std::size_t slot_index_{0U};
@@ -329,13 +398,14 @@ private:
     daisysp::Drip drip_{};
     daisysp::ClockedNoise clocked_noise_{};
     detail::SoundscapeVoice soundscape_{};
+    detail::PlaitsActor plaits_{};
 };
 
 class EffectRuntime {
 public:
     void prepare(float sample_rate) {
         sample_rate_ = sample_rate;
-        const auto delay_frames = static_cast<std::size_t>(std::ceil(sample_rate_ * 1.3F)) + 2U;
+        const auto delay_frames = static_cast<std::size_t>(std::ceil(sample_rate_ * 2.4F)) + 2U;
         const auto short_frames = static_cast<std::size_t>(std::ceil(sample_rate_ * 0.080F)) + 2U;
         delay_.assign(delay_frames, {});
         short_delay_.assign(short_frames, {});
@@ -353,6 +423,10 @@ public:
         flanger_phase_ = 0.0F;
         phaser_phase_ = 0.0F;
         envelope_phase_ = 0.0F;
+        reverse_phase_a_ = 0.0F;
+        reverse_phase_b_ = 0.5F;
+        reverse_offset_a_ = 0.25F;
+        reverse_offset_b_ = 0.58F;
         delay_write_ = 0U;
         short_write_ = 0U;
         crusher_counter_ = 0U;
@@ -389,6 +463,7 @@ public:
         case EffectKind::ritual_gate: return ritual_gate(input, amount, tone, feedback);
         case EffectKind::rust_cloud: return rust_cloud(input, amount, tone, feedback);
         case EffectKind::deep_sea: return deep_sea(input, amount, tone, feedback);
+        case EffectKind::granular_reverse: return granular_reverse(input, amount, tone, feedback);
         }
         return input;
     }
@@ -667,6 +742,41 @@ private:
         return mix(input, wet, amount);
     }
 
+    StereoFrame granular_reverse(StereoFrame input, float amount, float tone, float feedback) noexcept {
+        if (delay_.empty()) return input;
+        const float grain_seconds = 0.035F + tone * tone * 0.42F;
+        const float grain_frames = grain_seconds * sample_rate_;
+        const float speed = 1.45F + tone * 1.85F;
+        reverse_phase_a_ += speed / std::max(16.0F, grain_frames);
+        reverse_phase_b_ += speed / std::max(16.0F, grain_frames);
+        if (reverse_phase_a_ >= 1.0F) {
+            reverse_phase_a_ -= 1.0F;
+            reverse_offset_a_ = 0.08F + (next_noise(reverse_random_state_) * 0.5F + 0.5F) * (0.25F + tone * 1.35F);
+        }
+        if (reverse_phase_b_ >= 1.0F) {
+            reverse_phase_b_ -= 1.0F;
+            reverse_offset_b_ = 0.12F + (next_noise(reverse_random_state_) * 0.5F + 0.5F) * (0.30F + tone * 1.60F);
+        }
+        const float window_a = 0.5F - 0.5F * std::cos(reverse_phase_a_ * kTwoPi);
+        const float window_b = 0.5F - 0.5F * std::cos(reverse_phase_b_ * kTwoPi);
+        const float read_a = reverse_offset_a_ * sample_rate_ + reverse_phase_a_ * grain_frames * 2.0F;
+        const float read_b = reverse_offset_b_ * sample_rate_ + reverse_phase_b_ * grain_frames * 2.0F;
+        const StereoFrame a = read_delay(delay_, delay_write_, read_a);
+        const StereoFrame b = read_delay(delay_, delay_write_, read_b);
+        const float normalization = 1.0F / std::max(0.22F, window_a + window_b);
+        const StereoFrame wet{
+            (a.left * window_a + b.right * window_b) * normalization,
+            (a.right * window_a + b.left * window_b) * normalization,
+        };
+        const float regeneration = std::min(0.93F, feedback * 0.93F);
+        delay_[delay_write_] = {
+            input.left + wet.right * regeneration,
+            input.right + wet.left * regeneration,
+        };
+        delay_write_ = (delay_write_ + 1U) % delay_.size();
+        return mix(input, wet, amount);
+    }
+
     float sample_rate_{48'000.0F};
     StereoFrame lowpass_{};
     StereoFrame highpass_low_{};
@@ -678,6 +788,11 @@ private:
     float flanger_phase_{0.0F};
     float phaser_phase_{0.0F};
     float envelope_phase_{0.0F};
+    float reverse_phase_a_{0.0F};
+    float reverse_phase_b_{0.5F};
+    float reverse_offset_a_{0.25F};
+    float reverse_offset_b_{0.58F};
+    std::uint32_t reverse_random_state_{0x6A09'E667U};
     std::vector<StereoFrame> delay_{};
     std::vector<StereoFrame> short_delay_{};
     std::size_t delay_write_{0U};
@@ -692,6 +807,7 @@ struct SlotRuntime {
     ProductEngine engine{};
     std::array<EffectRuntime, kEffectsPerSlot> effects{};
     std::array<ModulatorRuntime, kModulatorsPerSlot> modulators{};
+    EuclideanRuntime euclidean{};
     SmoothedValue frequency{};
     SmoothedValue timbre{};
     SmoothedValue color{};
@@ -743,6 +859,7 @@ struct SlotRuntime {
         for (auto& modulator : modulators) {
             modulator.reset();
         }
+        euclidean.reset();
     }
 };
 
@@ -800,6 +917,7 @@ public:
     void prepare(const AudioConfig& config, const Session& initial_session) {
         config_ = config;
         session_ = initial_session;
+        rebuild_effective_slots();
         master_.prepare(session_.master_level * session_.performance.fade, config_.sample_rate, 100.0F);
         performance_texture_.prepare(session_.performance.texture, config_.sample_rate, 80.0F);
         performance_pulse_.prepare(session_.performance.pulse, config_.sample_rate, 80.0F);
@@ -807,8 +925,9 @@ public:
         performance_space_.prepare(session_.performance.space, config_.sample_rate, 100.0F);
         performance_events_.prepare(session_.performance.events, config_.sample_rate, 100.0F);
         for (std::size_t index = 0; index < kSlotCount; ++index) {
-            slots_[index].prepare(config_.sample_rate, session_.slots[index], index);
+            slots_[index].prepare(config_.sample_rate, effective_slots_[index], index);
         }
+        for (auto& effect : master_effects_) effect.prepare(config_.sample_rate);
         reset();
         prepared_ = true;
     }
@@ -828,9 +947,8 @@ public:
         performance_chaos_.snap();
         performance_space_.snap();
         performance_events_.snap();
-        for (auto& slot : slots_) {
-            slot.reset();
-        }
+        for (auto& slot : slots_) slot.reset();
+        for (auto& effect : master_effects_) effect.reset();
         clear_telemetry();
     }
 
@@ -877,8 +995,9 @@ public:
             performance_chaos_.set(clamp01(session_.performance.chaos));
             performance_space_.set(clamp01(session_.performance.space));
             performance_events_.set(clamp01(session_.performance.events));
+            rebuild_effective_slots();
             for (std::size_t index = 0; index < kSlotCount; ++index) {
-                slots_[index].update_targets(session_.slots[index]);
+                slots_[index].update_targets(effective_slots_[index]);
             }
         }
 
@@ -929,7 +1048,7 @@ public:
 
             StereoFrame mix{};
             for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
-                const auto& settings = session_.slots[slot_index];
+                const auto& settings = effective_slots_[slot_index];
                 auto& runtime = slots_[slot_index];
                 ModulatedParameters parameters{
                     runtime.frequency.next(),
@@ -948,17 +1067,31 @@ public:
                     parameters.effect_tone[effect_index] = runtime.effect_tone[effect_index].next();
                     parameters.effect_feedback[effect_index] = runtime.effect_feedback[effect_index].next();
                 }
+                std::array<float, kModulatorsPerSlot> modulation_values{};
                 for (std::size_t mod_index = 0; mod_index < kModulatorsPerSlot; ++mod_index) {
                     const auto& mod = settings.modulators[mod_index];
-                    apply_modulation(
-                        parameters,
-                        mod.destination,
-                        runtime.modulators[mod_index].next(mod, config_.sample_rate));
+                    float rate_modulation = 0.0F;
+                    if (mod.rate_mod_source >= 0 &&
+                        mod.rate_mod_source < static_cast<int>(mod_index)) {
+                        rate_modulation = modulation_values[static_cast<std::size_t>(mod.rate_mod_source)] *
+                            mod.rate_mod_amount;
+                    }
+                    modulation_values[mod_index] = runtime.modulators[mod_index].next(
+                        mod, config_.sample_rate, rate_modulation);
+                    apply_modulation(parameters, mod.destination, modulation_values[mod_index]);
                 }
+                const bool euclidean_trigger = runtime.euclidean.next(
+                    settings.euclidean, session_.tempo_bpm, config_.sample_rate);
 
                 const float chaos_value = chaos_current_[slot_index] * chaos_macro;
                 parameters.frequency *= std::pow(2.0F, chaos_value * 0.36F);
                 switch (settings.engine) {
+                case EngineKind::plaits:
+                    parameters.timbre += texture_macro * 0.22F;
+                    parameters.color += chaos_macro * 0.16F;
+                    parameters.motion += events_macro * 0.24F;
+                    parameters.texture += space_macro * 0.18F;
+                    break;
                 case EngineKind::diagnostic:
                     parameters.timbre += texture_macro * 0.24F;
                     parameters.motion += texture_macro * 0.30F;
@@ -1075,6 +1208,7 @@ public:
                 case EngineKind::tape_drone: pulse_ratio = 0.17F; pulse_depth = 0.035F; break;
                 case EngineKind::bowed_metal: pulse_ratio = 0.21F; pulse_depth = 0.04F; break;
                 case EngineKind::earth_rumble: pulse_ratio = 0.10F; pulse_depth = 0.02F; break;
+                case EngineKind::plaits: pulse_ratio = 1.0F; pulse_depth = 0.14F; break;
                 case EngineKind::diagnostic: break;
                 }
                 pulse_phases_[slot_index] += pulse_rate * pulse_ratio / config_.sample_rate;
@@ -1110,6 +1244,11 @@ public:
                         parameters.effect_amount[effect_index] += chaos_macro * 0.34F;
                         parameters.effect_tone[effect_index] += pulse_macro * 0.12F;
                         break;
+                    case EffectKind::granular_reverse:
+                        parameters.effect_amount[effect_index] += space_macro * 0.74F;
+                        parameters.effect_tone[effect_index] += chaos_macro * 0.18F;
+                        parameters.effect_feedback[effect_index] += space_macro * 0.40F;
+                        break;
                     case EffectKind::bypass:
                         break;
                     }
@@ -1125,10 +1264,10 @@ public:
                 parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
 
-                float mono = 0.0F;
+                StereoFrame actor_frame{};
                 if (settings.enabled) {
-                    mono = runtime.engine.next(
-                        settings.engine,
+                    actor_frame = runtime.engine.next(
+                        settings,
                         parameters.frequency,
                         parameters.timbre,
                         parameters.color,
@@ -1137,13 +1276,14 @@ public:
                         session_.tempo_bpm,
                         pulse_macro,
                         chaos_macro,
-                        events_macro);
+                        events_macro,
+                        euclidean_trigger);
                 }
                 const float left_pan = std::sqrt(0.5F * (1.0F - parameters.pan));
                 const float right_pan = std::sqrt(0.5F * (1.0F + parameters.pan));
                 StereoFrame slot_frame{
-                    mono * parameters.level * left_pan,
-                    mono * parameters.level * right_pan,
+                    actor_frame.left * parameters.level * left_pan,
+                    actor_frame.right * parameters.level * right_pan,
                 };
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
@@ -1154,6 +1294,9 @@ public:
                         parameters.effect_tone[effect_index],
                         parameters.effect_feedback[effect_index]);
                 }
+                // Process silence so buffers decay internally, but do not let an old
+                // actor-FX tail bypass an explicit mute. Master FX tails remain audible.
+                if (!settings.enabled) slot_frame = {};
                 if (capture_scope) {
                     scope_frames[slot_index][scope_index] = 0.5F * (slot_frame.left + slot_frame.right);
                 }
@@ -1163,6 +1306,12 @@ public:
                 slot_energy[slot_index] += static_cast<double>(slot_power);
                 slot_peak[slot_index] = std::max(
                     slot_peak[slot_index], std::max(std::abs(slot_frame.left), std::abs(slot_frame.right)));
+            }
+
+            for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
+                const auto& settings = session_.master_effects[effect_index];
+                mix = master_effects_[effect_index].process(
+                    mix, settings.kind, settings.amount, settings.tone, settings.feedback);
             }
 
             constexpr float dc_coefficient = 0.995F;
@@ -1216,6 +1365,40 @@ private:
         return value * value * (3.0F - 2.0F * value);
     }
 
+    void rebuild_effective_slots() noexcept {
+        Session target = session_;
+        apply_scene_recipe(target, session_.performance.morph_target);
+        const float morph = clamp01(session_.performance.morph);
+        const auto blend = [morph](float a, float b) { return a + (b - a) * morph; };
+        for (std::size_t index = 0; index < kSlotCount; ++index) {
+            const auto& source = session_.slots[index];
+            const auto& destination = target.slots[index];
+            auto& result = effective_slots_[index];
+            result = source;
+            // Actor mute is authoritative. Morph may change the actor recipe, but it
+            // must never re-enable an actor that the performer muted.
+            result.enabled = source.enabled;
+            if (morph >= 0.5F) {
+                result.engine = destination.engine;
+                result.plaits_model = destination.plaits_model;
+                result.plaits_output = destination.plaits_output;
+                result.tuning = destination.tuning;
+                result.effects = destination.effects;
+                result.modulators = destination.modulators;
+                result.euclidean = destination.euclidean;
+            }
+            result.frequency_hz = std::exp(blend(
+                std::log(std::max(4.0F, source.frequency_hz)),
+                std::log(std::max(4.0F, destination.frequency_hz))));
+            result.timbre = blend(source.timbre, destination.timbre);
+            result.color = blend(source.color, destination.color);
+            result.motion = blend(source.motion, destination.motion);
+            result.texture = blend(source.texture, destination.texture);
+            result.level = blend(source.level, destination.level);
+            result.pan = blend(source.pan, destination.pan);
+        }
+    }
+
     static void publish_meter(std::atomic<float>& destination, float& smoothed, float value, float mix) noexcept {
         smoothed += (value - smoothed) * mix;
         destination.store(smoothed, std::memory_order_relaxed);
@@ -1249,7 +1432,9 @@ private:
 
     AudioConfig config_{};
     Session session_{};
+    std::array<SlotSettings, kSlotCount> effective_slots_{};
     std::array<SlotRuntime, kSlotCount> slots_{};
+    std::array<EffectRuntime, kMasterEffects> master_effects_{};
     SpscQueue<Session, 8> sessions_{};
     SmoothedValue master_{};
     SmoothedValue performance_texture_{};
