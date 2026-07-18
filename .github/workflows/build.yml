@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-latest
@@ -76,20 +80,17 @@ jobs:
           path: dist/cursed-drone-macos
 
   portmaster-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-      - name: Build in Ubuntu 20.04 aarch64
+      - name: Build in Ubuntu 20.04 aarch64 container
         run: |
-          docker run --rm --platform linux/arm64 \
+          docker run --rm \
             -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 \
             bash -ec '
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
-              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip
+              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip file
               cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
               cmake --build build-aarch64 --parallel 2
               ctest --test-dir build-aarch64 --output-on-failure
