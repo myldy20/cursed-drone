@@ -1,8 +1,8 @@
 name: export-v0111-source
 
 on:
-  push:
-    branches: [experiment/v0.11-guided-workflow]
+  pull_request:
+    branches: [experiment/plaits-performance-lab]
     paths:
       - .github/workflows/export-v0111-source.yml
 
