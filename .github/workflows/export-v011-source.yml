@@ -5,6 +5,10 @@ on:
     branches: [experiment/v0.11-guided-workflow]
     paths:
       - .github/workflows/export-v011-source.yml
+  pull_request:
+    branches: [experiment/plaits-performance-lab]
+    paths:
+      - .github/workflows/export-v011-source.yml
 
 jobs:
   export:
@@ -12,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: experiment/v0.11-guided-workflow
           submodules: recursive
       - name: Export source tree
         run: |
@@ -22,5 +27,3 @@ jobs:
           name: cursed-drone-v011-source
           path: /tmp/cursed-drone-v011-source.tar.gz
           if-no-files-found: error
-
-# trigger export
