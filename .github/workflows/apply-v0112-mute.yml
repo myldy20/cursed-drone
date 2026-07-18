@@ -1,0 +1,61 @@
+name: apply-v0112-mute-fix
+
+on:
+  pull_request:
+    branches: [experiment/plaits-performance-lab]
+    paths:
+      - tools/v0112.patch.gz.b64
+      - .github/workflows/apply-v0112-mute.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/v0.11-guided-workflow
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Reconstruct and verify patch
+        run: |
+          test "$(wc -c < tools/v0112.patch.gz.b64)" -eq 2012
+          echo '88dc9e2e0af83f2bfb1bea18024923474d497ba99233764774201f63874abd1f  tools/v0112.patch.gz.b64' | sha256sum -c -
+          base64 -d tools/v0112.patch.gz.b64 | gzip -d > /tmp/v0112.patch
+          echo '6832b3442567dfbb80de2f8350aa8b7d035e056e8937ceadfb9ee3503acd298c  /tmp/v0112.patch' | sha256sum -c -
+          git apply --check /tmp/v0112.patch
+
+      - name: Apply mute fix
+        run: git apply /tmp/v0112.patch
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build-v0112 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-v0112 --parallel 2
+
+      - name: Run tests
+        run: ctest --test-dir build-v0112 --output-on-failure
+
+      - name: Handheld SDL smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            CURSED_DRONE_DATA_DIR="$PWD/test-conf" \
+            timeout 4s build-v0112/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+
+      - name: Commit validated source only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CMakeLists.txt src/audio.cpp tests/test_main.cpp
+          git commit -m 'v0.11.2: make actor mute authoritative in the audio graph'
+          git push origin HEAD:experiment/v0.11-guided-workflow
