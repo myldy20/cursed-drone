@@ -1,0 +1,84 @@
+name: experiment-v011-build
+
+on:
+  push:
+    branches: [experiment/v0.11-guided-workflow]
+  pull_request:
+    branches: [experiment/plaits-performance-lab]
+  workflow_dispatch:
+
+concurrency:
+  group: experiment-v011-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zip
+      - name: Build and test
+        run: |
+          cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-linux --parallel 2
+          ctest --test-dir build-linux --output-on-failure
+      - name: Handheld SDL smoke test
+        run: |
+          set +e
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 \
+            CURSED_DRONE_DATA_DIR="$PWD/test-conf" \
+            timeout 4s build-linux/cursed-drone-sdl
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install SDL2
+        run: brew install sdl2
+      - name: Build and test
+        run: |
+          cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+          cmake --build build-macos --parallel 3
+          ctest --test-dir build-macos --output-on-failure
+
+  portmaster-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build compatible aarch64 package
+        run: |
+          docker run --rm \
+            -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 \
+            bash -ec '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip file
+              cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
+              cmake --build build-aarch64 --parallel 4
+              ctest --test-dir build-aarch64 --output-on-failure
+              strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+              chmod +x tools/package_portmaster_lab.sh
+              ./tools/package_portmaster_lab.sh build-aarch64 dist-experiment
+            '
+      - name: Inspect package
+        run: |
+          file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+          unzip -l dist-experiment/curseddrone-lab-aarch64-test.zip | tee /tmp/package.txt
+          grep -q 'Cursed Drone Lab.sh' /tmp/package.txt
+          grep -q 'curseddrone-lab/cursed-drone-sdl.aarch64' /tmp/package.txt
+          grep -q 'curseddrone-lab/docs/experiment-lab.ru.md' /tmp/package.txt
+          grep -q 'curseddrone-lab/conf/scales/19-edo.scl' /tmp/package.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-guided-workflow-aarch64
+          path: dist-experiment/curseddrone-lab-aarch64-test.zip
