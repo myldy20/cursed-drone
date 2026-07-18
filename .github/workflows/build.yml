@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-latest
@@ -76,34 +80,41 @@ jobs:
           path: dist/cursed-drone-macos
 
   portmaster-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-      - name: Build in Ubuntu 20.04 aarch64
+      - name: Build in Ubuntu 20.04 aarch64 container
         run: |
-          docker run --rm --platform linux/arm64 \
+          docker run --rm \
             -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 \
             bash -ec '
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
-              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip
+              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip file
               cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
               cmake --build build-aarch64 --parallel 2
               ctest --test-dir build-aarch64 --output-on-failure
               strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
               ./tools/package_portmaster.sh build-aarch64 dist
+              chmod +x tools/package_nextui.sh
+              ./tools/package_nextui.sh build-aarch64 dist
             '
-      - name: Inspect binaries and package
+      - name: Inspect binaries and packages
         run: |
           file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/package.txt
-          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/package.txt
-          grep -q 'curseddrone/docs/install.en.md' /tmp/package.txt
-          grep -q 'curseddrone/docs/install.ru.md' /tmp/package.txt
+          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/portmaster-package.txt
+          grep -q 'curseddrone/assets/cursed-drone-splash.bmp' /tmp/portmaster-package.txt
+          grep -q 'curseddrone/docs/install.en.md' /tmp/portmaster-package.txt
+          grep -q 'curseddrone/docs/install.ru.md' /tmp/portmaster-package.txt
+          unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/nextui-package.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/nextui-package.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/cursed-drone-sdl.aarch64' /tmp/nextui-package.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/assets/cursed-drone-splash.bmp' /tmp/nextui-package.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-portmaster-aarch64
           path: dist/curseddrone-aarch64-test.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-nextui-tg5040
+          path: dist/cursed-drone-nextui-tg5040-test.zip

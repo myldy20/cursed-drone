@@ -4,8 +4,9 @@
 
 <p align="center">
   <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-  <img src="https://img.shields.io/badge/version-0.9.0-eee2c5" alt="version 0.8.0">
-  <img src="https://img.shields.io/badge/verified-TrimUI_Brick-50a99a" alt="verified on TrimUI Brick">
+  <img src="https://img.shields.io/badge/version-0.9.0-eee2c5" alt="version 0.9.0">
+  <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified on TrimUI Brick with Knulli">
+  <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified on TrimUI Brick with NextUI">
   <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
 </p>
 
@@ -17,14 +18,16 @@
 
 **Cursed Drone** is a native procedural drone and soundscape instrument for small Linux handhelds. It generates continuous beds, mechanical movement, environmental events and controllable sonic disasters without samples, a tracker grid or conventional note programming.
 
-> **Hardware status:** real-device testing has only been completed on a **TrimUI Brick running Knulli**. The PortMaster package is built for AArch64 and may work on other compatible handhelds, but those devices are currently **unverified**.
+> **Hardware status:** real-device testing has been completed on a **TrimUI Brick with Knulli/PortMaster** and on a **TrimUI Brick with NextUI**. Both installation methods are verified. Other handheld models remain unverified.
 
 ## Install
 
-- **[Detailed installation guide — English](docs/install.en.md)**
-- **[Подробная инструкция по установке — Русский](docs/install.ru.md)**
+Choose the package for the firmware actually installed on the handheld. The Knulli/PortMaster and NextUI archives are **not interchangeable**.
 
-### TrimUI Brick quick install
+- **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
+- **NextUI Tool Pak:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
+
+### TrimUI Brick with Knulli / PortMaster
 
 1. Download the latest `cursed-drone-portmaster-aarch64` artifact from the latest successful [GitHub Actions build](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml).
 2. GitHub wraps artifacts in an outer ZIP. Open it and locate the inner `curseddrone-aarch64-test.zip` package.
@@ -45,7 +48,24 @@ The final layout must contain:
 4. Refresh the game list or reboot, then open **Ports → Cursed Drone**.
 5. On the first launch, press **Start** after the hardware probe.
 
-To save and exit: **hold Start, then press Select**.
+### TrimUI Brick with NextUI
+
+1. Download the `cursed-drone-nextui-tg5040` artifact.
+2. Open GitHub's outer ZIP and locate `cursed-drone-nextui-tg5040-test.zip`.
+3. Extract the inner archive to the **root of the NextUI SD card**.
+
+The final layout must contain:
+
+```text
+Tools/tg5040/Cursed Drone.pak/launch.sh
+Tools/tg5040/Cursed Drone.pak/cursed-drone-sdl.aarch64
+```
+
+4. Open **Tools → Cursed Drone**.
+
+Do not copy the PortMaster archive into NextUI, and do not install third-party Paks under NextUI's hidden `.system` folder.
+
+To save and exit in either build: **hold Start, then press Select**.
 
 ## What it does
 
@@ -95,7 +115,7 @@ A short L/R press changes most values by one percent. Holding accelerates after 
 
 ## Runtime data and logs
 
-The PortMaster package stores everything under:
+Knulli / PortMaster stores everything under:
 
 ```text
 <ports>/curseddrone/conf/
@@ -110,7 +130,14 @@ cursed-drone.log      application output and startup errors
 probe-v1.complete     marker that skips the first-launch probe
 ```
 
-The verified TrimUI Brick probe reported Mali/OpenGL ES 2 rendering, ALSA audio at 48 kHz stereo with a 512-sample buffer, and a correctly detected `TRIMUI Brick Controller`.
+NextUI stores its autosave and launch log separately:
+
+```text
+.userdata/tg5040/cursed-drone/autosave.cdrone
+.userdata/tg5040/logs/Cursed Drone.txt
+```
+
+The verified Knulli probe reported Mali/OpenGL ES 2 rendering, ALSA audio at 48 kHz stereo with a 512-sample buffer, and a correctly detected `TRIMUI Brick Controller`. A separate community hardware test confirmed that the NextUI Tool Pak also launches and works correctly on TrimUI Brick.
 
 ## Landscapes
 
@@ -138,11 +165,12 @@ ctest --test-dir build --output-on-failure
 ./build/cursed-drone-sdl
 ```
 
-The CI builds and tests Linux, macOS and Ubuntu 20.04 AArch64/PortMaster packages, and renders all ten soundscapes.
+CI builds and tests Linux, macOS and Ubuntu 20.04-compatible AArch64 binaries, renders all ten soundscapes, and produces separately inspected PortMaster and NextUI packages.
 
 ## Documentation
 
-- [Installation — English](docs/install.en.md) · [Установка — Русский](docs/install.ru.md)
+- Knulli / PortMaster installation: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
+- NextUI installation: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
 - [Procedural soundscapes](docs/soundscapes.en.md) · [Процедурные ландшафты](docs/soundscapes.ru.md)
@@ -163,14 +191,16 @@ Project code is licensed under **GNU GPL v3.0 or later**. Third-party components
 
 **Проклятый гудёж** — нативный процедурный дрон-синтезатор и генератор звуковых ландшафтов для небольших Linux-консолей. Он создаёт непрерывные фоны, механическое движение, события среды и управляемые звуковые катастрофы без семплов, трекерной сетки и обычного программирования нот.
 
-> **Статус железа:** реальная проверка выполнена только на **TrimUI Brick с Knulli**. PortMaster-пакет собирается под AArch64 и может заработать на других совместимых консолях, но они пока **не проверены**.
+> **Статус железа:** реальная проверка выполнена на **TrimUI Brick с Knulli/PortMaster** и на **TrimUI Brick с NextUI**. Оба способа установки подтверждены. Другие модели консолей пока не проверены.
 
 ## Установка
 
-- **[Подробная инструкция на русском](docs/install.ru.md)**
-- **[Detailed guide in English](docs/install.en.md)**
+Выберите пакет именно для прошивки, установленной на консоли. Архивы Knulli/PortMaster и NextUI **не взаимозаменяемы**.
 
-### Быстрая установка на TrimUI Brick
+- **Knulli / PortMaster:** [инструкция на русском](docs/install.ru.md) · [English](docs/install.en.md)
+- **NextUI Tool Pak:** [инструкция на русском](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
+
+### TrimUI Brick с Knulli / PortMaster
 
 1. Скачайте артефакт `cursed-drone-portmaster-aarch64` из последней успешной [сборки GitHub Actions](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml).
 2. GitHub заворачивает артефакт во внешний ZIP. Откройте его и найдите внутри `curseddrone-aarch64-test.zip`.
@@ -191,7 +221,24 @@ Project code is licensed under **GNU GPL v3.0 or later**. Third-party components
 4. Обновите список игр или перезагрузите консоль и откройте **Ports → Cursed Drone**.
 5. При первом запуске после диагностики нажмите **Start**.
 
-Чтобы сохранить состояние и выйти: **удерживайте Start и нажмите Select**.
+### TrimUI Brick с NextUI
+
+1. Скачайте артефакт `cursed-drone-nextui-tg5040`.
+2. Откройте внешний ZIP от GitHub и найдите `cursed-drone-nextui-tg5040-test.zip`.
+3. Распакуйте внутренний архив **в корень SD-карты NextUI**.
+
+Итоговая структура должна содержать:
+
+```text
+Tools/tg5040/Cursed Drone.pak/launch.sh
+Tools/tg5040/Cursed Drone.pak/cursed-drone-sdl.aarch64
+```
+
+4. Откройте **Tools → Cursed Drone**.
+
+Не копируйте PortMaster-архив в NextUI и не кладите сторонний Pak в скрытую папку `.system`.
+
+Чтобы сохранить состояние и выйти в любой версии: **удерживайте Start и нажмите Select**.
 
 ## Что уже работает
 
@@ -227,7 +274,7 @@ Project code is licensed under **GNU GPL v3.0 or later**. Third-party components
 
 ## Логи и сохранения
 
-Все данные PortMaster-версии находятся в:
+Данные Knulli / PortMaster находятся в:
 
 ```text
 <ports>/curseddrone/conf/
@@ -235,7 +282,14 @@ Project code is licensed under **GNU GPL v3.0 or later**. Third-party components
 
 Главные файлы: `autosave.cdrone`, `device-probe.log`, `cursed-drone.log` и `probe-v1.complete`.
 
-По логам проверенного TrimUI Brick приложение корректно использует Mali/OpenGL ES 2, ALSA 48 кГц stereo с буфером 512 сэмплов и контроллер `TRIMUI Brick Controller`.
+NextUI хранит данные отдельно:
+
+```text
+.userdata/tg5040/cursed-drone/autosave.cdrone
+.userdata/tg5040/logs/Cursed Drone.txt
+```
+
+По логам проверенного TrimUI Brick с Knulli приложение корректно использует Mali/OpenGL ES 2, ALSA 48 кГц stereo с буфером 512 сэмплов и контроллер `TRIMUI Brick Controller`. Отдельный внешний тест подтвердил, что NextUI Tool Pak также запускается и корректно работает на TrimUI Brick.
 
 ## Авторство и лицензия
 
