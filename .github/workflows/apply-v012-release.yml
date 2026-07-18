@@ -62,9 +62,8 @@ jobs:
           grep -q 'Cursed Drone.sh' /tmp/portmaster.txt
           grep -q 'curseddrone/cursed-drone-sdl.aarch64' /tmp/portmaster.txt
           grep -q 'curseddrone/docs/workflow.ru.md' /tmp/portmaster.txt
-          grep -q 'curseddrone/docs/install.nextui.ru.md' /tmp/portmaster.txt
-          grep -q 'curseddrone/conf/scales/19-edo.scl' /tmp/portmaster.txt
-          grep -q 'curseddrone/licenses/Plaits-MIT.txt' /tmp/portmaster.txt
+          grep -q 'curseddrone/assets/scales/19-edo.scl' /tmp/portmaster.txt
+          grep -q 'curseddrone/licenses/Musical-engine-MIT.txt' /tmp/portmaster.txt
 
       - name: Build and inspect NextUI package
         run: |
@@ -73,8 +72,9 @@ jobs:
           grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/nextui.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/cursed-drone-sdl.aarch64' /tmp/nextui.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md' /tmp/nextui.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/conf/scales/19-edo.scl' /tmp/nextui.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/Plaits-MIT.txt' /tmp/nextui.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/docs/install.nextui.ru.md' /tmp/nextui.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl' /tmp/nextui.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/Musical-engine-MIT.txt' /tmp/nextui.txt
 
       - name: Remove release staging
         run: |
