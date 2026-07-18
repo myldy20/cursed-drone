@@ -1,0 +1,27 @@
+name: cleanup-v011-staging
+
+on:
+  pull_request:
+    branches: [experiment/plaits-performance-lab]
+    paths:
+      - .github/workflows/cleanup-v011.yml
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/v0.11-guided-workflow
+          fetch-depth: 0
+      - name: Remove patch staging parts
+        run: git rm -r tools/v011parts
+      - name: Commit cleanup
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Remove v0.11 patch staging files'
+          git push origin HEAD:experiment/v0.11-guided-workflow
