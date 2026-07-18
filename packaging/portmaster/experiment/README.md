@@ -1,4 +1,4 @@
-# Cursed Drone Experimental 0.11 — TrimUI Brick test
+# Cursed Drone Experimental 0.11.1 — TrimUI Brick test
 
 ## Important / Важно
 
@@ -74,7 +74,7 @@ Workflow: **Place → Actor → FX → Master → Memory**. The advanced musical
 
 ## Saves / Сохранения
 
-Experimental 0.11 stores its schema-9 session separately:
+Experimental 0.11.1 stores its schema-9 session separately:
 
 ```text
 curseddrone-lab/conf/autosave.cdrone

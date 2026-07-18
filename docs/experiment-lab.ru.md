@@ -1,4 +1,4 @@
-# Cursed Drone Experimental 0.11 — Guided Workflow
+# Cursed Drone Experimental 0.11.1 — Guided Workflow
 
 Эта сборка существует только в ветке `experiment/v0.11-guided-workflow`. Она ставится рядом с публичной версией как **Cursed Drone Lab** и использует собственные сохранения.
 

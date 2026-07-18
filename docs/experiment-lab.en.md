@@ -1,4 +1,4 @@
-# Cursed Drone Experimental 0.11 — Guided Workflow
+# Cursed Drone Experimental 0.11.1 — Guided Workflow
 
 This build exists only on `experiment/v0.11-guided-workflow`. It installs beside the public version as **Cursed Drone Lab** and keeps separate saves.
 

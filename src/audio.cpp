@@ -149,7 +149,7 @@ public:
     }
 
     float next(float frequency, float timbre, float color, float motion, float texture, float sample_rate) noexcept {
-        frequency = std::clamp(frequency, 8.0F, sample_rate * 0.2F);
+        frequency = std::clamp(frequency, 20.0F, sample_rate * 0.2F);
         phase_a_ += frequency / sample_rate;
         phase_b_ += frequency * (1.001F + color * 0.127F) / sample_rate;
         phase_a_ -= std::floor(phase_a_);
@@ -239,7 +239,7 @@ public:
         float chaos,
         float events,
         bool external_trigger) noexcept {
-        frequency = std::clamp(frequency, 8.0F, sample_rate_ * 0.2F);
+        frequency = std::clamp(frequency, 20.0F, sample_rate_ * 0.2F);
         timbre = clamp01(timbre);
         color = clamp01(color);
         motion = clamp01(motion);
