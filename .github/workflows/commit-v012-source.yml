@@ -1,0 +1,43 @@
+name: commit-v012-validated-source
+
+on:
+  push:
+    branches: [release/v0.12-guided-workflow]
+    paths:
+      - .github/workflows/commit-v012-source.yml
+
+permissions:
+  contents: write
+
+jobs:
+  commit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v0.12-guided-workflow
+          fetch-depth: 0
+          submodules: false
+
+      - name: Reconstruct and apply validated patch
+        run: |
+          cat tools/v012parts/part-* > /tmp/v012.patch.gz.b64
+          test "$(wc -c < /tmp/v012.patch.gz.b64)" -eq 124572
+          echo '0b0a9fd9cb3f4647b2e4ccfd887263aa3bf288d47adf361cf49b32df23be2eea  /tmp/v012.patch.gz.b64' | sha256sum -c -
+          base64 -d /tmp/v012.patch.gz.b64 | gzip -d > /tmp/v012.patch
+          echo '7b4ea366352d1ea923ada2cac73c1257fbe6465b3270f35b358c4b4f1c74ff90  /tmp/v012.patch' | sha256sum -c -
+          git apply --check --index /tmp/v012.patch
+          git apply --index /tmp/v012.patch
+
+      - name: Keep workflow changes for GitHub API commit
+        run: |
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git rm -r tools/v012parts
+          git diff --check --cached
+
+      - name: Commit and push validated source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'v0.12: Guided Workflow public release source'
+          git push origin HEAD:release/v0.12-guided-workflow
