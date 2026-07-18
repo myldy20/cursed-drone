@@ -22,9 +22,10 @@ jobs:
 
       - name: Reconstruct and verify patch
         run: |
-          test "$(wc -c < tools/v0112.patch.gz.b64)" -eq 2012
-          echo '88dc9e2e0af83f2bfb1bea18024923474d497ba99233764774201f63874abd1f  tools/v0112.patch.gz.b64' | sha256sum -c -
-          base64 -d tools/v0112.patch.gz.b64 | gzip -d > /tmp/v0112.patch
+          tr -d '\r\n' < tools/v0112.patch.gz.b64 > /tmp/v0112.patch.gz.b64
+          test "$(wc -c < /tmp/v0112.patch.gz.b64)" -eq 2012
+          echo '88dc9e2e0af83f2bfb1bea18024923474d497ba99233764774201f63874abd1f  /tmp/v0112.patch.gz.b64' | sha256sum -c -
+          base64 -d /tmp/v0112.patch.gz.b64 | gzip -d > /tmp/v0112.patch
           echo '6832b3442567dfbb80de2f8350aa8b7d035e056e8937ceadfb9ee3503acd298c  /tmp/v0112.patch' | sha256sum -c -
           git apply --check /tmp/v0112.patch
 
