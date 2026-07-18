@@ -22,3 +22,5 @@ jobs:
           name: cursed-drone-v011-source
           path: /tmp/cursed-drone-v011-source.tar.gz
           if-no-files-found: error
+
+# trigger export
