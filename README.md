@@ -1,298 +1,145 @@
+<p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
-  <img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%">
-</p>
-
-<p align="center">
-  <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-  <img src="https://img.shields.io/badge/version-0.9.0-eee2c5" alt="version 0.9.0">
-  <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified on TrimUI Brick with Knulli">
-  <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified on TrimUI Brick with NextUI">
-  <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
-</p>
-
-<p align="center">
-  <strong>English</strong> · <a href="#русский">Русский</a>
+<a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
+<img src="https://img.shields.io/badge/version-0.12.0-eee2c5" alt="version 0.12.0">
+<img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
+<img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
+<img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
 </p>
 
 # Cursed Drone
 
-**Cursed Drone** is a native procedural drone and soundscape instrument for small Linux handhelds. It generates continuous beds, mechanical movement, environmental events and controllable sonic disasters without samples, a tracker grid or conventional note programming.
+**Cursed Drone is a handheld live soundscape instrument.** It does not merely generate a pure drone: it creates the atmosphere of a place, populated by four procedural actors and evolving events.
 
-> **Hardware status:** real-device testing has been completed on a **TrimUI Brick with Knulli/PortMaster** and on a **TrimUI Brick with NextUI**. Both installation methods are verified. Other handheld models remain unverified.
+> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**. Packages are firmware-specific and not interchangeable.
 
 ## Install
 
-Choose the package for the firmware actually installed on the handheld. The Knulli/PortMaster and NextUI archives are **not interchangeable**.
+- Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
+- NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
 
-- **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
-- **NextUI Tool Pak:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
+## Guided Workflow
 
-### TrimUI Brick with Knulli / PortMaster
+`PLACE → ACTOR → FX → MASTER → MEMORY`
 
-1. Download the latest `cursed-drone-portmaster-aarch64` artifact from the latest successful [GitHub Actions build](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml).
-2. GitHub wraps artifacts in an outer ZIP. Open it and locate the inner `curseddrone-aarch64-test.zip` package.
-3. Extract the inner package into:
+- **Place:** ten landscape recipes, five performance macros and four actor levels/mutes.
+- **Actor:** landscape engines or the **Musical** source with 16 curated upstream macro models, MAIN/AUX/MIX/STEREO routing and Scala tuning.
+- **FX:** four serial effects per actor, edited in one unified slot view.
+- **Master:** level, tempo and four post-mix effects for long tails and transitions.
+- **Memory:** autosave plus eight explicit user slots and landscape restore.
 
-```text
-/userdata/roms/ports/
-```
+Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow.ru.md)
 
-The final layout must contain:
+## Features
 
-```text
-/userdata/roms/ports/Cursed Drone.sh
-/userdata/roms/ports/curseddrone/cursed-drone-sdl.aarch64
-/userdata/roms/ports/curseddrone/assets/cursed-drone-splash.bmp
-```
-
-4. Refresh the game list or reboot, then open **Ports → Cursed Drone**.
-5. On the first launch, press **Start** after the hardware probe.
-
-### TrimUI Brick with NextUI
-
-1. Download the `cursed-drone-nextui-tg5040` artifact.
-2. Open GitHub's outer ZIP and locate `cursed-drone-nextui-tg5040-test.zip`.
-3. Extract the inner archive to the **root of the NextUI SD card**.
-
-The final layout must contain:
-
-```text
-Tools/tg5040/Cursed Drone.pak/launch.sh
-Tools/tg5040/Cursed Drone.pak/cursed-drone-sdl.aarch64
-```
-
-4. Open **Tools → Cursed Drone**.
-
-Do not copy the PortMaster archive into NextUI, and do not install third-party Paks under NextUI's hidden `.system` folder.
-
-To save and exit in either build: **hold Start, then press Select**.
-
-## What it does
-
-A landscape contains four procedural actors with different roles: a continuous bed, movement, a foreground gesture and a distant or textural layer.
-
-```text
-actor / engine -> FX 1 -> FX 2 -> FX 3 -> FX 4 -> level / pan
-       ^           ^       ^       ^       ^
-                  four modulation lanes
-
-four actors -> mixer -> DC blocker -> soft limiter -> master / fade -> SDL audio
-```
-
-Current public-test features:
-
-- four simultaneous audio slots;
-- ten landscape recipes, including bass-first `Bunker`, `Power Grid`, `Deep Water` and `Ash Field`;
-- thirty-two selectable engines, including `Sub Drone`, `Tape Drone`, `Bowed Metal` and `Earth Rumble`;
-- four serial FX slots per actor with **basic** processors and **compound** drone/ambient recipes;
-- basic FX: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb, chorus, flanger, phaser, diffuser and AHDR;
-- compound FX: `Tape Void`, `Black Hole`, `Ritual Gate`, `Rust Cloud` and `Deep Sea`;
-- performance macros for `Material`, `Activity`, `Tension`, `Distance` and `Evolution`;
-- separate fade-in and fade-out times, tail-preserving mute and hard `Kill`;
-- per-slot and master waveform, RMS, peak and throttled DSP telemetry;
-- readable `.cdrone` sessions with debounced autosave;
-- English and Russian UI;
-- logical `512×384` UI, scaling exactly to the Brick's `1024×768` screen;
+- four procedural actors and ten places;
+- 34 engines, including Sub Drone, Tape Drone, Bowed Metal, Earth Rumble and the neutral **Musical** actor;
+- four modulation rows per actor, bipolar depth and bounded rate cross-modulation;
+- Euclidean event generation;
+- built-in and user Scala `.scl` tuning;
+- 21 effects including Reverse Grains and five compound drone/ambient processors;
+- four actor FX plus four Master FX;
+- eight memories, autosave, English/Russian UI;
+- native SDL UI at 512×384, scaled exactly to the Brick display;
 - no recorded samples.
 
-## Handheld controls
+## Controls
 
-| Action | TrimUI Brick / handheld |
+| Button | Meaning |
 | --- | --- |
-| select track, slot or FX column | D-pad Left / Right |
-| select parameter or FX row | D-pad Up / Down |
-| change value | L / R |
-| choose landscape, engine or effect | Start |
-| confirm / cancel picker | B / A |
-| next page | X |
-| mute selected track | B outside a picker |
-| hard Kill | A outside a picker |
-| next source track on FX page | Y |
-| output auto-fade | Select |
-| save and exit | hold Start, then press Select |
+| D-pad | navigate; edit the selected value; hold to accelerate |
+| A | open, confirm, perform the selected action, or mute an actor |
+| B | back/cancel; hold for emergency Kill |
+| X | next focus section on the current page |
+| Y | contextual help |
+| L / R | previous / next page |
+| Select | fade the final output |
+| Start | quick menu |
+| Start + Select | save the current state and exit |
 
-A short L/R press changes most values by one percent. Holding accelerates after 1.05 seconds and again after 2.2 seconds.
+## Runtime data
 
-## Runtime data and logs
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/`.
+Both contain `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl`.
 
-Knulli / PortMaster stores everything under:
-
-```text
-<ports>/curseddrone/conf/
-```
-
-Important files:
-
-```text
-autosave.cdrone       current autosave
-device-probe.log      first-launch hardware report
-cursed-drone.log      application output and startup errors
-probe-v1.complete     marker that skips the first-launch probe
-```
-
-NextUI stores its autosave and launch log separately:
-
-```text
-.userdata/tg5040/cursed-drone/autosave.cdrone
-.userdata/tg5040/logs/Cursed Drone.txt
-```
-
-The verified Knulli probe reported Mali/OpenGL ES 2 rendering, ALSA audio at 48 kHz stereo with a 512-sample buffer, and a correctly detected `TRIMUI Brick Controller`. A separate community hardware test confirmed that the NextUI Tool Pak also launches and works correctly on TrimUI Brick.
-
-## Landscapes
-
-| Landscape | Character |
-| --- | --- |
-| `Derelict` | low room pressure, footsteps, door friction and pipe resonance |
-| `Factory` | motors, machinery, tape mass and restrained metal |
-| `Wasteland` | low wind, sparse insects and isolated signals |
-| `Wet Cave` | ground pressure, physical drips, low water and stone impacts |
-| `Metro Car` | traction, rail joints, braking and carriage vibration |
-| `Broken Nursery` | tape bed, quiet music box, gears and rare lullaby fragments |
-| `Bunker` | enclosed sub pressure and distant machinery |
-| `Power Grid` | transformer-like mass, motors, bowed metal and ground rumble |
-| `Deep Water` | very low pressure, submerged motion and minimal high-frequency detail |
-| `Ash Field` | wide low drone, dry wind and distant signals |
-
-## Build and test
-
-The core needs C++20 and CMake 3.16+. SDL2 is required for the interactive frontend.
+## Build
 
 ```bash
+git submodule update --init --recursive
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j2
 ctest --test-dir build --output-on-failure
-./build/cursed-drone-sdl
 ```
 
-CI builds and tests Linux, macOS and Ubuntu 20.04-compatible AArch64 binaries, renders all ten soundscapes, and produces separately inspected PortMaster and NextUI packages.
+CI tests Linux, macOS and Ubuntu-20.04-compatible AArch64 and packages both PortMaster and NextUI.
 
 ## Documentation
 
-- Knulli / PortMaster installation: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
-- NextUI installation: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
+- [Workflow](docs/workflow.en.md) · [Сквозная логика](docs/workflow.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
-- [Procedural soundscapes](docs/soundscapes.en.md) · [Процедурные ландшафты](docs/soundscapes.ru.md)
+- [Effects](docs/effects.en.md) · [Эффекты](docs/effects.ru.md)
+- [TrimUI Brick](docs/trimui-brick.en.md) · [TrimUI Brick](docs/trimui-brick.ru.md)
 - [Roadmap](docs/roadmap.en.md) · [Дорожная карта](docs/roadmap.ru.md)
-- [TrimUI Brick and porting](docs/trimui-brick.en.md) · [TrimUI Brick и портирование](docs/trimui-brick.ru.md)
-- [Effect architecture and recipes](docs/effects.en.md) · [Архитектура эффектов и рецепты](docs/effects.ru.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Credits and licence
 
-Developed by **Myldy design** — [@myldy20](https://github.com/myldy20).
-
-Project code is licensed under **GNU GPL v3.0 or later**. Third-party components retain their own licences; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. Project code is GPL-3.0-or-later. Bundled third-party code retains its own licences; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
 # Русский
 
-**Проклятый гудёж** — нативный процедурный дрон-синтезатор и генератор звуковых ландшафтов для небольших Linux-консолей. Он создаёт непрерывные фоны, механическое движение, события среды и управляемые звуковые катастрофы без семплов, трекерной сетки и обычного программирования нот.
+**Проклятый гудёж — карманный инструмент живых звуковых пространств.** Он не просто выдаёт чистый дрон, а создаёт атмосферу места, населённого четырьмя процедурными актёрами и развивающимися событиями.
 
-> **Статус железа:** реальная проверка выполнена на **TrimUI Brick с Knulli/PortMaster** и на **TrimUI Brick с NextUI**. Оба способа установки подтверждены. Другие модели консолей пока не проверены.
+> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**. Пакеты для разных прошивок не взаимозаменяемы.
 
 ## Установка
 
-Выберите пакет именно для прошивки, установленной на консоли. Архивы Knulli/PortMaster и NextUI **не взаимозаменяемы**.
+- Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
+- NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
 
-- **Knulli / PortMaster:** [инструкция на русском](docs/install.ru.md) · [English](docs/install.en.md)
-- **NextUI Tool Pak:** [инструкция на русском](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
+## Сквозная логика
 
-### TrimUI Brick с Knulli / PortMaster
+`МЕСТО → АКТЁР → FX → МАСТЕР → ПАМЯТЬ`
 
-1. Скачайте артефакт `cursed-drone-portmaster-aarch64` из последней успешной [сборки GitHub Actions](https://github.com/myldy20/cursed-drone/actions/workflows/build.yml).
-2. GitHub заворачивает артефакт во внешний ZIP. Откройте его и найдите внутри `curseddrone-aarch64-test.zip`.
-3. Распакуйте внутренний архив в:
+- **Место:** десять ландшафтов, пять исполнительских макросов, уровни и mute четырёх актёров.
+- **Актёр:** движки ландшафта или **Музыкальный** источник с 16 моделями, MAIN/AUX/MIX/STEREO и Scala-строями.
+- **FX:** четыре последовательных эффекта актёра в едином редакторе.
+- **Мастер:** уровень, темп и четыре эффекта после сведения.
+- **Память:** autosave, восемь явных слотов и восстановление рецепта ландшафта.
 
-```text
-/userdata/roms/ports/
-```
+Подробно: [сквозной workflow](docs/workflow.ru.md) · [English](docs/workflow.en.md)
 
-В результате должны появиться:
+## Возможности
 
-```text
-/userdata/roms/ports/Cursed Drone.sh
-/userdata/roms/ports/curseddrone/cursed-drone-sdl.aarch64
-/userdata/roms/ports/curseddrone/assets/cursed-drone-splash.bmp
-```
-
-4. Обновите список игр или перезагрузите консоль и откройте **Ports → Cursed Drone**.
-5. При первом запуске после диагностики нажмите **Start**.
-
-### TrimUI Brick с NextUI
-
-1. Скачайте артефакт `cursed-drone-nextui-tg5040`.
-2. Откройте внешний ZIP от GitHub и найдите `cursed-drone-nextui-tg5040-test.zip`.
-3. Распакуйте внутренний архив **в корень SD-карты NextUI**.
-
-Итоговая структура должна содержать:
-
-```text
-Tools/tg5040/Cursed Drone.pak/launch.sh
-Tools/tg5040/Cursed Drone.pak/cursed-drone-sdl.aarch64
-```
-
-4. Откройте **Tools → Cursed Drone**.
-
-Не копируйте PortMaster-архив в NextUI и не кладите сторонний Pak в скрытую папку `.system`.
-
-Чтобы сохранить состояние и выйти в любой версии: **удерживайте Start и нажмите Select**.
-
-## Что уже работает
-
-- четыре одновременно звучащих процедурных слота;
-- десять ландшафтов, включая басовые `Бункер`, `Подстанция`, `Глубина` и `Пепел`;
-- тридцать два движка, включая саб-дрон, ленточный дрон, смычковый металл и гул земли;
-- четыре последовательных FX-слота на актёра с **базовыми** процессорами и **составными** рецептами для дрона/эмбиента;
-- базовые FX: drive, low/high-pass, tremolo, delay, crusher, wavefolder, ring modulation, comb, chorus, flanger, phaser, diffuser и AHDR;
-- составные FX: `Лентопустота`, `Чёрная дыра`, `Ритуальный гейт`, `Облако ржавчины` и `Глубина`;
-- макросы `Материал`, `Активность`, `Напряжение`, `Дистанция` и `Развитие`;
-- раздельные fade-in/fade-out, mute с сохранением хвостов и жёсткий `Kill`;
-- waveform, RMS, peak и замедленная индикация загрузки DSP;
-- автосохранение читаемой `.cdrone`-сессии;
-- русский и английский интерфейс;
-- логическое разрешение `512×384`, точно масштабируемое до экрана Brick `1024×768`;
-- записанные семплы не используются.
+- четыре процедурных актёра и десять мест;
+- 34 движка, включая саб-дрон, ленточный дрон, смычковый металл, гул земли и нейтрально названный **Музыкальный** источник;
+- четыре строки модуляции на актёра, биполярная глубина и ограниченная cross-modulation скорости;
+- Euclidean-события;
+- встроенные и пользовательские Scala-файлы `.scl`;
+- 21 эффект, включая Reverse Grains и пять составных процессоров;
+- четыре actor FX и четыре Master FX;
+- восемь слотов памяти, autosave, русский и английский интерфейс;
+- нативный SDL-интерфейс 512×384 без записанных семплов.
 
 ## Управление
 
-| Действие | Кнопка |
+| Кнопка | Значение |
 | --- | --- |
-| выбрать дорожку, слот или колонку FX | D-pad влево / вправо |
-| выбрать параметр или строку FX | D-pad вверх / вниз |
-| изменить значение | L / R |
-| выбрать ландшафт, движок или эффект | Start |
-| подтвердить / отменить выбор | B / A |
-| следующий экран | X |
-| mute выбранной дорожки | B вне окна выбора |
-| жёсткий Kill | A вне окна выбора |
-| следующая исходная дорожка на экране FX | Y |
-| автофейд выхода | Select |
-| сохранить и выйти | удерживать Start, затем нажать Select |
+| D-pad | навигация и изменение значения; удержание ускоряет шаг |
+| A | открыть, подтвердить, выполнить действие или заглушить актёра |
+| B | назад/отмена; удержание — аварийный Kill |
+| X | следующий раздел текущей страницы |
+| Y | контекстная помощь |
+| L / R | предыдущая / следующая страница |
+| Select | fade итогового выхода |
+| Start | быстрое меню |
+| Start + Select | сохранить состояние и выйти |
 
-## Логи и сохранения
+## Данные
 
-Данные Knulli / PortMaster находятся в:
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/`.
+Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`.
 
-```text
-<ports>/curseddrone/conf/
-```
-
-Главные файлы: `autosave.cdrone`, `device-probe.log`, `cursed-drone.log` и `probe-v1.complete`.
-
-NextUI хранит данные отдельно:
-
-```text
-.userdata/tg5040/cursed-drone/autosave.cdrone
-.userdata/tg5040/logs/Cursed Drone.txt
-```
-
-По логам проверенного TrimUI Brick с Knulli приложение корректно использует Mali/OpenGL ES 2, ALSA 48 кГц stereo с буфером 512 сэмплов и контроллер `TRIMUI Brick Controller`. Отдельный внешний тест подтвердил, что NextUI Tool Pak также запускается и корректно работает на TrimUI Brick.
-
-## Авторство и лицензия
-
-Разработано **Myldy design** — [@myldy20](https://github.com/myldy20).
-
-Код проекта распространяется по **GNU GPL v3.0 or later**. Лицензии сторонних компонентов перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Разработано **Myldy design — [@myldy20](https://github.com/myldy20)**. Код проекта — GPL-3.0-or-later; лицензии сторонних компонентов перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

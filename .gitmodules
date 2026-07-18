@@ -1,0 +1,4 @@
+[submodule "third_party/eurorack"]
+	path = third_party/eurorack
+	url = https://github.com/pichenettes/eurorack.git
+	branch = master

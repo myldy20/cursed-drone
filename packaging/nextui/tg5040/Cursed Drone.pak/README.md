@@ -1,29 +1,25 @@
-# Cursed Drone — NextUI Tool Pak
+# Cursed Drone 0.12 — NextUI Tool Pak
 
-This is an **unverified NextUI test package** for TrimUI Brick / TrimUI Smart Pro (`tg5040`).
+Verified on **TrimUI Brick with NextUI**. Extract the distribution ZIP to the SD-card root; the final path is `Tools/tg5040/Cursed Drone.pak/launch.sh`. Open **Tools → Cursed Drone**.
 
-Install by extracting the distribution ZIP to the root of the NextUI SD card. The final path must be:
+## Workflow
 
-```text
-Tools/tg5040/Cursed Drone.pak/launch.sh
-```
+`PLACE → ACTOR → FX → MASTER → MEMORY`
 
-Open **Tools → Cursed Drone** in NextUI.
+## Controls
 
-Runtime data:
+| Button | Meaning |
+| --- | --- |
+| D-pad | navigate; edit the selected value; hold to accelerate |
+| A | open, confirm, perform the selected action, or mute an actor |
+| B | back/cancel; hold for emergency Kill |
+| X | next focus section on the current page |
+| Y | contextual help |
+| L / R | previous / next page |
+| Select | fade the final output |
+| Start | quick menu |
+| Start + Select | save the current state and exit |
 
-```text
-.userdata/tg5040/cursed-drone/autosave.cdrone
-```
-
-Log:
-
-```text
-.userdata/tg5040/logs/Cursed Drone.txt
-```
-
-This is a standalone SDL application. NextUI save states, auto-resume and its in-game menu do not apply.
-
-To save and exit inside Cursed Drone, hold **Start**, then press **Select**.
+Runtime data and eight memories are stored under `.userdata/tg5040/cursed-drone/`. Launch errors are written to `.userdata/tg5040/logs/Cursed Drone.txt`. NextUI save states do not apply to this standalone SDL app.
 
 Разработано **Myldy design — @myldy20**.

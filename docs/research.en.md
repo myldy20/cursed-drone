@@ -1,5 +1,7 @@
 # GitHub and DSP research
 
+> Release note: version 0.12 integrates the pinned upstream musical-engine subset described in the synthesis catalogue; older planning sections below are historical research.
+
 This snapshot was recorded on 16 July 2026. It looks for reusable architecture, porting precedents and DSP rather than one repository to fork. Activity and star counts change; licenses are re-audited at the exact pinned commit before every import.
 
 ## Related applications

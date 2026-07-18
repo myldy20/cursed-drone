@@ -1,66 +1,21 @@
-# Effects: basic processors and compound recipes
+# Effects in Cursed Drone 0.12
 
-Cursed Drone has four serial FX slots on every sound actor. Version 0.9 separates the chooser into two groups:
+Each actor has four serial FX slots and the mixed signal has four additional Master FX slots. Actor and Master pages use the same unified editor: choose the slot, then edit effect type, amount, character and movement without opening a second parameter mode.
 
-- **Basic** — one recognizable signal-processing operation with direct controls;
-- **Compound** — a curated drone/ambient recipe where three controls move several internal processes together.
+## Basic processors
 
-The hardware performance target remains TrimUI Brick. Compound effects therefore reuse the existing delay memory and use lightweight filters, all-pass stages, oscillators and envelopes instead of loading convolution impulses or allocating a full reverb for every FX slot.
+Drive, Lowpass, Highpass, Tremolo, Delay, Crusher, Wavefolder, Ring Mod, Comb, Chorus, Flanger, Phaser, Diffuser and AHDR.
 
-## Basic effects
+## Compound processors
 
-| Effect | Controls | What it does |
-| --- | --- | --- |
-| Empty | — | Passes the signal unchanged. |
-| Drive | Drive | Strong soft saturation. The upper half is intentionally much more destructive than in v0.8. |
-| Lowpass | Mix, Cutoff | Darkens the source, from near-sub filtering to an almost open signal. |
-| Highpass | Mix, Cutoff | Removes body and can reduce the source to brittle motion and air. |
-| Tremolo | Depth, Rate | Slow breathing through audio-rate amplitude modulation. |
-| Delay | Mix, Time, Feedback | Cross-feedback stereo delay with a range from short slap to long regenerating trails. |
-| Crusher | Crush, Rate | Bit-depth reduction and sample holding. Extreme settings are deliberately severe. |
-| Folder | Fold, Depth | Wavefolding for metallic and unstable harmonics. |
-| Ring Mod | Mix, Rate | Very slow beating through audio-rate ring modulation. |
-| Comb | Mix, Size, Resonance | Tuned resonant delay for pipe, string and metallic-body effects. |
-| Chorus | Mix, Rate, Depth | Dual modulated short delays with different stereo phases. |
-| Flanger | Mix, Rate, Feedback | Very short swept delay with regenerative stereo feedback. |
-| Phaser | Mix, Rate, Feedback | Four all-pass stages with a swept frequency and resonant feedback. |
-| Diffuser | Mix, Size, Decay | Four incommensurate delay taps and cross-channel feedback, turning events into a dense but economical cloud. |
-| AHDR | Depth, Rate, Shape | A cycling Attack–Hold–Decay–Release contour for rhythmic breathing without a note sequencer. |
+Tape Void, Black Hole, Ritual Gate, Rust Cloud and Deep Sea map three macro controls across several internal filters, delays, envelopes, nonlinear stages and feedback paths.
 
-## Compound effects
+## Reverse Grains
 
-Compound controls are **Intensity**, **Character** and **Motion**. They are macros rather than aliases for one hidden parameter.
+Reverse Grains uses two overlapping reverse-reading grains with windowing, random offsets and stereo feedback. It is especially useful on Master for continuous transitions.
 
-### Tape Void
+## Modulation
 
-Slow stereo wow/chorus → saturation → dark filtering → regenerative delay. Low settings add worn width; high settings smear the source into a moving tape cloud.
+Four modulation rows per actor can target sound parameters or FX amounts. Depth is bipolar. A row may safely modulate the rate of a previous row within bounded limits.
 
-### Black Hole
-
-Resonant phaser → low-frequency ring modulation → comb resonance → dark low-pass. Designed for collapsing, inward-moving tones rather than a conventional spacious reverb.
-
-### Ritual Gate
-
-Cycling AHDR contour drives amplitude, cutoff and saturation, then excites a feedback delay. It can create breathing pulses, long ritual swells and broken repeated gates.
-
-### Rust Cloud
-
-Crusher → wavefolder → flanger → comb. Produces corroded digital-metallic motion and is intentionally capable of replacing the source almost completely.
-
-### Deep Sea
-
-Low-pass pressure → slow chorus → shallow tremolo → diffusion. It is the darkest compound recipe and avoids bright decorative shimmer.
-
-## Modulation architecture
-
-Each slot still has four existing modulators, which can target pitch, timbre, colour, motion, texture, level, pan or the amount of any FX slot. Compound effects add **internal macro modulation**: one control can move several internal rates, cutoffs and feedback paths.
-
-A fully editable cross-modulation matrix—where a modulator changes another modulator's rate or depth—is intentionally not exposed in v0.9. It needs a dedicated interface and explicit limits to stay understandable and stable on handheld hardware.
-
-## DSP and source credits
-
-The project uses a pinned, audited subset of **DaisySP** under its MIT licence for several synthesis engines. Cursed Drone's new v0.9 effects are project-specific implementations using standard delay, all-pass, filtering and envelope techniques; no external effect source file is copied into the project.
-
-The diffusion and feedback design follows the general family of structures documented in classic artificial-reverberation literature, including Jon Dattorro's effect-design work. Cursed Drone does not include a full Dattorro plate or DaisySP ReverbSc in every slot: that would be a poor CPU and memory trade-off for the target handheld.
-
-See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for the exact bundled components and licences.
+Muting an actor suppresses its source and its own FX tail. Master FX tails remain audible, which makes mute immediate while preserving the surrounding space.

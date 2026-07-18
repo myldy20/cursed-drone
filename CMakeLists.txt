@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.16)
 
-project(cursed_drone VERSION 0.9.0 LANGUAGES CXX)
+project(cursed_drone VERSION 0.12.0 LANGUAGES CXX)
 
 option(CURSED_DRONE_BUILD_SDL "Build the SDL2 handheld/desktop frontend" ON)
 option(CURSED_DRONE_BUILD_TESTS "Build the test executable" ON)
+option(CURSED_DRONE_ENABLE_PLAITS "Build the pinned upstream Plaits actor when the submodule is present" ON)
 
 add_library(cursed_drone_daisysp STATIC
     third_party/daisysp/Source/Filters/svf.cpp
@@ -26,9 +27,33 @@ target_include_directories(cursed_drone_daisysp SYSTEM PUBLIC
 )
 target_compile_features(cursed_drone_daisysp PUBLIC cxx_std_20)
 
+set(CURSED_DRONE_HAS_PLAITS 0)
+if(CURSED_DRONE_ENABLE_PLAITS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eurorack/plaits/dsp/voice.cc")
+    file(GLOB_RECURSE CURSED_DRONE_PLAITS_SOURCES CONFIGURE_DEPENDS
+        third_party/eurorack/plaits/dsp/*.cc
+        third_party/eurorack/stmlib/dsp/*.cc
+        third_party/eurorack/stmlib/utils/*.cc
+    )
+    list(FILTER CURSED_DRONE_PLAITS_SOURCES EXCLUDE REGEX "/test/")
+    list(APPEND CURSED_DRONE_PLAITS_SOURCES third_party/eurorack/plaits/resources.cc)
+    add_library(cursed_drone_plaits STATIC ${CURSED_DRONE_PLAITS_SOURCES})
+    target_include_directories(cursed_drone_plaits SYSTEM PUBLIC third_party/eurorack)
+    target_compile_definitions(cursed_drone_plaits PUBLIC TEST=1)
+    target_compile_features(cursed_drone_plaits PUBLIC cxx_std_20)
+    target_compile_options(cursed_drone_plaits PRIVATE
+        -include stdio.h
+        -Wno-unused-variable -Wno-unused-local-typedefs -Wno-sign-compare)
+    set(CURSED_DRONE_HAS_PLAITS 1)
+    message(STATUS "Cursed Drone: pinned upstream musical engine enabled")
+else()
+    message(WARNING "Cursed Drone: musical-engine submodule missing; building the audible fallback actor")
+endif()
+
 add_library(cursed_drone_core
     src/audio.cpp
     src/i18n.cpp
+    src/plaits_actor.cpp
+    src/scala.cpp
     src/session.cpp
     src/soundscape.cpp
     src/wav.cpp
@@ -36,8 +61,12 @@ add_library(cursed_drone_core
 target_include_directories(cursed_drone_core PRIVATE src)
 target_include_directories(cursed_drone_core PUBLIC include)
 target_compile_features(cursed_drone_core PUBLIC cxx_std_20)
+target_compile_definitions(cursed_drone_core PRIVATE CURSED_DRONE_HAS_PLAITS=${CURSED_DRONE_HAS_PLAITS})
 target_compile_options(cursed_drone_core PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion)
 target_link_libraries(cursed_drone_core PRIVATE cursed_drone_daisysp)
+if(CURSED_DRONE_HAS_PLAITS)
+    target_link_libraries(cursed_drone_core PRIVATE cursed_drone_plaits)
+endif()
 
 add_executable(cursed-drone src/main.cpp)
 target_link_libraries(cursed-drone PRIVATE cursed_drone_core)
