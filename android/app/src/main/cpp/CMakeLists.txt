@@ -88,8 +88,28 @@ if(CURSED_DRONE_HAS_PLAITS)
         cursed_drone_plaits_android)
 endif()
 
+# Alpha 3 is generated from the checked-in frontend with two configure-time
+# corrections kept here so the CI artifact cannot regress to tap-only sliders.
+# The source will be folded back into a single file after device validation.
+set(ANDROID_TOUCH_SOURCE "${CMAKE_CURRENT_LIST_DIR}/android_touch_main.cpp")
+file(READ "${ANDROID_TOUCH_SOURCE}" ANDROID_TOUCH_CONTENT)
+string(REPLACE
+    "if (hit.action == Action::slider) {\n        state.slider_active = true;"
+    "if (hit.action == Action::slider) {\n        state.pressed = hit;\n        state.slider_active = true;"
+    ANDROID_TOUCH_CONTENT "${ANDROID_TOUCH_CONTENT}")
+string(REPLACE
+    "constexpr std::array<cd::EngineKind, 36> kEngines"
+    "constexpr std::array<cd::EngineKind, 34> kEngines"
+    ANDROID_TOUCH_CONTENT "${ANDROID_TOUCH_CONTENT}")
+string(REPLACE
+    "    cd::EngineKind::diagnostic, cd::EngineKind::plaits,\n    cd::EngineKind::macro, cd::EngineKind::sub_drone,\n}};"
+    "    cd::EngineKind::diagnostic, cd::EngineKind::plaits,\n}};"
+    ANDROID_TOUCH_CONTENT "${ANDROID_TOUCH_CONTENT}")
+set(ANDROID_TOUCH_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/android_touch_main.generated.cpp")
+file(WRITE "${ANDROID_TOUCH_GENERATED}" "${ANDROID_TOUCH_CONTENT}")
+
 add_library(main SHARED
-    android_touch_main.cpp
+    "${ANDROID_TOUCH_GENERATED}"
     "${CURSED_DRONE_ROOT}/src/bitmap_text.cpp"
 )
 target_include_directories(main PRIVATE
