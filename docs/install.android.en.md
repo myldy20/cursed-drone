@@ -1,10 +1,10 @@
-# Android alpha
+# Android alpha 2
 
-The Android port keeps the existing C++ audio engine and SDL interface. Android only adds a thin fullscreen shell, an ARM64 native build and a touch adapter.
+The Android port keeps the existing C++ audio engine and SDL interface. The Android layer handles fullscreen startup, the ARM64 build, app data, a stable audio-buffer profile and direct touch interaction.
 
 ## Status
 
-This is an **alpha** target intended for real-device testing before a public release.
+This is an **alpha** target intended for real-device testing.
 
 - Android 8.0 or newer (`minSdk 26`)
 - ARM64 devices only (`arm64-v8a`)
@@ -19,27 +19,27 @@ This is an **alpha** target intended for real-device testing before a public rel
 3. Unzip it and install `app-debug.apk` on the Android device.
 4. Android may ask you to allow installation from the browser or file manager used to open the APK.
 
-A debug APK is unsigned for store distribution but is signed with the normal Android debug key, so it can be installed directly for testing.
+The debug APK uses the standard Android debug key. Play Protect can therefore report that the package comes from an unknown or unverified developer. A normal public distribution will require a permanent release key and developer registration; this warning does not indicate a problem in the audio engine.
 
 ## Touch controls
 
-The original 512×384 instrument UI is shown on the left. A dedicated touch controller is shown on the right.
+The separate virtual gamepad has been removed. The complete instrument UI scales into the available landscape area while preserving the original layout proportions.
 
-| Touch action | Result |
-| --- | --- |
-| Tap the instrument area | A / open / apply |
-| Double-tap the instrument area | Next section |
-| Drag horizontally or vertically | D-pad movement and value editing |
-| Hold an arrow on the touch panel | Repeated D-pad input with the original acceleration logic |
-| PAGE− / PAGE+ | Previous / next page |
-| BACK | Back or cancel |
-| SECTION | Next section on the current page |
-| HELP | Context help |
-| MENU | Quick menu |
-| FADE | Fade output in or out |
-| KILL | Immediate panic / silence |
+- tap a page tab to open that page directly;
+- tap an actor, FX slot, parameter row or memory slot to select it directly;
+- drag horizontally on a parameter row to change its value;
+- tap the landscape, engine or effect type to open the existing picker;
+- tap an item in a picker to select and apply it immediately;
+- use the bottom `FADE` control to fade the final output in or out;
+- use Android Back to close a picker or return to the Place page.
 
-External keyboards and game controllers remain supported by SDL.
+On the Place page, the lower part of an actor card toggles mute while the rest of the card selects that actor.
+
+External keyboards and game controllers remain supported through SDL, but the Android workflow no longer depends on their button model.
+
+## Android audio profile
+
+The activity queries Android for the device's native sample rate and preferred hardware burst size. SDL then opens a more conservative callback buffer of at least 2048 frames. This increases control latency slightly but significantly reduces the risk of underruns and grainy interruptions. For a drone instrument, stable output is more important than game-grade latency.
 
 ## Build locally
 
@@ -71,7 +71,8 @@ The Gradle build downloads the official SDL2 Android Java shim and SDL2 native s
 ## Known alpha limitations
 
 - only ARM64 is packaged;
-- no Play Store bundle or release signing configuration yet;
-- touch targets use a fixed landscape layout and still need validation on phones and tablets with different aspect ratios;
-- Android audio latency and USB audio behaviour depend on the device and Android firmware;
-- interruption handling for phone calls, Bluetooth changes and audio-device hot-plug still needs hardware testing.
+- no Play Store bundle or permanent release signing configuration yet;
+- portrait layout is not supported because it needs a separate composition rather than simple scaling;
+- the direct touch adapter mirrors the original SDL state machine and still needs validation across unusual navigation paths;
+- Android audio latency and USB/Bluetooth routing depend on the device and firmware;
+- phone-call interruption, device changes and audio-interface hot-plug still need hardware testing.
