@@ -7,12 +7,17 @@
 #include <cmath>
 #include <cstdlib>
 #include <deque>
+#include <filesystem>
+#include <fstream>
+#include <vector>
 
+int cursed_android_init(Uint32 flags);
 int cursed_android_poll_event(SDL_Event* event);
 int cursed_android_render_set_logical_size(SDL_Renderer* renderer, int width, int height);
 void cursed_android_render_present(SDL_Renderer* renderer);
 
 #define main cursed_drone_main_impl
+#define SDL_Init cursed_android_init
 #define SDL_PollEvent cursed_android_poll_event
 #define SDL_RenderSetLogicalSize cursed_android_render_set_logical_size
 #define SDL_RenderPresent cursed_android_render_present
@@ -20,6 +25,7 @@ void cursed_android_render_present(SDL_Renderer* renderer);
 #undef SDL_RenderPresent
 #undef SDL_RenderSetLogicalSize
 #undef SDL_PollEvent
+#undef SDL_Init
 #undef main
 
 namespace {
@@ -58,11 +64,10 @@ constexpr std::array<TouchCell, 13> kTouchCells{{
 
 SDL_Renderer* g_renderer = nullptr;
 std::deque<SDL_Event> g_synthetic_events{};
+bool g_finger_active = false;
 SDL_FingerID g_active_finger = 0;
 SDL_Keycode g_held_key = SDLK_UNKNOWN;
 int g_pressed_cell = -1;
-float g_touch_start_x = 0.0F;
-float g_touch_start_y = 0.0F;
 float g_touch_last_x = 0.0F;
 float g_touch_last_y = 0.0F;
 bool g_touch_in_content = false;
@@ -70,6 +75,48 @@ bool g_touch_moved = false;
 Uint32 g_last_tap_at = 0;
 float g_last_tap_x = 0.0F;
 float g_last_tap_y = 0.0F;
+
+bool copy_asset(const char* source_name, const std::filesystem::path& destination) {
+    SDL_RWops* source = SDL_RWFromFile(source_name, "rb");
+    if (source == nullptr) return false;
+
+    const Sint64 byte_count = SDL_RWsize(source);
+    if (byte_count <= 0) {
+        SDL_RWclose(source);
+        return false;
+    }
+
+    std::vector<unsigned char> bytes(static_cast<std::size_t>(byte_count));
+    const std::size_t read = SDL_RWread(source, bytes.data(), 1, bytes.size());
+    SDL_RWclose(source);
+    if (read != bytes.size()) return false;
+
+    std::error_code error;
+    std::filesystem::create_directories(destination.parent_path(), error);
+    std::ofstream output(destination, std::ios::binary | std::ios::trunc);
+    if (!output) return false;
+    output.write(reinterpret_cast<const char*>(bytes.data()),
+        static_cast<std::streamsize>(bytes.size()));
+    return output.good();
+}
+
+void prepare_android_data() {
+    char* preference_path = SDL_GetPrefPath("myldy20", "cursed-drone");
+    if (preference_path == nullptr) return;
+
+    const std::filesystem::path root{preference_path};
+    SDL_free(preference_path);
+
+    copy_asset("branding/cursed-drone-splash.bmp",
+        root / "branding" / "cursed-drone-splash.bmp");
+    copy_asset("scales/19-edo.scl", root / "scales" / "19-edo.scl");
+    copy_asset("scales/just-minor.scl", root / "scales" / "just-minor.scl");
+
+    const std::string root_string = root.string();
+    const std::string branding_string = (root / "branding").string();
+    setenv("CURSED_DRONE_DATA_DIR", root_string.c_str(), 1);
+    setenv("CURSED_DRONE_ASSET_DIR", branding_string.c_str(), 1);
+}
 
 void queue_key(SDL_Keycode key, bool down, Uint32 timestamp) {
     SDL_Event event{};
@@ -132,14 +179,15 @@ int cell_at(float x, float y) {
 }
 
 void handle_finger_down(const SDL_TouchFingerEvent& touch) {
-    if (g_active_finger != 0) return;
+    if (g_finger_active) return;
+    g_finger_active = true;
     g_active_finger = touch.fingerId;
 
     float x = 0.0F;
     float y = 0.0F;
     logical_touch_point(touch, x, y);
-    g_touch_start_x = g_touch_last_x = x;
-    g_touch_start_y = g_touch_last_y = y;
+    g_touch_last_x = x;
+    g_touch_last_y = y;
     g_touch_moved = false;
     g_touch_in_content = x < static_cast<float>(kDesktopUiWidth);
 
@@ -157,7 +205,7 @@ void handle_finger_down(const SDL_TouchFingerEvent& touch) {
 }
 
 void handle_finger_motion(const SDL_TouchFingerEvent& touch) {
-    if (touch.fingerId != g_active_finger || !g_touch_in_content) return;
+    if (!g_finger_active || touch.fingerId != g_active_finger || !g_touch_in_content) return;
 
     float x = 0.0F;
     float y = 0.0F;
@@ -183,7 +231,7 @@ void handle_finger_motion(const SDL_TouchFingerEvent& touch) {
 }
 
 void handle_finger_up(const SDL_TouchFingerEvent& touch) {
-    if (touch.fingerId != g_active_finger) return;
+    if (!g_finger_active || touch.fingerId != g_active_finger) return;
 
     float x = 0.0F;
     float y = 0.0F;
@@ -208,7 +256,7 @@ void handle_finger_up(const SDL_TouchFingerEvent& touch) {
         }
     }
 
-    g_active_finger = 0;
+    g_finger_active = false;
     g_pressed_cell = -1;
     g_touch_in_content = false;
     g_touch_moved = false;
@@ -251,6 +299,12 @@ void draw_touch_panel(SDL_Renderer* renderer) {
 }
 
 } // namespace
+
+int cursed_android_init(Uint32 flags) {
+    const int result = SDL_Init(flags);
+    if (result == 0) prepare_android_data();
+    return result;
+}
 
 int cursed_android_poll_event(SDL_Event* event) {
     if (pop_synthetic(event)) return 1;
