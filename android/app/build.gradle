@@ -12,8 +12,6 @@ final List<String> sdlJavaFiles = [
     "SDLActivity.java",
     "SDLAudioManager.java",
     "SDLControllerManager.java",
-    "SDLInputConnection.java",
-    "SDLSensorManager.java",
     "SDLSurface.java"
 ]
 final generatedSdlJava = layout.buildDirectory.dir("generated/sdl/java")
