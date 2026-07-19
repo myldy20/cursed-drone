@@ -1,9 +1,11 @@
 <p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
+<a href="https://github.com/myldy20/cursed-drone/actions/workflows/android.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/android.yml/badge.svg" alt="android"></a>
 <img src="https://img.shields.io/badge/version-0.12.0-eee2c5" alt="version 0.12.0">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
+<img src="https://img.shields.io/badge/Android-alpha-7550ab" alt="Android alpha">
 <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
 </p>
 
@@ -11,12 +13,13 @@
 
 **Cursed Drone is a handheld live soundscape instrument.** It does not merely generate a pure drone: it creates the atmosphere of a place, populated by four procedural actors and evolving events.
 
-> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**. Packages are firmware-specific and not interchangeable.
+> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**. Packages are firmware-specific and not interchangeable. The Android target is an alpha build awaiting broader hardware validation.
 
 ## Install
 
 - Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
+- Android alpha: [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
 
 ## Guided Workflow
 
@@ -41,6 +44,7 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 - four actor FX plus four Master FX;
 - eight memories, autosave, English/Russian UI;
 - native SDL UI at 512×384, scaled exactly to the Brick display;
+- Android alpha with a dedicated touch panel, tap and drag gestures;
 - no recorded samples.
 
 ## Controls
@@ -57,12 +61,16 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 | Start | quick menu |
 | Start + Select | save the current state and exit |
 
+Android touch controls are described in the [Android installation guide](docs/install.android.en.md).
+
 ## Runtime data
 
-Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/`.
-Both contain `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl`.
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Android: private app storage.
+All targets contain `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl`.
 
 ## Build
+
+Desktop and handheld targets:
 
 ```bash
 git submodule update --init --recursive
@@ -71,7 +79,13 @@ cmake --build build -j2
 ctest --test-dir build --output-on-failure
 ```
 
-CI tests Linux, macOS and Ubuntu-20.04-compatible AArch64 and packages both PortMaster and NextUI.
+Android debug APK:
+
+```bash
+gradle -p android :app:assembleDebug
+```
+
+CI tests Linux, macOS and Ubuntu-20.04-compatible AArch64, packages PortMaster and NextUI, and builds an ARM64 Android APK.
 
 ## Documentation
 
@@ -80,6 +94,7 @@ CI tests Linux, macOS and Ubuntu-20.04-compatible AArch64 and packages both Port
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
 - [Effects](docs/effects.en.md) · [Эффекты](docs/effects.ru.md)
 - [TrimUI Brick](docs/trimui-brick.en.md) · [TrimUI Brick](docs/trimui-brick.ru.md)
+- [Android alpha](docs/install.android.en.md) · [Android alpha](docs/install.android.ru.md)
 - [Roadmap](docs/roadmap.en.md) · [Дорожная карта](docs/roadmap.ru.md)
 
 ## Credits and licence
@@ -92,12 +107,13 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. Projec
 
 **Проклятый гудёж — карманный инструмент живых звуковых пространств.** Он не просто выдаёт чистый дрон, а создаёт атмосферу места, населённого четырьмя процедурными актёрами и развивающимися событиями.
 
-> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**. Пакеты для разных прошивок не взаимозаменяемы.
+> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**. Пакеты для разных прошивок не взаимозаменяемы. Android-версия пока имеет статус alpha и требует проверки на большем числе устройств.
 
 ## Установка
 
 - Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
 - NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
+- Android alpha: [русская инструкция](docs/install.android.ru.md) · [English](docs/install.android.en.md)
 
 ## Сквозная логика
 
@@ -121,7 +137,9 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. Projec
 - 21 эффект, включая Reverse Grains и пять составных процессоров;
 - четыре actor FX и четыре Master FX;
 - восемь слотов памяти, autosave, русский и английский интерфейс;
-- нативный SDL-интерфейс 512×384 без записанных семплов.
+- нативный SDL-интерфейс 512×384;
+- Android alpha с отдельной сенсорной панелью, касаниями и свайпами;
+- без записанных семплов.
 
 ## Управление
 
@@ -137,9 +155,11 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. Projec
 | Start | быстрое меню |
 | Start + Select | сохранить состояние и выйти |
 
+Сенсорное управление описано в [инструкции для Android](docs/install.android.ru.md).
+
 ## Данные
 
-Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/`.
-Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`.
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Android: закрытая папка приложения.
+Во всех версиях используются `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`.
 
 Разработано **Myldy design — [@myldy20](https://github.com/myldy20)**. Код проекта — GPL-3.0-or-later; лицензии сторонних компонентов перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
