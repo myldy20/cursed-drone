@@ -955,7 +955,8 @@ SDL_AudioDeviceID cursed_android_open_audio_device(
     SDL_AudioSpec stable = *desired;
     stable.freq = g_android_audio_rate;
     const int target_frames =
-        std::max(2'048, std::max(g_android_audio_burst * 6, stable.samples));
+        std::max(2'048, std::max(g_android_audio_burst * 6,
+            static_cast<int>(stable.samples)));
     stable.samples =
         static_cast<Uint16>(next_power_of_two(target_frames));
 
