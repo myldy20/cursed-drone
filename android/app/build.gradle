@@ -12,7 +12,6 @@ final List<String> sdlJavaFiles = [
     "SDLActivity.java",
     "SDLAudioManager.java",
     "SDLControllerManager.java",
-    "SDLDummyEdit.java",
     "SDLInputConnection.java",
     "SDLSensorManager.java",
     "SDLSurface.java"
