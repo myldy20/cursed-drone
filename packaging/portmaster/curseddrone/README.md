@@ -1,4 +1,4 @@
-# Cursed Drone 0.12 — PortMaster
+# Cursed Drone 0.12.1 — PortMaster
 
 Verified on **TrimUI Brick with Knulli**. Extract into the Ports directory so `Cursed Drone.sh` is directly beside other launchers. Detailed RU/EN guides and the workflow guide are included under `curseddrone/docs/`.
 
