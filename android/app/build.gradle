@@ -17,7 +17,7 @@ final List<String> sdlJavaFiles = [
     "SDLSensorManager.java",
     "SDLSurface.java"
 ]
-final Provider<Directory> generatedSdlJava = layout.buildDirectory.dir("generated/sdl/java")
+final generatedSdlJava = layout.buildDirectory.dir("generated/sdl/java")
 
 tasks.register("downloadSdlJava") {
     outputs.dir(generatedSdlJava)
@@ -71,6 +71,7 @@ android {
 
     sourceSets {
         main.java.srcDir(generatedSdlJava)
+        main.assets.srcDir(file("${rootProject.projectDir}/../assets"))
     }
 
     externalNativeBuild {
