@@ -1,0 +1,97 @@
+plugins {
+    id "com.android.application"
+}
+
+final String sdlTag = "release-2.32.10"
+final List<String> sdlJavaFiles = [
+    "HIDDevice.java",
+    "HIDDeviceBLESteamController.java",
+    "HIDDeviceManager.java",
+    "HIDDeviceUSB.java",
+    "SDL.java",
+    "SDLActivity.java",
+    "SDLAudioManager.java",
+    "SDLControllerManager.java",
+    "SDLDummyEdit.java",
+    "SDLInputConnection.java",
+    "SDLSensorManager.java",
+    "SDLSurface.java"
+]
+final Provider<Directory> generatedSdlJava = layout.buildDirectory.dir("generated/sdl/java")
+
+tasks.register("downloadSdlJava") {
+    outputs.dir(generatedSdlJava)
+    doLast {
+        File packageDir = new File(generatedSdlJava.get().asFile, "org/libsdl/app")
+        packageDir.mkdirs()
+        sdlJavaFiles.each { String fileName ->
+            ant.get(
+                src: "https://raw.githubusercontent.com/libsdl-org/SDL/${sdlTag}/android-project/app/src/main/java/org/libsdl/app/${fileName}",
+                dest: new File(packageDir, fileName),
+                usetimestamp: true,
+                verbose: false
+            )
+        }
+    }
+}
+
+android {
+    namespace "design.myldy.curseddrone"
+    compileSdk 35
+    ndkVersion "27.1.12297006"
+
+    defaultConfig {
+        applicationId "design.myldy.curseddrone"
+        minSdk 26
+        targetSdk 35
+        versionCode 12001
+        versionName "0.12.0-android-alpha1"
+
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++20 -fexceptions -frtti"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    sourceSets {
+        main.java.srcDir(generatedSdlJava)
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("downloadSdlJava")
+}
