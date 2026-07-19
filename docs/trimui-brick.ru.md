@@ -1,6 +1,6 @@
 # Поддержка TrimUI Brick
 
-Cursed Drone 0.12 проверен на TrimUI Brick с **Knulli/PortMaster** и **NextUI**. Knulli использует `/userdata/roms/ports/Cursed Drone.sh`, NextUI — `Tools/tg5040/Cursed Drone.pak/launch.sh`. Архивы не взаимозаменяемы.
+Cursed Drone 0.12.1 проверен на TrimUI Brick с **Knulli/PortMaster** и **NextUI**. Knulli использует `/userdata/roms/ports/Cursed Drone.sh`, NextUI — `Tools/tg5040/Cursed Drone.pak/launch.sh`. Архивы не взаимозаменяемы.
 
 Интерфейс рисуется в 512×384 и масштабируется до 1024×768. Проверенный Knulli-probe показал Mali/OpenGL ES, ALSA 48 кГц стерео и буфер 512 сэмплов.
 

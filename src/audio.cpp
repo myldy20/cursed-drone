@@ -917,6 +917,7 @@ public:
     void prepare(const AudioConfig& config, const Session& initial_session) {
         config_ = config;
         session_ = initial_session;
+        chaos_slew_ = 1.0F - std::exp(-1.0F / (config_.sample_rate * 0.075F));
         rebuild_effective_slots();
         master_.prepare(session_.master_level * session_.performance.fade, config_.sample_rate, 100.0F);
         performance_texture_.prepare(session_.performance.texture, config_.sample_rate, 80.0F);
@@ -1039,10 +1040,9 @@ public:
                     target = next_noise(chaos_random_state_);
                 }
             }
-            const float chaos_slew = 1.0F - std::exp(-1.0F / (config_.sample_rate * 0.075F));
             last_chaos_activity = 0.0F;
             for (std::size_t index = 0; index < kSlotCount; ++index) {
-                chaos_current_[index] += (chaos_target_[index] - chaos_current_[index]) * chaos_slew;
+                chaos_current_[index] += (chaos_target_[index] - chaos_current_[index]) * chaos_slew_;
                 last_chaos_activity = std::max(last_chaos_activity, std::abs(chaos_current_[index]) * chaos_macro);
             }
 
@@ -1221,7 +1221,9 @@ public:
                 parameters.level *= pulse_gain * std::clamp(1.0F + chaos_value * 0.72F, 0.16F, 1.65F);
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
-                    switch (settings.effects[effect_index].kind) {
+                    const auto effect_kind = settings.effects[effect_index].kind;
+                    if (effect_kind == EffectKind::bypass) continue;
+                    switch (effect_kind) {
                     case EffectKind::drive:
                     case EffectKind::crusher:
                     case EffectKind::wavefolder:
@@ -1249,7 +1251,7 @@ public:
                         parameters.effect_tone[effect_index] += chaos_macro * 0.18F;
                         parameters.effect_feedback[effect_index] += space_macro * 0.40F;
                         break;
-                    case EffectKind::bypass:
+                    default:
                         break;
                     }
                     parameters.effect_amount[effect_index] = clamp01(parameters.effect_amount[effect_index]);
@@ -1287,9 +1289,11 @@ public:
                 };
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
+                    const auto kind = settings.effects[effect_index].kind;
+                    if (kind == EffectKind::bypass) continue;
                     slot_frame = runtime.effects[effect_index].process(
                         slot_frame,
-                        settings.effects[effect_index].kind,
+                        kind,
                         parameters.effect_amount[effect_index],
                         parameters.effect_tone[effect_index],
                         parameters.effect_feedback[effect_index]);
@@ -1310,6 +1314,7 @@ public:
 
             for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
                 const auto& settings = session_.master_effects[effect_index];
+                if (settings.kind == EffectKind::bypass) continue;
                 mix = master_effects_[effect_index].process(
                     mix, settings.kind, settings.amount, settings.tone, settings.feedback);
             }
@@ -1449,6 +1454,7 @@ private:
     std::array<float, kSlotCount> pulse_phases_{};
     float pulse_phase_{0.0F};
     float chaos_phase_{0.0F};
+    float chaos_slew_{0.0F};
     unsigned scope_publish_counter_{0U};
     std::uint32_t chaos_random_state_{0xD00D'F00DU};
     std::array<std::atomic<float>, kSlotCount> slot_rms_{};

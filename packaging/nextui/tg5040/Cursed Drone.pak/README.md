@@ -1,4 +1,4 @@
-# Cursed Drone 0.12 — NextUI Tool Pak
+# Cursed Drone 0.12.1 — NextUI Tool Pak
 
 Verified on **TrimUI Brick with NextUI**. Extract the distribution ZIP to the SD-card root; the final path is `Tools/tg5040/Cursed Drone.pak/launch.sh`. Open **Tools → Cursed Drone**.
 

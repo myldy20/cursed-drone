@@ -1,4 +1,4 @@
-# Install Cursed Drone 0.12 on NextUI
+# Install Cursed Drone 0.12.1 on NextUI
 
 > Verified on a real TrimUI Brick with NextUI: launch, video, audio and controls work.
 

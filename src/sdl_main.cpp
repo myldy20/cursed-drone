@@ -1170,19 +1170,31 @@ void outline(SDL_Renderer* renderer, SDL_Rect rectangle, SDL_Color color) {
 }
 
 void draw_myldy_mark(SDL_Renderer* renderer, int x, int y, int scale, SDL_Color color) {
+    // 32x26 monochrome trace of the supplied Myldy Design monogram. Keeping
+    // the source silhouette as a pixel mask makes the tiny in-app mark crisp
+    // and recognizable instead of approximating it with unrelated strokes.
+    constexpr std::array<Uint32, 26> rows{{
+        0xFC300C3FU, 0xFE301C7FU, 0xFC381C7FU, 0xFC381C7FU,
+        0xFC3C3C7FU, 0xFC3C3C7FU, 0xFE3E7C7FU, 0xFE3E7C7FU,
+        0xFE3FFC7FU, 0xFE3FFC7FU, 0xFE3FFC7FU, 0xFE3FFC7FU,
+        0xFE3FFC7FU, 0xFE3FFC7FU, 0xFE33DC7FU, 0xFE3BDC7FU,
+        0xFE399C7FU, 0xFE781E7FU, 0xFF781EFFU, 0xFE781EFFU,
+        0xFE781EFFU, 0xFE701EFFU, 0xFE701EFFU, 0xFE701EFFU,
+        0xFE781EFFU, 0xFE700EFFU,
+    }};
     const int s = std::max(1, scale);
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    fill(renderer, {x, y, 4 * s, 15 * s}, color);
-    fill(renderer, {x + 7 * s, y, 3 * s, 15 * s}, color);
-    fill(renderer, {x + 18 * s, y, 3 * s, 15 * s}, color);
-    fill(renderer, {x + 24 * s, y, 4 * s, 15 * s}, color);
-    for (int offset = 0; offset < 3 * s; ++offset) {
-        SDL_RenderDrawLine(renderer,
-            x + 9 * s + offset, y,
-            x + 14 * s + offset, y + 9 * s);
-        SDL_RenderDrawLine(renderer,
-            x + 14 * s + offset, y + 9 * s,
-            x + 19 * s + offset, y);
+    for (int row = 0; row < static_cast<int>(rows.size()); ++row) {
+        int run_start = -1;
+        for (int column = 0; column <= 32; ++column) {
+            const bool filled = column < 32 &&
+                (rows[static_cast<std::size_t>(row)] & (Uint32{1} << (31 - column))) != 0U;
+            if (filled && run_start < 0) {
+                run_start = column;
+            } else if (!filled && run_start >= 0) {
+                fill(renderer, {x + run_start * s, y + row * s, (column - run_start) * s, s}, color);
+                run_start = -1;
+            }
+        }
     }
 }
 
@@ -1431,7 +1443,7 @@ void draw_tracks(
     cd::ui::draw_text(renderer, 22, 344,
         actor_focus
             ? (ru(session) ? "D-PAD: АКТЕР  A: MUTE  X: ОСНОВНОЕ" : "D-PAD: ACTOR  A: MUTE  X: BASIC")
-            : (ru(session) ? "UP/DN: ПАРАМЕТР  LT/RT: ЗНАЧЕНИЕ  A: ДЕЙСТВИЕ" : "UP/DN: PARAMETER  LT/RT: VALUE  A: ACTION"),
+            : (ru(session) ? "D-PAD: ПАРАМЕТР / ЗНАЧЕНИЕ  A: ДЕЙСТВИЕ" : "D-PAD: PARAMETER / VALUE  A: ACTION"),
         kDim);
 }
 
@@ -1620,7 +1632,7 @@ void draw_effects(
     cd::ui::draw_text(renderer, 22, 344,
         actor_focus
             ? (ru(session) ? "D-PAD: АКТЕР  A: MUTE  X: FX1" : "D-PAD: ACTOR  A: MUTE  X: FX1")
-            : (ru(session) ? "X: СЛЕДУЮЩИЙ FX  UP/DN: СТРОКА  LT/RT: ЗНАЧЕНИЕ  A: СПИСОК" : "X: NEXT FX  UP/DN: ROW  LT/RT: VALUE  A: LIST"),
+            : (ru(session) ? "X: СЛЕДУЮЩИЙ FX  D-PAD: СТРОКА / ЗНАЧЕНИЕ  A: СПИСОК" : "X: NEXT FX  D-PAD: ROW / VALUE  A: LIST"),
         kDim);
 }
 
@@ -1682,8 +1694,8 @@ void draw_master(
     }
     cd::ui::draw_text(renderer, 22, 344,
         signal_focus
-            ? (ru(session) ? "UP/DN: ПАРАМЕТР  LT/RT: ЗНАЧЕНИЕ  X: MASTER FX1" : "UP/DN: PARAMETER  LT/RT: VALUE  X: MASTER FX1")
-            : (ru(session) ? "X: СЛЕДУЮЩИЙ FX  UP/DN: СТРОКА  LT/RT: ЗНАЧЕНИЕ  A: СПИСОК" : "X: NEXT FX  UP/DN: ROW  LT/RT: VALUE  A: LIST"),
+            ? (ru(session) ? "D-PAD: ПАРАМЕТР / ЗНАЧЕНИЕ  X: MASTER FX1" : "D-PAD: PARAMETER / VALUE  X: MASTER FX1")
+            : (ru(session) ? "X: СЛЕДУЮЩИЙ FX  D-PAD: СТРОКА / ЗНАЧЕНИЕ  A: СПИСОК" : "X: NEXT FX  D-PAD: ROW / VALUE  A: LIST"),
         kDim);
 }
 
@@ -1800,9 +1812,9 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
     }
     cd::ui::draw_text(renderer, 22, 306,
         ru(session) ? "АВТОСОХРАНЕНИЕ: ПОСЛЕДНЕЕ СОСТОЯНИЕ" : "AUTOSAVE: LAST STATE IS ALWAYS RESUMED", kDim);
-    draw_myldy_mark(renderer, 22, 326, 1, kDim);
-    cd::ui::draw_text(renderer, 58, 330, "DEVELOPED BY MYLDY DESIGN  @MYLDY20", kDim);
-    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.0"), 330, "V0.12.0", kDim);
+    draw_myldy_mark(renderer, 22, 317, 1, kInk);
+    cd::ui::draw_text(renderer, 62, 330, "DEVELOPED BY MYLDY DESIGN  @MYLDY20", kDim);
+    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.1"), 330, "V0.12.1", kDim);
 }
 
 void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
@@ -1851,8 +1863,8 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
             handheld()
                 ? (ru(session) ? "D-PAD ВЫБОР  A OK  B НАЗАД"
                                : "D-PAD SELECT  A OK  B BACK")
-                : (ru(session) ? "LT/RT ГРУППА  UP/DN ДВИЖОК  E OK  ESC НАЗАД"
-                               : "LT/RT GROUP  UP/DN ENGINE  E OK  ESC BACK"), kDim);
+                : (ru(session) ? "LEFT/RIGHT ГРУППА  UP/DN ДВИЖОК  E OK  ESC НАЗАД"
+                               : "LEFT/RIGHT GROUP  UP/DN ENGINE  E OK  ESC BACK"), kDim);
     } else if (state.picker == Picker::effect) {
         cd::ui::draw_text(renderer, 92, 66,
             ru(session) ? "ВЫБОР ЭФФЕКТА" : "CHOOSE EFFECT", kInk, 2);
@@ -1880,8 +1892,8 @@ void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiSta
             handheld()
                 ? (ru(session) ? "D-PAD ВЫБОР  A OK  B НАЗАД"
                                : "D-PAD SELECT  A OK  B BACK")
-                : (ru(session) ? "LT/RT ГРУППА  UP/DN ЭФФЕКТ  E OK  ESC НАЗАД"
-                               : "LT/RT GROUP  UP/DN EFFECT  E OK  ESC BACK"), kDim);
+                : (ru(session) ? "LEFT/RIGHT ГРУППА  UP/DN ЭФФЕКТ  E OK  ESC НАЗАД"
+                               : "LEFT/RIGHT GROUP  UP/DN EFFECT  E OK  ESC BACK"), kDim);
     }
 }
 
@@ -1970,7 +1982,7 @@ void draw_menu_overlay(SDL_Renderer* renderer, const cd::Session& session, const
         if (selected) fill(renderer, {106, y - 5, 300, 25}, {73, 46, 104, 255});
         cd::ui::draw_text(renderer, 116, y, items[static_cast<std::size_t>(item)], selected ? kInk : kDim);
     }
-    cd::ui::draw_text(renderer, 112, 316, ru(session) ? "LT/RT: СЛОТ  A: OK  B: НАЗАД" : "LT/RT: SLOT  A: OK  B: BACK", kDim);
+    cd::ui::draw_text(renderer, 112, 316, ru(session) ? "D-PAD: ПУНКТ / СЛОТ  A: OK  B: НАЗАД" : "D-PAD: ITEM / SLOT  A: OK  B: BACK", kDim);
 }
 
 void draw(

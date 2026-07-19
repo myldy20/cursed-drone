@@ -1,4 +1,4 @@
-# Architecture — Cursed Drone 0.12
+# Architecture — Cursed Drone 0.12.1
 
 ```text
 Place macros
