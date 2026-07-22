@@ -40,7 +40,8 @@ jobs:
           grep -q 'CURSED_DRONE_HAS_PLAITS=1' /tmp/cursed-drone-v0122-build/CMakeFiles/cursed_drone_core.dir/flags.make
       - name: Commit validated release sources
         run: |
-          rm -f tools/v0122.patch.* .github/workflows/integrate-v0122.yml
+          git checkout HEAD -- .github/workflows/build.yml
+          rm -f tools/v0122.patch.*
           git add -A
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
