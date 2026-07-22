@@ -101,7 +101,7 @@ if(ANDROID)
     FetchContent_MakeAvailable(SDL2)
 
     add_library(main SHARED
-        android/app/src/main/cpp/android_touch_main.cpp
+        android/app/src/main/cpp/android_approved_main.cpp
         src/bitmap_text.cpp
     )
     target_include_directories(main PRIVATE src include)
