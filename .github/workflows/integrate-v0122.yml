@@ -1,8 +1,9 @@
 name: integrate-v0122
 
 on:
-  push:
-    branches: [release/v0.12.2-event-clarity]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
     paths:
       - .github/workflows/integrate-v0122.yml
       - tools/v0122.patch.*
@@ -12,7 +13,7 @@ permissions:
 
 concurrency:
   group: integrate-v0122
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   integrate:
