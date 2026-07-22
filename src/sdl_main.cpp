@@ -40,6 +40,9 @@ constexpr std::array<SDL_Color, 4> kFxColors{{
 enum class Page { perform, slot, effects, master, memory };
 enum class Picker { none, scene, engine, effect };
 
+constexpr int kActorBasicFieldCount = 12;
+constexpr int kActorAdvancedFieldCount = 17;
+
 struct AudioBridge {
     cd::AudioGraph graph{};
     std::atomic<float> cpu_load{0.0F};
@@ -88,6 +91,9 @@ struct UiState {
 std::vector<cd::ParsedScale> g_scales{};
 std::filesystem::path g_data_root{};
 std::array<std::filesystem::path, cd::kMemorySlots> g_memory_paths{};
+std::array<bool, cd::kMemorySlots> g_memory_slot_present{};
+
+void refresh_memory_slot_cache();
 
 void audio_callback(void* userdata, Uint8* bytes, int byte_count) {
     auto& bridge = *static_cast<AudioBridge*>(userdata);
@@ -765,7 +771,7 @@ int page_index(Page page) noexcept { return static_cast<int>(page); }
 int parameter_count(Page page) noexcept {
     switch (page) {
     case Page::perform: return 5;
-    case Page::slot: return 12;
+    case Page::slot: return kActorBasicFieldCount;
     case Page::effects: return 4;
     case Page::master: return 2;
     case Page::memory: return 3;
@@ -879,20 +885,20 @@ std::string_view mod_destination_name(cd::ModDestination destination, bool russi
 }
 
 std::string_view actor_basic_label(int field, bool russian) noexcept {
-    constexpr std::array<std::string_view, 12> en{
+    constexpr std::array<std::string_view, kActorBasicFieldCount> en{
         "ACTIVE", "SOURCE", "ENGINE", "TRIGGER NOW", "EVENT RATE", "PITCH",
         "CHARACTER", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN"};
-    constexpr std::array<std::string_view, 12> ru_names{
+    constexpr std::array<std::string_view, kActorBasicFieldCount> ru_names{
         "АКТИВЕН", "ИСТОЧНИК", "ДВИЖОК", "ЗАПУСТИТЬ", "ЧАСТОТА СОБ.", "ВЫСОТА",
         "ХАРАКТЕР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА"};
     return (russian ? ru_names : en)[static_cast<std::size_t>(field)];
 }
 
 std::string_view actor_advanced_label(int field, bool russian) noexcept {
-    constexpr std::array<std::string_view, 17> en{
+    constexpr std::array<std::string_view, kActorAdvancedFieldCount> en{
         "MODEL", "OUTPUT", "TUNING", "ROOT", "EVENTS", "STEPS", "PULSES", "ROTATE", "PROBABILITY",
         "MOD ROW", "MOD ACTIVE", "MOD SHAPE", "MOD TARGET", "MOD RATE", "MOD DEPTH", "RATE SOURCE", "CROSS AMOUNT"};
-    constexpr std::array<std::string_view, 17> ru_names{
+    constexpr std::array<std::string_view, kActorAdvancedFieldCount> ru_names{
         "МОДЕЛЬ", "ВЫХОД", "СТРОЙ", "ОСНОВА", "СОБЫТИЯ", "ШАГИ", "ИМПУЛЬСЫ", "СДВИГ", "ВЕРОЯТНОСТЬ",
         "СТРОКА MOD", "MOD АКТИВЕН", "ФОРМА MOD", "ЦЕЛЬ MOD", "СКОРОСТЬ MOD", "ГЛУБИНА MOD", "ИСТОЧНИК СКОР.", "ГЛУБИНА СВЯЗИ"};
     return (russian ? ru_names : en)[static_cast<std::size_t>(field)];
@@ -919,10 +925,10 @@ std::string actor_basic_value(const cd::Session& session, const UiState& state, 
         const float rate = cd::event_rate_hz(session.tempo_bpm, density, slot.motion);
         const float maximum = cd::event_max_wait_seconds(session.tempo_bpm, density, slot.motion);
         if (rate < 0.25F) {
-            std::snprintf(value, sizeof(value), "%.1f/M  MAX %.0fS",
+            std::snprintf(value, sizeof(value), "%.1f/M  FMAX %.0fS",
                 static_cast<double>(rate * 60.0F), static_cast<double>(maximum));
         } else {
-            std::snprintf(value, sizeof(value), "%.2f/S  MAX %.1fS",
+            std::snprintf(value, sizeof(value), "%.2f/S  FMAX %.1fS",
                 static_cast<double>(rate), static_cast<double>(maximum));
         }
         return value;
@@ -1047,6 +1053,16 @@ std::string current_label(const cd::Session& session, const UiState& state) {
             : std::string{effect_field(kind, state.master_effect_field - 1, ru(session))};
     }
     return ru(session) ? "СЛОТ ПАМЯТИ" : "MEMORY SLOT";
+}
+
+bool actor_advanced_horizontal_action(int field) noexcept {
+    switch (field) {
+    case 0: case 1: case 2: case 3: case 5: case 6: case 7: case 8:
+    case 9: case 11: case 12: case 13: case 14: case 15: case 16:
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool current_adjustable(const cd::Session& session, const UiState& state) {
@@ -1451,7 +1467,7 @@ void draw_tracks(
     fill(renderer, {18, 114, 476, 225}, list_focus ? SDL_Color{38, 28, 50, 255} : SDL_Color{27, 23, 36, 255});
     if (list_focus) outline(renderer, {18, 114, 476, 225}, kInk);
     if (!show_advanced) {
-        for (int field = 0; field < 12; ++field) {
+        for (int field = 0; field < kActorBasicFieldCount; ++field) {
             const int y = 120 + field * 18;
             const bool active = state.focus_zone == 1 && parameter(state) == field;
             if (active) fill(renderer, {23, y - 3, 466, 16}, {73, 46, 104, 255});
@@ -1462,7 +1478,7 @@ void draw_tracks(
                 active ? kInk : kFxColors[static_cast<std::size_t>(state.slot)]);
         }
     } else {
-        for (int field = 0; field < 17; ++field) {
+        for (int field = 0; field < kActorAdvancedFieldCount; ++field) {
             const bool right = field >= 9;
             const int row = right ? field - 9 : field;
             const int x = right ? 258 : 23;
@@ -1739,10 +1755,17 @@ void draw_master(
         kDim);
 }
 
-bool memory_slot_exists(int index) {
+void refresh_memory_slot_cache() {
+    for (std::size_t index = 0; index < cd::kMemorySlots; ++index) {
+        std::error_code error;
+        g_memory_slot_present[index] = !g_memory_paths[index].empty() &&
+            std::filesystem::is_regular_file(g_memory_paths[index], error);
+    }
+}
+
+bool memory_slot_exists(int index) noexcept {
     if (index < 0 || index >= static_cast<int>(cd::kMemorySlots)) return false;
-    std::error_code error;
-    return std::filesystem::is_regular_file(g_memory_paths[static_cast<std::size_t>(index)], error);
+    return g_memory_slot_present[static_cast<std::size_t>(index)];
 }
 
 void set_toast(UiState& state, std::string text) {
@@ -1754,6 +1777,7 @@ bool save_memory_slot(const cd::Session& session, UiState& state) {
     if (g_memory_paths[static_cast<std::size_t>(state.memory_slot)].empty()) return false;
     std::string error;
     const bool ok = cd::save_session(session, g_memory_paths[static_cast<std::size_t>(state.memory_slot)], error);
+    if (ok) g_memory_slot_present[static_cast<std::size_t>(state.memory_slot)] = true;
     set_toast(state, ok ? (ru(session) ? "СОХРАНЕНО В СЛОТ " : "SAVED TO SLOT ") + std::to_string(state.memory_slot + 1)
                         : (ru(session) ? "ОШИБКА СОХРАНЕНИЯ" : "SAVE FAILED"));
     return ok;
@@ -1854,7 +1878,7 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
         ru(session) ? "АВТОСОХРАНЕНИЕ: ПОСЛЕДНЕЕ СОСТОЯНИЕ" : "AUTOSAVE: LAST STATE IS ALWAYS RESUMED", kDim);
     draw_myldy_mark(renderer, 22, 317, 1, kInk);
     cd::ui::draw_text(renderer, 62, 330, "DEVELOPED BY MYLDY DESIGN  @MYLDY20", kDim);
-    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.2"), 330, "V0.12.2", kDim);
+    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.3"), 330, "V0.12.3", kDim);
 }
 
 void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
@@ -2087,19 +2111,12 @@ void change_page(UiState& state, int direction) noexcept {
     case Page::slot: state.focus_zone = 1; break;
     case Page::effects: state.focus_zone = 1; parameter(state) = 0; state.effect_field = 0; break;
     case Page::master: state.focus_zone = 0; break;
-    case Page::memory: state.focus_zone = 0; break;
+    case Page::memory: state.focus_zone = 0; refresh_memory_slot_cache(); break;
     }
     state.held_direction = 0;
 }
 
-bool execute_memory_action(cd::Session& session, UiState& state) {
-    if (state.memory_action == 0) return load_memory_slot(session, state);
-    if (state.memory_action == 1) return save_memory_slot(session, state);
-    reset_landscape(session, state);
-    return true;
-}
-
-void activate_current(cd::Session& session, UiState& state, cd::AudioGraph& graph) {
+bool activate_current(cd::Session& session, UiState& state, cd::AudioGraph& graph) {
     if (state.page == Page::perform) {
         if (state.focus_zone == 0) open_scene_picker(state, session);
         else if (state.focus_zone == 2) {
@@ -2108,77 +2125,82 @@ void activate_current(cd::Session& session, UiState& state, cd::AudioGraph& grap
             session.scene_modified = true;
             set_toast(state, actor.enabled ? (ru(session) ? "АКТЕР ВКЛЮЧЕН" : "ACTOR ON")
                                            : (ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR MUTED"));
+            return true;
         }
-        return;
+        return false;
     }
     if (state.page == Page::slot) {
         auto& actor = session.slots[static_cast<std::size_t>(state.slot)];
         if (state.focus_zone == 0) {
             actor.enabled = !actor.enabled;
+            session.scene_modified = true;
             set_toast(state, actor.enabled ? (ru(session) ? "АКТЕР ВКЛЮЧЕН" : "ACTOR ON")
                                            : (ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR MUTED"));
-        } else if (state.focus_zone == 1) {
-            if (parameter(state) == 0) actor.enabled = !actor.enabled;
-            else if (parameter(state) == 1) toggle_actor_source(session, state.slot);
-            else if (parameter(state) == 2) {
-                if (actor.engine == cd::EngineKind::plaits) {
-                    state.focus_zone = 2;
-                    state.actor_advanced_field = 0;
-                } else open_engine_picker(state, session);
-            }
-            else if (parameter(state) == 3) {
-                if (!actor.enabled) {
-                    set_toast(state, ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR IS MUTED");
-                } else if (!cd::supports_manual_trigger(actor.engine)) {
-                    set_toast(state, ru(session) ? "ЭТО НЕПРЕРЫВНЫЙ ЗВУК" : "CONTINUOUS ACTOR");
-                } else {
-                    graph.trigger_slot(static_cast<std::size_t>(state.slot));
-                    set_toast(state, ru(session) ? "СОБЫТИЕ ЗАПУЩЕНО" : "EVENT TRIGGERED");
-                }
-                return;
-            }
-        } else {
-            auto& mod = actor.modulators[static_cast<std::size_t>(state.actor_modulator)];
-            if (state.actor_advanced_field == 4) actor.euclidean.enabled = !actor.euclidean.enabled;
-            else if (state.actor_advanced_field == 9) state.actor_modulator = (state.actor_modulator + 1) % 4;
-            else if (state.actor_advanced_field == 10) mod.enabled = !mod.enabled;
+            return true;
         }
+        if (state.focus_zone == 1) {
+            if (parameter(state) == 0) { actor.enabled = !actor.enabled; session.scene_modified = true; return true; }
+            if (parameter(state) == 1) { toggle_actor_source(session, state.slot); return true; }
+            if (parameter(state) == 2) {
+                if (actor.engine == cd::EngineKind::plaits) { state.focus_zone = 2; state.actor_advanced_field = 0; }
+                else open_engine_picker(state, session);
+                return false;
+            }
+            if (parameter(state) == 3) {
+                if (!actor.enabled) set_toast(state, ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR IS MUTED");
+                else if (!cd::supports_manual_trigger(actor.engine)) set_toast(state, ru(session) ? "ЭТО НЕПРЕРЫВНЫЙ ЗВУК" : "CONTINUOUS ACTOR");
+                else { graph.trigger_slot(static_cast<std::size_t>(state.slot)); set_toast(state, ru(session) ? "СОБЫТИЕ ЗАПУЩЕНО" : "EVENT TRIGGERED"); }
+                return false;
+            }
+            return false;
+        }
+        auto& mod = actor.modulators[static_cast<std::size_t>(state.actor_modulator)];
+        if (state.actor_advanced_field == 4) actor.euclidean.enabled = !actor.euclidean.enabled;
+        else if (state.actor_advanced_field == 9) { state.actor_modulator = (state.actor_modulator + 1) % 4; return false; }
+        else if (state.actor_advanced_field == 10) mod.enabled = !mod.enabled;
+        else return false;
         session.scene_modified = true;
-        return;
+        return true;
     }
     if (state.page == Page::effects) {
         if (state.focus_zone == 0) {
             auto& actor = session.slots[static_cast<std::size_t>(state.slot)];
             actor.enabled = !actor.enabled;
             session.scene_modified = true;
-        } else if (state.effect_field == 0) {
-            parameter(state) = state.focus_zone - 1;
-            open_effect_picker(state, session, false);
+            return true;
         }
-        return;
+        if (state.effect_field == 0) { parameter(state) = state.focus_zone - 1; open_effect_picker(state, session, false); }
+        return false;
     }
     if (state.page == Page::master) {
         if (state.focus_zone > 0 && state.master_effect_field == 0) {
             state.master_effect = state.focus_zone - 1;
             open_effect_picker(state, session, true);
         }
-        return;
+        return false;
     }
     if (state.page == Page::memory) {
-        if (state.focus_zone == 0) load_memory_slot(session, state);
-        else if (state.focus_zone == 1) execute_memory_action(session, state);
+        if (state.focus_zone == 0) return load_memory_slot(session, state);
+        if (state.focus_zone == 1) {
+            if (state.memory_action == 0) return load_memory_slot(session, state);
+            if (state.memory_action == 1) { static_cast<void>(save_memory_slot(session, state)); return false; }
+            reset_landscape(session, state);
+            return true;
+        }
     }
+    return false;
 }
 
-void execute_quick_menu(cd::Session& session, UiState& state) {
+bool execute_quick_menu(cd::Session& session, UiState& state) {
     switch (state.menu_item) {
-    case 0: state.menu_open = false; break;
-    case 1: save_memory_slot(session, state); state.menu_open = false; break;
-    case 2: load_memory_slot(session, state); state.menu_open = false; break;
-    case 3: reset_landscape(session, state); state.menu_open = false; break;
-    case 4: state.page = Page::memory; state.focus_zone = 0; state.menu_open = false; break;
-    case 5: state.request_exit = true; break;
+    case 0: state.menu_open = false; return false;
+    case 1: static_cast<void>(save_memory_slot(session, state)); state.menu_open = false; return false;
+    case 2: { const bool changed = load_memory_slot(session, state); state.menu_open = false; return changed; }
+    case 3: reset_landscape(session, state); state.menu_open = false; return true;
+    case 4: state.page = Page::memory; state.focus_zone = 0; refresh_memory_slot_cache(); state.menu_open = false; return false;
+    case 5: state.request_exit = true; return false;
     }
+    return false;
 }
 
 void go_back(UiState& state) noexcept {
@@ -2238,17 +2260,27 @@ bool handle_dpad(cd::Session& session, UiState& state, int horizontal, int verti
             return false;
         }
         if (state.focus_zone == 1) {
-            if (vertical != 0) parameter(state) = (parameter(state) + vertical + 10) % 10;
-            if (horizontal != 0 && parameter(state) >= 3) { start_adjust(session, state, horizontal, now); return true; }
-            if (horizontal != 0 && parameter(state) == 0) { actor.enabled = horizontal > 0; session.scene_modified = true; return true; }
-            if (horizontal != 0 && parameter(state) == 1) {
-                if (horizontal > 0 && actor.engine != cd::EngineKind::plaits) toggle_actor_source(session, state.slot);
-                else if (horizontal < 0 && actor.engine == cd::EngineKind::plaits) toggle_actor_source(session, state.slot);
+            if (vertical != 0) parameter(state) = (parameter(state) + vertical + parameter_count(Page::slot)) % parameter_count(Page::slot);
+            if (horizontal != 0 && current_adjustable(session, state)) {
+                start_adjust(session, state, horizontal, now);
                 return true;
             }
+            if (horizontal != 0 && parameter(state) == 0) { actor.enabled = horizontal > 0; session.scene_modified = true; return true; }
+            if (horizontal != 0 && parameter(state) == 1) {
+                const bool to_musical = horizontal > 0 && actor.engine != cd::EngineKind::plaits;
+                const bool to_landscape = horizontal < 0 && actor.engine == cd::EngineKind::plaits;
+                if (to_musical || to_landscape) {
+                    toggle_actor_source(session, state.slot);
+                    return true;
+                }
+                return false;
+            }
         } else {
-            if (vertical != 0) state.actor_advanced_field = (state.actor_advanced_field + vertical + 17) % 17;
-            if (horizontal != 0) { start_adjust(session, state, horizontal, now); return true; }
+            if (vertical != 0) state.actor_advanced_field = (state.actor_advanced_field + vertical + kActorAdvancedFieldCount) % kActorAdvancedFieldCount;
+            if (horizontal != 0 && actor_advanced_horizontal_action(state.actor_advanced_field)) {
+                start_adjust(session, state, horizontal, now);
+                return true;
+            }
         }
         return false;
     }
@@ -2363,6 +2395,7 @@ int main(int, char**) {
         for (std::size_t index = 0; index < cd::kMemorySlots; ++index) {
             g_memory_paths[index] = g_data_root / ("memory-" + std::to_string(index + 1U) + ".cdrone");
         }
+        refresh_memory_slot_cache();
     }
 
     const std::filesystem::path load_path = std::filesystem::exists(autosave_path)
@@ -2430,7 +2463,8 @@ int main(int, char**) {
                     else if (event.key.keysym.sym == SDLK_RIGHT) move_picker(state, 1, 0);
                     else if (event.key.keysym.sym == SDLK_UP) move_picker(state, 0, -1);
                     else if (event.key.keysym.sym == SDLK_DOWN) move_picker(state, 0, 1);
-                    else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE) {
+                    else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE ||
+                        event.key.keysym.sym == SDLK_e) {
                         confirm_picker(state, session); changed = true;
                     }
                 } else if (state.menu_open) {
@@ -2439,7 +2473,9 @@ int main(int, char**) {
                     else if (event.key.keysym.sym == SDLK_DOWN) state.menu_item = (state.menu_item + 1) % 6;
                     else if (event.key.keysym.sym == SDLK_LEFT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 7) % 8;
                     else if (event.key.keysym.sym == SDLK_RIGHT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 1) % 8;
-                    else if (event.key.keysym.sym == SDLK_RETURN) { execute_quick_menu(session, state); changed = true; }
+                    else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_e) {
+                        changed = execute_quick_menu(session, state) || changed;
+                    }
                 } else if (state.help_open) {
                     if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_h) state.help_open = false;
                 } else {
@@ -2449,7 +2485,8 @@ int main(int, char**) {
                     case SDLK_RIGHT: changed = handle_dpad(session, state, 1, 0, now) || changed; break;
                     case SDLK_UP: changed = handle_dpad(session, state, 0, -1, now) || changed; break;
                     case SDLK_DOWN: changed = handle_dpad(session, state, 0, 1, now) || changed; break;
-                    case SDLK_RETURN: activate_current(session, state, audio.graph); changed = true; break;
+                    case SDLK_RETURN:
+                    case SDLK_e: changed = activate_current(session, state, audio.graph) || changed; break;
                     case SDLK_TAB: change_page(state, 1); break;
                     case SDLK_x: cycle_focus(state); break;
                     case SDLK_h: state.help_open = true; break;
@@ -2479,7 +2516,9 @@ int main(int, char**) {
                     else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) state.menu_item = (state.menu_item + 1) % 6;
                     else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 7) % 8;
                     else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT && (state.menu_item == 1 || state.menu_item == 2)) state.memory_slot = (state.memory_slot + 1) % 8;
-                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_B) { execute_quick_menu(session, state); changed = true; }
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_B) {
+                        changed = execute_quick_menu(session, state) || changed;
+                    }
                     else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A) state.menu_open = false;
                 } else if (state.help_open) {
                     if (event.cbutton.button == SDL_CONTROLLER_BUTTON_X || event.cbutton.button == SDL_CONTROLLER_BUTTON_A) state.help_open = false;
@@ -2492,7 +2531,8 @@ int main(int, char**) {
                     case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: change_page(state, -1); break;
                     case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: change_page(state, 1); break;
                     // TrimUI physical A is SDL B; physical B is SDL A.
-                    case SDL_CONTROLLER_BUTTON_B: activate_current(session, state, audio.graph); changed = true; break;
+                    case SDL_CONTROLLER_BUTTON_B:
+                        changed = activate_current(session, state, audio.graph) || changed; break;
                     case SDL_CONTROLLER_BUTTON_A:
                         state.back_held = true; state.back_long_action = false; state.back_held_since = now; break;
                     case SDL_CONTROLLER_BUTTON_Y: cycle_focus(state); break;

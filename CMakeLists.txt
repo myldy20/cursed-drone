@@ -3,7 +3,7 @@
 # Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 cmake_minimum_required(VERSION 3.16)
 
-project(cursed_drone VERSION 0.12.2 LANGUAGES CXX)
+project(cursed_drone VERSION 0.12.3 LANGUAGES CXX)
 
 option(CURSED_DRONE_BUILD_SDL "Build the SDL2 handheld/desktop frontend" ON)
 option(CURSED_DRONE_BUILD_TESTS "Build the test executable" ON)

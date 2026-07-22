@@ -153,6 +153,32 @@ void test_audio() {
     expect(panic_peak == 0.0F, "panic should clear output and effect tails");
     expect(graph.telemetry().master_peak == 0.0F, "panic should clear telemetry");
 
+    // Fill long actor and master delay lines, mute every source, then panic.
+    // No pre-panic history may leak back while the buffers are overwritten.
+    auto panic_session = default_session;
+    for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) panic_session.slots[slot].enabled = false;
+    panic_session.slots[0].effects[0] = {cd::EffectKind::delay, 0.85F, 0.80F, 0.90F};
+    panic_session.master_effects[0] = {cd::EffectKind::delay, 0.85F, 0.75F, 0.90F};
+    cd::AudioGraph panic_graph;
+    panic_graph.prepare({48'000.0F, 256U}, panic_session);
+    std::array<cd::StereoFrame, 256> panic_block{};
+    for (int iteration = 0; iteration < 300; ++iteration) {
+        panic_graph.process({panic_block.data(), panic_block.size()});
+    }
+    auto silent_after_panic = panic_session;
+    for (auto& slot : silent_after_panic.slots) slot.enabled = false;
+    expect(panic_graph.submit_session(silent_after_panic), "silent panic session should submit");
+    panic_graph.panic();
+    panic_graph.process({panic_block.data(), panic_block.size()});
+    double post_panic_energy = 0.0;
+    for (int iteration = 0; iteration < 200; ++iteration) {
+        panic_graph.process({panic_block.data(), panic_block.size()});
+        for (const auto frame : panic_block) {
+            post_panic_energy += static_cast<double>(frame.left * frame.left + frame.right * frame.right);
+        }
+    }
+    expect(post_panic_energy == 0.0, "panic must invalidate old delay history without a stale tail");
+
     auto mute_session = default_session;
     for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) {
         mute_session.slots[slot].enabled = false;
@@ -410,7 +436,25 @@ void test_session_roundtrip() {
         "modulator rate source should roundtrip");
     expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
     expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
+
+    auto updated = original;
+    updated.master_level = 0.123F;
+    expect(cd::save_session(updated, path, error), "second session save should replace atomically");
+    cd::Session current{};
+    expect(cd::load_session(path, current, error), "atomically replaced session should load");
+    expect(std::abs(current.master_level - 0.123F) < 0.0001F, "new session should replace the old session");
+    auto backup_path = path;
+    backup_path += ".bak";
+    cd::Session backup{};
+    expect(cd::load_session(backup_path, backup, error), "previous session backup should load");
+    expect(std::abs(backup.master_level - original.master_level) < 0.0001F,
+        "backup should preserve the previous complete session");
+    auto temporary_path = path;
+    temporary_path += ".tmp";
+    expect(!std::filesystem::exists(temporary_path), "successful save must not leave a temporary file");
+
     std::filesystem::remove(path);
+    std::filesystem::remove(backup_path);
 }
 
 } // namespace

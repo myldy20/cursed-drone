@@ -1,4 +1,4 @@
-# Install Cursed Drone 0.12.2 on Knulli / PortMaster
+# Install Cursed Drone 0.12.3 on Knulli / PortMaster
 
 > Verified on a real TrimUI Brick running Knulli. Other AArch64 PortMaster handhelds remain unverified.
 

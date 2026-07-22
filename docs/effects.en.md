@@ -1,4 +1,4 @@
-# Effects in Cursed Drone 0.12.2
+# Effects in Cursed Drone 0.12.3
 
 Each actor has four serial FX slots and the mixed signal has four additional Master FX slots. Actor and Master pages use the same unified editor: choose the slot, then edit effect type, amount, character and movement without opening a second parameter mode.
 

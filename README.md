@@ -1,7 +1,7 @@
 <p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-<img src="https://img.shields.io/badge/version-0.12.2-eee2c5" alt="version 0.12.2">
+<img src="https://img.shields.io/badge/version-0.12.3-eee2c5" alt="version 0.12.3">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
 <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
