@@ -11,6 +11,7 @@
 
 namespace {
 
+#include "approved_ui_compat.inc"
 #include "approved_ui_primitives.inc"
 #include "approved_ui_actor.inc"
 #include "approved_ui_fx_memory.inc"
