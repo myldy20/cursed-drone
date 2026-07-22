@@ -1,0 +1,23 @@
+name: export-android-alpha3
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/export-android-alpha3.yml]
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Archive source tree
+        run: |
+          rm -rf .git
+          tar -czf /tmp/cursed-drone-android-alpha3-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-android-alpha3-source
+          path: /tmp/cursed-drone-android-alpha3-source.tar.gz
+          if-no-files-found: error
