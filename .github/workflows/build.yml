@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir -p dist/cursed-drone-macos/assets/branding dist/cursed-drone-macos/assets/scales dist/cursed-drone-macos/docs dist/cursed-drone-macos/licenses
           cp build-macos/cursed-drone build-macos/cursed-drone-sdl build-macos/cursed-drone-probe build-macos/cursed-drone-render dist/cursed-drone-macos/
-          cp README.md LICENSE THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
+          cp README.md LICENSE NOTICE.md ADDITIONAL_TERMS.md THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
           cp assets/branding/* dist/cursed-drone-macos/assets/branding/
           cp assets/scales/*.scl dist/cursed-drone-macos/assets/scales/
           cp docs/install.en.md docs/install.ru.md docs/workflow.en.md docs/workflow.ru.md docs/effects.en.md docs/effects.ru.md dist/cursed-drone-macos/docs/
@@ -70,11 +70,15 @@ jobs:
           grep -q 'curseddrone/assets/scales/19-edo.scl' /tmp/pm.txt
           grep -q 'curseddrone/docs/workflow.ru.md' /tmp/pm.txt
           grep -q 'curseddrone/licenses/Musical-engine-MIT.txt' /tmp/pm.txt
+          grep -q 'curseddrone/licenses/NOTICE.md' /tmp/pm.txt
+          grep -q 'curseddrone/licenses/ADDITIONAL_TERMS.md' /tmp/pm.txt
           unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl' /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md' /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/Musical-engine-MIT.txt' /tmp/next.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/NOTICE.md' /tmp/next.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/ADDITIONAL_TERMS.md' /tmp/next.txt
       - uses: actions/upload-artifact@v4
         with: {name: cursed-drone-portmaster-aarch64, path: dist/curseddrone-aarch64-test.zip}
       - uses: actions/upload-artifact@v4
