@@ -459,9 +459,20 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
 }
 
 bool save_session(const Session& session, const std::filesystem::path& path, std::string& error) {
-    std::ofstream output(path, std::ios::trunc);
+    auto temporary_path = path;
+    temporary_path += ".tmp";
+    auto backup_path = path;
+    backup_path += ".bak";
+    auto backup_temporary_path = backup_path;
+    backup_temporary_path += ".tmp";
+
+    std::error_code filesystem_error;
+    std::filesystem::remove(temporary_path, filesystem_error);
+    filesystem_error.clear();
+
+    std::ofstream output(temporary_path, std::ios::trunc);
     if (!output) {
-        error = "cannot open session for writing: " + path.string();
+        error = "cannot open temporary session for writing: " + temporary_path.string();
         return false;
     }
 
@@ -536,8 +547,56 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
             output << mod_key(slot_index, mod_index, "rate_mod_amount") << '=' << mod.rate_mod_amount << '\n';
         }
     }
+    output.flush();
     if (!output) {
-        error = "failed while writing session: " + path.string();
+        output.close();
+        std::filesystem::remove(temporary_path, filesystem_error);
+        error = "failed while writing session: " + temporary_path.string();
+        return false;
+    }
+    output.close();
+    if (!output) {
+        std::filesystem::remove(temporary_path, filesystem_error);
+        error = "failed while closing session: " + temporary_path.string();
+        return false;
+    }
+
+    if (std::filesystem::is_regular_file(path, filesystem_error)) {
+        filesystem_error.clear();
+        std::filesystem::remove(backup_temporary_path, filesystem_error);
+        filesystem_error.clear();
+        std::filesystem::copy_file(
+            path, backup_temporary_path, std::filesystem::copy_options::overwrite_existing, filesystem_error);
+        if (filesystem_error) {
+            std::filesystem::remove(temporary_path, filesystem_error);
+            error = "cannot create session backup: " + backup_path.string();
+            return false;
+        }
+        std::filesystem::remove(backup_path, filesystem_error);
+        filesystem_error.clear();
+        std::filesystem::rename(backup_temporary_path, backup_path, filesystem_error);
+        if (filesystem_error) {
+            std::filesystem::remove(temporary_path, filesystem_error);
+            error = "cannot publish session backup: " + backup_path.string();
+            return false;
+        }
+    }
+
+    filesystem_error.clear();
+    std::filesystem::rename(temporary_path, path, filesystem_error);
+#if defined(_WIN32)
+    if (filesystem_error) {
+        // Windows rename does not replace an existing destination. This fallback
+        // is not needed on the handheld targets, but keeps desktop saves working.
+        filesystem_error.clear();
+        std::filesystem::remove(path, filesystem_error);
+        filesystem_error.clear();
+        std::filesystem::rename(temporary_path, path, filesystem_error);
+    }
+#endif
+    if (filesystem_error) {
+        std::filesystem::remove(temporary_path, filesystem_error);
+        error = "cannot publish session atomically: " + path.string();
         return false;
     }
     return true;

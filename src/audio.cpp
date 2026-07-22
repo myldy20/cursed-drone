@@ -451,8 +451,12 @@ public:
         crusher_held_ = {};
         phaser_left_.fill(0.0F);
         phaser_right_.fill(0.0F);
-        std::fill(delay_.begin(), delay_.end(), StereoFrame{});
-        std::fill(short_delay_.begin(), short_delay_.end(), StereoFrame{});
+        // Do not clear the large delay buffers here. reset() can run from the
+        // audio callback (Kill Silence), so an O(buffer size) memset would miss
+        // the realtime deadline. History counters make pre-reset samples
+        // logically invalid until they have been overwritten.
+        delay_valid_ = 0U;
+        short_valid_ = 0U;
     }
 
     StereoFrame process(StereoFrame input, EffectKind kind, float amount, float tone, float feedback) noexcept {
@@ -503,9 +507,11 @@ private:
     StereoFrame read_delay(
         const std::vector<StereoFrame>& buffer,
         std::size_t write,
-        float frames) const noexcept {
+        float frames,
+        std::size_t valid_frames) const noexcept {
         if (buffer.size() < 2U) return {};
         frames = std::clamp(frames, 1.0F, static_cast<float>(buffer.size() - 2U));
+        if (valid_frames < static_cast<std::size_t>(std::ceil(frames))) return {};
         const float position = static_cast<float>(write) - frames;
         float wrapped = position;
         while (wrapped < 0.0F) wrapped += static_cast<float>(buffer.size());
@@ -556,13 +562,14 @@ private:
     StereoFrame delay(StereoFrame input, float amount, float tone, float feedback) noexcept {
         if (delay_.empty()) return input;
         const float delay_seconds = 0.025F + std::pow(tone, 1.35F) * 1.265F;
-        const StereoFrame wet = read_delay(delay_, delay_write_, delay_seconds * sample_rate_);
+        const StereoFrame wet = read_delay(delay_, delay_write_, delay_seconds * sample_rate_, delay_valid_);
         const float regeneration = std::min(0.985F, feedback * 0.985F);
         delay_[delay_write_] = {
             input.left + wet.right * regeneration,
             input.right + wet.left * regeneration,
         };
         delay_write_ = (delay_write_ + 1U) % delay_.size();
+        delay_valid_ = std::min(delay_valid_ + 1U, delay_.size());
         return mix(input, wet, amount);
     }
 
@@ -604,13 +611,14 @@ private:
     StereoFrame comb(StereoFrame input, float amount, float tone, float feedback) noexcept {
         if (delay_.empty()) return input;
         const float seconds = 0.0007F * std::pow(90.0F, tone);
-        const StereoFrame wet = read_delay(delay_, delay_write_, seconds * sample_rate_);
+        const StereoFrame wet = read_delay(delay_, delay_write_, seconds * sample_rate_, delay_valid_);
         const float regeneration = 0.12F + feedback * 0.85F;
         delay_[delay_write_] = {
             input.left + wet.left * regeneration,
             input.right + wet.right * regeneration,
         };
         delay_write_ = (delay_write_ + 1U) % delay_.size();
+        delay_valid_ = std::min(delay_valid_ + 1U, delay_.size());
         return mix(input, wet, amount);
     }
 
@@ -622,12 +630,13 @@ private:
         const float base_ms = 7.0F + feedback * 17.0F;
         const float left_frames = (base_ms + std::sin(phase * kTwoPi) * depth_ms) * 0.001F * sample_rate_;
         const float right_frames = (base_ms + std::sin((phase + 0.27F) * kTwoPi) * depth_ms) * 0.001F * sample_rate_;
-        const StereoFrame left_tap = read_delay(short_delay_, short_write_, left_frames);
-        const StereoFrame right_tap = read_delay(short_delay_, short_write_, right_frames);
+        const StereoFrame left_tap = read_delay(short_delay_, short_write_, left_frames, short_valid_);
+        const StereoFrame right_tap = read_delay(short_delay_, short_write_, right_frames, short_valid_);
         const StereoFrame wet{left_tap.left * 0.72F + right_tap.left * 0.28F,
                               right_tap.right * 0.72F + left_tap.right * 0.28F};
         short_delay_[short_write_] = input;
         short_write_ = (short_write_ + 1U) % short_delay_.size();
+        short_valid_ = std::min(short_valid_ + 1U, short_delay_.size());
         return mix(input, wet, amount);
     }
 
@@ -636,13 +645,14 @@ private:
         const float rate = 0.025F + tone * tone * 7.0F;
         const float phase = advance(flanger_phase_, rate, sample_rate_);
         const float delay_ms = 0.35F + (0.5F + 0.5F * std::sin(phase * kTwoPi)) * (1.5F + tone * 7.0F);
-        const StereoFrame wet = read_delay(short_delay_, short_write_, delay_ms * 0.001F * sample_rate_);
+        const StereoFrame wet = read_delay(short_delay_, short_write_, delay_ms * 0.001F * sample_rate_, short_valid_);
         const float regeneration = feedback * 0.92F;
         short_delay_[short_write_] = {
             input.left + wet.right * regeneration,
             input.right + wet.left * regeneration,
         };
         short_write_ = (short_write_ + 1U) % short_delay_.size();
+        short_valid_ = std::min(short_valid_ + 1U, short_delay_.size());
         return mix(input, wet, amount);
     }
 
@@ -677,10 +687,10 @@ private:
     StereoFrame diffuser(StereoFrame input, float amount, float tone, float feedback) noexcept {
         if (delay_.empty()) return input;
         const float base = (0.012F + tone * 0.105F) * sample_rate_;
-        const StereoFrame a = read_delay(delay_, delay_write_, base);
-        const StereoFrame b = read_delay(delay_, delay_write_, base * 1.37F);
-        const StereoFrame c = read_delay(delay_, delay_write_, base * 1.91F);
-        const StereoFrame d = read_delay(delay_, delay_write_, base * 2.53F);
+        const StereoFrame a = read_delay(delay_, delay_write_, base, delay_valid_);
+        const StereoFrame b = read_delay(delay_, delay_write_, base * 1.37F, delay_valid_);
+        const StereoFrame c = read_delay(delay_, delay_write_, base * 1.91F, delay_valid_);
+        const StereoFrame d = read_delay(delay_, delay_write_, base * 2.53F, delay_valid_);
         const StereoFrame wet{
             (a.left - b.right + c.left + d.right) * 0.38F,
             (a.right + b.left - c.right + d.left) * 0.38F,
@@ -693,6 +703,7 @@ private:
             input.right + diffuser_damp_.left * feedback * 0.91F,
         };
         delay_write_ = (delay_write_ + 1U) % delay_.size();
+        delay_valid_ = std::min(delay_valid_ + 1U, delay_.size());
         return mix(input, diffuser_damp_, amount);
     }
 
@@ -779,8 +790,8 @@ private:
         const float window_b = 0.5F - 0.5F * std::cos(reverse_phase_b_ * kTwoPi);
         const float read_a = reverse_offset_a_ * sample_rate_ + reverse_phase_a_ * grain_frames * 2.0F;
         const float read_b = reverse_offset_b_ * sample_rate_ + reverse_phase_b_ * grain_frames * 2.0F;
-        const StereoFrame a = read_delay(delay_, delay_write_, read_a);
-        const StereoFrame b = read_delay(delay_, delay_write_, read_b);
+        const StereoFrame a = read_delay(delay_, delay_write_, read_a, delay_valid_);
+        const StereoFrame b = read_delay(delay_, delay_write_, read_b, delay_valid_);
         const float normalization = 1.0F / std::max(0.22F, window_a + window_b);
         const StereoFrame wet{
             (a.left * window_a + b.right * window_b) * normalization,
@@ -792,6 +803,7 @@ private:
             input.right + wet.left * regeneration,
         };
         delay_write_ = (delay_write_ + 1U) % delay_.size();
+        delay_valid_ = std::min(delay_valid_ + 1U, delay_.size());
         return mix(input, wet, amount);
     }
 
@@ -815,6 +827,8 @@ private:
     std::vector<StereoFrame> short_delay_{};
     std::size_t delay_write_{0U};
     std::size_t short_write_{0U};
+    std::size_t delay_valid_{0U};
+    std::size_t short_valid_{0U};
     unsigned crusher_counter_{0U};
     StereoFrame crusher_held_{};
     std::array<float, 4> phaser_left_{};

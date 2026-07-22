@@ -1,4 +1,4 @@
-# Synthesis catalogue — 0.12.2
+# Synthesis catalogue — 0.12.3
 
 Cursed Drone combines project-specific environmental engines, an audited DaisySP subset and a pinned upstream macro-oscillator implementation.
 
