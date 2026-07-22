@@ -1,0 +1,47 @@
+name: integrate-v0122
+
+on:
+  push:
+    branches: [release/v0.12.2-event-clarity]
+    paths:
+      - .github/workflows/integrate-v0122.yml
+      - tools/v0122.patch.*
+
+permissions:
+  contents: write
+
+concurrency:
+  group: integrate-v0122
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v0.12.2-event-clarity
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply complete v0.12.2 change set
+        run: |
+          cat tools/v0122.patch.* > /tmp/v0122.patch
+          git apply --check /tmp/v0122.patch
+          git apply /tmp/v0122.patch
+          git diff --check
+      - name: Build and test with SDL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev
+          cmake -S . -B /tmp/cursed-drone-v0122-build -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/cursed-drone-v0122-build --parallel 2
+          ctest --test-dir /tmp/cursed-drone-v0122-build --output-on-failure
+          grep -q 'CURSED_DRONE_HAS_PLAITS=1' /tmp/cursed-drone-v0122-build/CMakeFiles/cursed_drone_core.dir/flags.make
+      - name: Commit validated release sources
+        run: |
+          rm -f tools/v0122.patch.* .github/workflows/integrate-v0122.yml
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: release v0.12.2 event clarity and attribution'
+          git push origin HEAD:release/v0.12.2-event-clarity

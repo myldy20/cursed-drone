@@ -1,0 +1,39 @@
+                     runtime.level.next(),
+                     runtime.pan.next(),
+                     {},
+@@ -1082,6 +1118,8 @@ public:
+                 }
+                 const bool euclidean_trigger = runtime.euclidean.next(
+                     settings.euclidean, session_.tempo_bpm, config_.sample_rate);
++                const bool manual_trigger = frame_index == 0U &&
++                    (manual_trigger_mask & (std::uint32_t{1} << slot_index)) != 0U;
+ 
+                 const float chaos_value = chaos_current_[slot_index] * chaos_macro;
+                 parameters.frequency *= std::pow(2.0F, chaos_value * 0.36F);
+@@ -1263,6 +1301,7 @@ public:
+                 parameters.color = clamp01(parameters.color);
+                 parameters.motion = clamp01(parameters.motion);
+                 parameters.texture = clamp01(parameters.texture);
++                parameters.event_density = clamp01(parameters.event_density);
+                 parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
+                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
+ 
+@@ -1278,8 +1317,12 @@ public:
+                         session_.tempo_bpm,
+                         pulse_macro,
+                         chaos_macro,
+-                        events_macro,
+-                        euclidean_trigger);
++                        clamp01(parameters.event_density * 0.72F + events_macro * 0.55F),
++                        euclidean_trigger || manual_trigger,
++                        manual_trigger);
++                }
++                if (runtime.engine.consume_event_fired()) {
++                    slot_event_hold_[slot_index] = 1.0F;
+                 }
+                 const float left_pan = std::sqrt(0.5F * (1.0F - parameters.pan));
+                 const float right_pan = std::sqrt(0.5F * (1.0F + parameters.pan));
+@@ -1344,6 +1387,7 @@ public:
+             publish_meter(slot_rms_[index], slot_rms_smooth_[index],
+                 std::sqrt(static_cast<float>(slot_energy[index]) / frame_count), 0.18F);
+             publish_peak(slot_peak_[index], slot_peak_smooth_[index], slot_peak[index]);

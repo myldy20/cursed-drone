@@ -1,0 +1,51 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 874ff48..604a5b0 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -37,7 +37,7 @@ jobs:
+         run: |
+           mkdir -p dist/cursed-drone-macos/assets/branding dist/cursed-drone-macos/assets/scales dist/cursed-drone-macos/docs dist/cursed-drone-macos/licenses
+           cp build-macos/cursed-drone build-macos/cursed-drone-sdl build-macos/cursed-drone-probe build-macos/cursed-drone-render dist/cursed-drone-macos/
+-          cp README.md LICENSE THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
++          cp README.md LICENSE NOTICE.md ADDITIONAL_TERMS.md THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
+           cp assets/branding/* dist/cursed-drone-macos/assets/branding/
+           cp assets/scales/*.scl dist/cursed-drone-macos/assets/scales/
+           cp docs/install.en.md docs/install.ru.md docs/workflow.en.md docs/workflow.ru.md docs/effects.en.md docs/effects.ru.md dist/cursed-drone-macos/docs/
+@@ -70,11 +70,15 @@ jobs:
+           grep -q 'curseddrone/assets/scales/19-edo.scl' /tmp/pm.txt
+           grep -q 'curseddrone/docs/workflow.ru.md' /tmp/pm.txt
+           grep -q 'curseddrone/licenses/Musical-engine-MIT.txt' /tmp/pm.txt
++          grep -q 'curseddrone/licenses/NOTICE.md' /tmp/pm.txt
++          grep -q 'curseddrone/licenses/ADDITIONAL_TERMS.md' /tmp/pm.txt
+           unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/next.txt
+           grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/next.txt
+           grep -q 'Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl' /tmp/next.txt
+           grep -q 'Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md' /tmp/next.txt
+           grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/Musical-engine-MIT.txt' /tmp/next.txt
++          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/NOTICE.md' /tmp/next.txt
++          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/ADDITIONAL_TERMS.md' /tmp/next.txt
+       - uses: actions/upload-artifact@v4
+         with: {name: cursed-drone-portmaster-aarch64, path: dist/curseddrone-aarch64-test.zip}
+       - uses: actions/upload-artifact@v4
+diff --git a/docs/workflow.en.md b/docs/workflow.en.md
+index 46b1ae5..9edb8fe 100644
+--- a/docs/workflow.en.md
++++ b/docs/workflow.en.md
+@@ -32,7 +32,7 @@ X cycles **Landscape → Macros → Actors**. In Actors, Left/Right selects an a
+ 
+ The actor selector is available on this page. Basic mode contains active state, **Trigger Now**, Landscape/Musical source, engine, frequency, character and **Event Rate**. Advanced mode contains 16 Musical models, MAIN/AUX/MIX/STEREO routing, built-in or user Scala tuning, root note, Euclidean events and four modulation rows with bipolar depth and bounded rate cross-modulation.
+ 
+-For event-based engines, select **Trigger Now** and press A to hear the selected actor immediately. A short `!` flash on actor cards confirms both manual and generated events. Event Rate controls that actor's average event frequency; the global **Events** macro raises or lowers activity across the whole place. Randomness remains part of the instrument, so natural events do not occur at exact clock intervals. Hold B for about 1.1 seconds to run **Kill Silence**, which resets voices and effect memory; it is an emergency silence command, not the preview trigger.
++For event-based engines, select **Trigger Now** and press A to hear the selected actor immediately. A short `!` flash on actor cards confirms both manual and generated events. Event Rate controls that actor's average event frequency; the value line shows both events per second/minute and **MAX**, the upper-bound wait before the actor scheduler forces the next event. Natural events may still happen earlier. The global **Events** macro raises or lowers activity across the whole place. Hold B for about 1.1 seconds to run **Kill Silence**, which resets voices and effect memory; it is an emergency silence command, not the preview trigger.
+ 
+ ## FX and Master
+ 
+diff --git a/docs/workflow.ru.md b/docs/workflow.ru.md
+index 248ade9..07bd314 100644
+--- a/docs/workflow.ru.md
++++ b/docs/workflow.ru.md
+@@ -32,7 +32,7 @@ X переключает **Ландшафт → Макросы → Актёры*
+ 
+ Переключатель актёров доступен прямо на странице. В основном режиме находятся активность, **Запустить**, источник Ландшафт/Музыкальный, движок, частота, характер и **Частота событий**. В расширенном — 16 музыкальных моделей, MAIN/AUX/MIX/STEREO, встроенные и пользовательские Scala-строи, корневая нота, Euclidean-события и четыре строки модуляции с биполярной глубиной и ограниченной cross-modulation скорости.
+ 
+-Для событийного движка выберите **Запустить** и нажмите A: выбранный актёр прозвучит сразу. Короткая вспышка `!` на карточке подтверждает ручное или автоматически сгенерированное событие. «Частота событий» задаёт среднюю активность конкретного актёра, а глобальный макрос **События** одновременно поднимает или снижает активность всего места. Точный интервал остаётся случайным. Удержание B примерно 1,1 секунды запускает **Kill Silence** — аварийно глушит звук и сбрасывает голоса и память эффектов; это не кнопка предпрослушивания.

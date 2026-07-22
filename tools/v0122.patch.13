@@ -1,0 +1,107 @@
++Для событийного движка выберите **Запустить** и нажмите A: выбранный актёр прозвучит сразу. Короткая вспышка `!` на карточке подтверждает ручное или автоматически сгенерированное событие. «Частота событий» задаёт среднюю активность конкретного актёра. В строке одновременно показаны события в секунду/минуту и **MAX** — максимальное ожидание, после которого планировщик принудительно запустит следующее событие. Естественное событие может случиться раньше. Глобальный макрос **События** одновременно поднимает или снижает активность всего места. Удержание B примерно 1,1 секунды запускает **Kill Silence** — аварийно глушит звук и сбрасывает голоса и память эффектов; это не кнопка предпрослушивания.
+ 
+ ## FX и мастер
+ 
+diff --git a/include/cursed_drone/session.hpp b/include/cursed_drone/session.hpp
+index 918c5df..5a2268b 100644
+--- a/include/cursed_drone/session.hpp
++++ b/include/cursed_drone/session.hpp
+@@ -211,6 +211,10 @@ void apply_scene_recipe(Session& session, SceneKind scene);
+ [[nodiscard]] std::string to_string(PlaitsModel value);
+ [[nodiscard]] std::string to_string(PlaitsOutputMode value);
+ [[nodiscard]] bool supports_manual_trigger(EngineKind value) noexcept;
++[[nodiscard]] bool supports_event_rate(EngineKind value) noexcept;
++[[nodiscard]] float effective_event_density(float actor_density, float global_events) noexcept;
++[[nodiscard]] float event_rate_hz(float tempo_bpm, float event_density, float motion) noexcept;
++[[nodiscard]] float event_max_wait_seconds(float tempo_bpm, float event_density, float motion) noexcept;
+ 
+ [[nodiscard]] bool parse_locale(const std::string& text, Locale& value);
+ [[nodiscard]] bool parse_scene(const std::string& text, SceneKind& value);
+diff --git a/src/audio.cpp b/src/audio.cpp
+index 7026ff1..64fdc66 100644
+--- a/src/audio.cpp
++++ b/src/audio.cpp
+@@ -249,11 +249,11 @@ public:
+         texture = clamp01(texture);
+         events = clamp01(events);
+ 
+-        const float beat_hz = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
+-        const float event_rate = beat_hz * (0.08F + events * events * 2.9F) * (0.65F + motion * 1.25F);
+-        event_phase_ += event_rate / sample_rate_;
+-        bool trigger = external_trigger;
+-        if (event_phase_ >= event_period_) {
++        const bool triggerable = supports_event_rate(kind);
++        const float event_rate = event_rate_hz(tempo_bpm, events, motion);
++        if (triggerable) event_phase_ += event_rate / sample_rate_;
++        bool trigger = triggerable && external_trigger;
++        if (triggerable && event_phase_ >= event_period_) {
+             event_phase_ -= event_period_;
+             const float random_unit = next_noise(random_state_) * 0.5F + 0.5F;
+             const float irregularity = (0.18F + chaos * 0.72F) * (1.0F - pulse * 0.72F);
+@@ -350,7 +350,7 @@ public:
+             {
+                 const float sample = soundscape_.next(
+                     kind, frequency, timbre, color, motion, texture,
+-                    tempo_bpm, pulse, chaos, events, external_trigger);
++                    tempo_bpm, pulse, chaos, events, trigger);
+                 event_fired_ = soundscape_.consume_event_fired();
+                 return sample;
+             }
+@@ -1317,7 +1317,7 @@ public:
+                         session_.tempo_bpm,
+                         pulse_macro,
+                         chaos_macro,
+-                        clamp01(parameters.event_density * 0.72F + events_macro * 0.55F),
++                        effective_event_density(parameters.event_density, events_macro),
+                         euclidean_trigger || manual_trigger,
+                         manual_trigger);
+                 }
+diff --git a/src/sdl_main.cpp b/src/sdl_main.cpp
+index 9238f9c..844b34f 100644
+--- a/src/sdl_main.cpp
++++ b/src/sdl_main.cpp
+@@ -1,4 +1,6 @@
+ // SPDX-License-Identifier: GPL-3.0-or-later
++// SPDX-FileCopyrightText: 2026 Myldy Design
++// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
+ #define SDL_MAIN_HANDLED
+ #include <SDL.h>
+ 
+@@ -763,7 +765,7 @@ int page_index(Page page) noexcept { return static_cast<int>(page); }
+ int parameter_count(Page page) noexcept {
+     switch (page) {
+     case Page::perform: return 5;
+-    case Page::slot: return 10;
++    case Page::slot: return 12;
+     case Page::effects: return 4;
+     case Page::master: return 2;
+     case Page::memory: return 3;
+@@ -877,10 +879,12 @@ std::string_view mod_destination_name(cd::ModDestination destination, bool russi
+ }
+ 
+ std::string_view actor_basic_label(int field, bool russian) noexcept {
+-    constexpr std::array<std::string_view, 10> en{
+-        "ACTIVE", "SOURCE", "ENGINE", "PITCH", "CHARACTER", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN"};
+-    constexpr std::array<std::string_view, 10> ru_names{
+-        "АКТИВЕН", "ИСТОЧНИК", "ДВИЖОК", "ВЫСОТА", "ХАРАКТЕР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА"};
++    constexpr std::array<std::string_view, 12> en{
++        "ACTIVE", "SOURCE", "ENGINE", "TRIGGER NOW", "EVENT RATE", "PITCH",
++        "CHARACTER", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN"};
++    constexpr std::array<std::string_view, 12> ru_names{
++        "АКТИВЕН", "ИСТОЧНИК", "ДВИЖОК", "ЗАПУСТИТЬ", "ЧАСТОТА СОБ.", "ВЫСОТА",
++        "ХАРАКТЕР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА"};
+     return (russian ? ru_names : en)[static_cast<std::size_t>(field)];
+ }
+ 
+@@ -896,17 +900,38 @@ std::string_view actor_advanced_label(int field, bool russian) noexcept {
+ 
+ std::string actor_basic_value(const cd::Session& session, const UiState& state, int field) {
+     const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
+-    char value[40]{};
++    char value[48]{};
+     if (field == 0) return slot.enabled ? (ru(session) ? "ДА" : "YES") : (ru(session) ? "НЕТ" : "NO");
+     if (field == 1) return slot.engine == cd::EngineKind::plaits
+         ? (ru(session) ? "МУЗЫКАЛЬНЫЙ" : "MUSICAL")
+         : (ru(session) ? "ЛАНДШАФТ" : "LANDSCAPE");
+     if (field == 2) return std::string{engine_name(slot.engine, ru(session))};
+-    if (field == 3) std::snprintf(value, sizeof(value), "%.1f HZ", static_cast<double>(slot.frequency_hz));
