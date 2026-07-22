@@ -1,0 +1,70 @@
+name: publish-v0.12.3
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    if: github.head_ref == 'release/v0.12.3-publish'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: myldy20/cursed-drone
+      TARGET: 1d0d5e6b1d5d0a60a4d2a99466f06e86adc33194
+      NEXTUI_ARTIFACT: '8542872721'
+      PORTMASTER_ARTIFACT: '8542872198'
+      MACOS_ARTIFACT: '8542866344'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v0.12.3-publish
+          fetch-depth: 0
+      - name: Download validated CI artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/nextui /tmp/portmaster dist
+          gh api "repos/$REPO/actions/artifacts/$NEXTUI_ARTIFACT/zip" > /tmp/nextui-artifact.zip
+          gh api "repos/$REPO/actions/artifacts/$PORTMASTER_ARTIFACT/zip" > /tmp/portmaster-artifact.zip
+          gh api "repos/$REPO/actions/artifacts/$MACOS_ARTIFACT/zip" > dist/cursed-drone-v0.12.3-macos-arm64.zip
+          unzip -q /tmp/nextui-artifact.zip -d /tmp/nextui
+          unzip -q /tmp/portmaster-artifact.zip -d /tmp/portmaster
+          cp "$(find /tmp/nextui -type f -name '*.zip' -print -quit)" dist/cursed-drone-v0.12.3-nextui-tg5040.zip
+          cp "$(find /tmp/portmaster -type f -name '*.zip' -print -quit)" dist/cursed-drone-v0.12.3-portmaster-aarch64.zip
+          (cd dist && sha256sum cursed-drone-v0.12.3-*.zip > SHA256SUMS.txt)
+      - name: Create release and upload assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v0.12.3 dist/* \
+            --repo "$REPO" \
+            --target "$TARGET" \
+            --title "Cursed Drone v0.12.3" \
+            --notes-file - <<'NOTES'
+          P1 reliability and UX hotfix release.
+
+          Highlights:
+          - Actor Level and Pan are reachable again;
+          - read-only and preview actions no longer cause false autosaves;
+          - desktop E confirmation matches the UI prompts;
+          - event timing is labelled FMAX (forced maximum);
+          - Kill Silence no longer clears large delay buffers inside the realtime callback;
+          - session saves are atomic and retain a loadable .bak backup;
+          - Memory slot status is cached instead of hitting the filesystem every frame.
+
+          Existing v0.12.2 sessions remain compatible.
+          NOTES
+      - name: Verify published assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir verify
+          gh release download v0.12.3 --repo "$REPO" --dir verify
+          (cd verify && sha256sum -c SHA256SUMS.txt)
+          test "$(gh release view v0.12.3 --repo "$REPO" --json tagName -q .tagName)" = "v0.12.3"
