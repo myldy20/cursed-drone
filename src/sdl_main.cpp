@@ -6,6 +6,7 @@
 
 #include "bitmap_text.hpp"
 #include "cursed_drone/audio.hpp"
+#include "cursed_drone/catalog.hpp"
 #include "cursed_drone/i18n.hpp"
 #include "cursed_drone/scala.hpp"
 #include "cursed_drone/session.hpp"
@@ -21,6 +22,10 @@
 #include <string_view>
 #include <system_error>
 #include <vector>
+
+#ifndef CURSED_DRONE_VERSION
+#define CURSED_DRONE_VERSION "dev"
+#endif
 
 namespace cd = cursed_drone;
 
@@ -568,28 +573,11 @@ std::string_view effect_field(cd::EffectKind kind, int index, bool russian) noex
     return {};
 }
 
-constexpr std::array<std::array<cd::EngineKind, 4>, 8> kEngineGroups{{
-    {cd::EngineKind::macro, cd::EngineKind::body, cd::EngineKind::grain, cd::EngineKind::particle},
-    {cd::EngineKind::derelict_bed, cd::EngineKind::footsteps, cd::EngineKind::door, cd::EngineKind::pipe},
-    {cd::EngineKind::motor, cd::EngineKind::machinery, cd::EngineKind::crowd, cd::EngineKind::metal},
-    {cd::EngineKind::wind, cd::EngineKind::birds, cd::EngineKind::insects, cd::EngineKind::signal},
-    {cd::EngineKind::cave_air, cd::EngineKind::water_drip, cd::EngineKind::water_flow, cd::EngineKind::stone},
-    {cd::EngineKind::metro_traction, cd::EngineKind::rail_joint, cd::EngineKind::brake, cd::EngineKind::carriage},
-    {cd::EngineKind::music_box, cd::EngineKind::toy_voice, cd::EngineKind::toy_gears, cd::EngineKind::lullaby},
-    {cd::EngineKind::sub_drone, cd::EngineKind::tape_drone, cd::EngineKind::bowed_metal, cd::EngineKind::earth_rumble},
-}};
+constexpr const auto& kEngineGroups = cd::catalog::engine_groups;
 
-constexpr std::array<cd::EffectKind, 15> kBasicEffects{
-    cd::EffectKind::bypass, cd::EffectKind::drive, cd::EffectKind::lowpass,
-    cd::EffectKind::highpass, cd::EffectKind::tremolo, cd::EffectKind::delay,
-    cd::EffectKind::crusher, cd::EffectKind::wavefolder, cd::EffectKind::ringmod,
-    cd::EffectKind::comb, cd::EffectKind::chorus, cd::EffectKind::flanger,
-    cd::EffectKind::phaser, cd::EffectKind::diffuser, cd::EffectKind::ahdr};
+constexpr const auto& kBasicEffects = cd::catalog::basic_effects;
 
-constexpr std::array<cd::EffectKind, 6> kCompoundEffects{
-    cd::EffectKind::tape_void, cd::EffectKind::black_hole,
-    cd::EffectKind::ritual_gate, cd::EffectKind::rust_cloud,
-    cd::EffectKind::deep_sea, cd::EffectKind::granular_reverse};
+constexpr const auto& kCompoundEffects = cd::catalog::compound_effects;
 
 int effect_group_size(int group) noexcept {
     return group == 0 ? static_cast<int>(kBasicEffects.size())
@@ -639,11 +627,7 @@ std::string_view effect_group_name(int group, bool russian) noexcept {
     return russian ? "СОСТАВНЫЕ" : "COMPOUND";
 }
 
-constexpr std::array<cd::SceneKind, 10> kScenes{
-    cd::SceneKind::derelict, cd::SceneKind::factory, cd::SceneKind::wasteland,
-    cd::SceneKind::wet_cave, cd::SceneKind::metro, cd::SceneKind::nursery,
-    cd::SceneKind::bunker, cd::SceneKind::power_grid, cd::SceneKind::deep_water,
-    cd::SceneKind::ash_field};
+constexpr const auto& kScenes = cd::catalog::scenes;
 
 int parameter(const UiState& state) noexcept;
 
@@ -1878,7 +1862,8 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
         ru(session) ? "АВТОСОХРАНЕНИЕ: ПОСЛЕДНЕЕ СОСТОЯНИЕ" : "AUTOSAVE: LAST STATE IS ALWAYS RESUMED", kDim);
     draw_myldy_mark(renderer, 22, 317, 1, kInk);
     cd::ui::draw_text(renderer, 62, 330, "DEVELOPED BY MYLDY DESIGN  @MYLDY20", kDim);
-    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.3"), 330, "V0.12.3", kDim);
+    const std::string version_label = "V" CURSED_DRONE_VERSION;
+    cd::ui::draw_text(renderer, 484 - cd::ui::text_width(version_label), 330, version_label, kDim);
 }
 
 void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {

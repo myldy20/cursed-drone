@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Myldy Design
 // Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/audio.hpp"
+#include "cursed_drone/catalog.hpp"
 #include "cursed_drone/i18n.hpp"
 #include "cursed_drone/scala.hpp"
 #include "cursed_drone/session.hpp"
@@ -40,6 +41,24 @@ void test_i18n() {
     expect(cd::parse_scene("factory", scene) && scene == cd::SceneKind::factory,
         "scene names should parse");
     expect(!cd::parse_scene("buzz", scene), "unknown scene names should fail");
+}
+
+void test_catalog() {
+    expect(cd::catalog::scenes.size() == 10U, "shared scene catalogue should remain complete");
+    expect(cd::catalog::engines.size() == 34U, "shared engine catalogue should remain complete");
+    expect(cd::catalog::effects.size() == 21U, "shared effect catalogue should remain complete");
+    for (std::size_t left = 0; left < cd::catalog::engines.size(); ++left) {
+        for (std::size_t right = left + 1U; right < cd::catalog::engines.size(); ++right) {
+            expect(cd::catalog::engines[left] != cd::catalog::engines[right],
+                "shared engine catalogue must not contain duplicates");
+        }
+    }
+    for (std::size_t left = 0; left < cd::catalog::effects.size(); ++left) {
+        for (std::size_t right = left + 1U; right < cd::catalog::effects.size(); ++right) {
+            expect(cd::catalog::effects[left] != cd::catalog::effects[right],
+                "shared effect catalogue must not contain duplicates");
+        }
+    }
 }
 
 void test_queue() {
@@ -461,6 +480,7 @@ void test_session_roundtrip() {
 
 int main() {
     test_i18n();
+    test_catalog();
     test_queue();
     test_audio();
     test_scala();

@@ -1,4 +1,4 @@
-# Установка Cursed Drone 0.12.3 на NextUI
+# Установка Cursed Drone 0.13.0 на NextUI
 
 > Проверено на реальной TrimUI Brick с NextUI: работают запуск, изображение, звук и управление.
 
