@@ -47,6 +47,9 @@ void SoundscapeVoice::prepare(float sample_rate, std::size_t voice_index) noexce
 
 void SoundscapeVoice::reset() noexcept {
     control_counter_ = 0U;
+    slow_slew_counter_ = 0U;
+    modal_control_counter_ = 0U;
+    slow_slew_ = 0.001F;
     time_ = 0.0F;
     event_countdown_ = 0.05F + static_cast<float>(voice_index_) * 0.07F;
     event_age_ = 99.0F;
@@ -69,6 +72,8 @@ void SoundscapeVoice::reset() noexcept {
     phases_.fill(0.0F);
     mode_phases_.fill(0.0F);
     mode_amplitudes_.fill(0.0F);
+    mode_brightness_.fill(1.0F);
+    mode_decay_.fill(0.999F);
     for (auto& filter : filters_) {
         filter.Init(sample_rate_);
         filter.SetRes(0.2F);
@@ -149,14 +154,27 @@ void SoundscapeVoice::excite_modes(float amount, float irregularity) noexcept {
 
 float SoundscapeVoice::modal_sum(float base_frequency, float damping, float brightness) noexcept {
     constexpr std::array<float, 6> ratios{1.0F, 1.47F, 2.18F, 3.11F, 4.37F, 6.02F};
+    if (modal_control_counter_ == 0U) {
+        const float bright_base = 0.35F + brightness * 0.65F;
+        float bright = 1.0F;
+        for (std::size_t index = 0; index < ratios.size(); ++index) {
+            mode_brightness_[index] = bright;
+            bright *= bright_base;
+            const float seconds = damping * (0.62F + 0.16F * static_cast<float>(index));
+            mode_decay_[index] = decay_coefficient(sample_rate_, std::max(0.008F, seconds));
+        }
+        modal_control_counter_ = 31U;
+    } else {
+        --modal_control_counter_;
+    }
+
     float result = 0.0F;
     for (std::size_t index = 0; index < ratios.size(); ++index) {
-        const float bright = std::pow(0.35F + brightness * 0.65F, static_cast<float>(index));
         mode_phases_[index] += base_frequency * ratios[index] * inverse_sample_rate_;
         mode_phases_[index] -= std::floor(mode_phases_[index]);
-        result += std::sin(mode_phases_[index] * kTwoPi) * mode_amplitudes_[index] * bright;
-        const float seconds = damping * (0.62F + 0.16F * static_cast<float>(index));
-        mode_amplitudes_[index] *= decay_coefficient(sample_rate_, std::max(0.008F, seconds));
+        result += std::sin(mode_phases_[index] * kTwoPi) *
+            mode_amplitudes_[index] * mode_brightness_[index];
+        mode_amplitudes_[index] *= mode_decay_[index];
     }
     return result * 0.26F;
 }
@@ -199,8 +217,14 @@ float SoundscapeVoice::next(
         slow_target_ = noise();
         slow_countdown_ = 0.35F + (noise() * 0.5F + 0.5F) * (2.8F - evolution * 2.1F);
     }
-    const float slow_slew = 1.0F - std::exp(-inverse_sample_rate_ / (0.28F + (1.0F - motion) * 1.8F));
-    slow_value_ += (slow_target_ - slow_value_) * slow_slew;
+    if (slow_slew_counter_ == 0U) {
+        slow_slew_ = 1.0F - std::exp(
+            -inverse_sample_rate_ / (0.28F + (1.0F - motion) * 1.8F));
+        slow_slew_counter_ = 31U;
+    } else {
+        --slow_slew_counter_;
+    }
+    slow_value_ += (slow_target_ - slow_value_) * slow_slew_;
 
     switch (kind) {
     case EngineKind::derelict_bed:

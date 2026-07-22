@@ -18,6 +18,10 @@ jobs:
       - run: ctest --test-dir build --output-on-failure
       - name: Verify Musical engine is linked
         run: grep -q 'CURSED_DRONE_HAS_PLAITS=1' build/CMakeFiles/cursed_drone_core.dir/flags.make
+      - name: Performance benchmark
+        run: build/cursed-drone-benchmark 3 | tee performance-benchmark.txt
+      - uses: actions/upload-artifact@v4
+        with: {name: cursed-drone-performance-benchmark, path: performance-benchmark.txt}
       - name: Handheld SDL smoke test
         run: |
           set +e
@@ -36,14 +40,50 @@ jobs:
       - name: Assemble bundle
         run: |
           mkdir -p dist/cursed-drone-macos/assets/branding dist/cursed-drone-macos/assets/scales dist/cursed-drone-macos/docs dist/cursed-drone-macos/licenses
-          cp build-macos/cursed-drone build-macos/cursed-drone-sdl build-macos/cursed-drone-probe build-macos/cursed-drone-render dist/cursed-drone-macos/
-          cp README.md LICENSE NOTICE.md ADDITIONAL_TERMS.md THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
+          cp build-macos/cursed-drone build-macos/cursed-drone-sdl build-macos/cursed-drone-probe build-macos/cursed-drone-render build-macos/cursed-drone-benchmark dist/cursed-drone-macos/
+          cp VERSION README.md LICENSE NOTICE.md ADDITIONAL_TERMS.md THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
           cp assets/branding/* dist/cursed-drone-macos/assets/branding/
           cp assets/scales/*.scl dist/cursed-drone-macos/assets/scales/
-          cp docs/install.en.md docs/install.ru.md docs/workflow.en.md docs/workflow.ru.md docs/effects.en.md docs/effects.ru.md dist/cursed-drone-macos/docs/
+          cp docs/install.en.md docs/install.ru.md docs/install.android.en.md docs/install.android.ru.md docs/workflow.en.md docs/workflow.ru.md docs/effects.en.md docs/effects.ru.md dist/cursed-drone-macos/docs/
           cp third_party/PLAITS_LICENSE.txt dist/cursed-drone-macos/licenses/Musical-engine-MIT.txt
       - uses: actions/upload-artifact@v4
         with: {name: cursed-drone-macos-arm64, path: dist/cursed-drone-macos}
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {submodules: recursive}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install Android toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.1.12297006" \
+            "cmake;3.22.1"
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: "8.10.2"}
+      - name: Build touch-first preview APK
+        run: gradle -p android :app:assembleDebug --stacktrace
+      - name: Verify APK identity and version
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee android-apk-badging.txt
+          grep -q "versionName='$(cat VERSION)'" android-apk-badging.txt
+          mkdir -p dist
+          cp "$APK" "dist/cursed-drone-v$(cat VERSION)-android-arm64-preview.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-android-arm64-preview
+          path: dist/cursed-drone-v*-android-arm64-preview.apk
 
   aarch64-packages:
     runs-on: ubuntu-24.04-arm
@@ -67,12 +107,14 @@ jobs:
         run: |
           file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
           unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/pm.txt
+          grep -q 'curseddrone/VERSION' /tmp/pm.txt
           grep -q 'curseddrone/assets/scales/19-edo.scl' /tmp/pm.txt
           grep -q 'curseddrone/docs/workflow.ru.md' /tmp/pm.txt
           grep -q 'curseddrone/licenses/Musical-engine-MIT.txt' /tmp/pm.txt
           grep -q 'curseddrone/licenses/NOTICE.md' /tmp/pm.txt
           grep -q 'curseddrone/licenses/ADDITIONAL_TERMS.md' /tmp/pm.txt
           unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/next.txt
+          grep -q 'Tools/tg5040/Cursed Drone.pak/VERSION' /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl' /tmp/next.txt
           grep -q 'Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md' /tmp/next.txt

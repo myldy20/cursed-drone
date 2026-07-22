@@ -1,7 +1,7 @@
 <p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-<img src="https://img.shields.io/badge/version-0.12.3-eee2c5" alt="version 0.12.3">
+<img src="https://img.shields.io/badge/version-0.13.0-eee2c5" alt="version 0.13.0">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
 <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
@@ -17,6 +17,7 @@
 
 - Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
+- Android ARM64 preview: [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
 
 ## Guided Workflow
 
@@ -42,7 +43,9 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 - 21 effects including Reverse Grains and five compound drone/ambient processors;
 - four actor FX plus four Master FX;
 - eight memories, autosave, English/Russian UI;
-- native SDL UI at 512×384, scaled exactly to the Brick display;
+- controller-first SDL UI at 512×384 for handheld and desktop builds;
+- separate fullscreen touch-first Android frontend using the same DSP and session format;
+- one version file, root CMake graph and CI pipeline for every supported platform;
 - no recorded samples.
 
 ## Controls
@@ -73,7 +76,13 @@ cmake --build build -j2
 ctest --test-dir build --output-on-failure
 ```
 
-CI tests Linux, macOS and Ubuntu-20.04-compatible AArch64 and packages both PortMaster and NextUI.
+CI tests Linux, macOS, Android ARM64 and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI and an installable Android preview APK from the same core sources.
+
+## Performance release
+
+Version 0.13.0 moves slowly changing event, modal and effect coefficients to control rate, uses interpolated equal-power pan tables and completely suspends muted actors. On the reproducible x86 benchmark used during development, the default Derelict scene rendered about 20% faster and the 20× Black Hole stress case about 70% faster than 0.12.3. These figures are comparative desktop measurements; real TrimUI Brick load still depends on firmware, clock and selected scene.
+
+Run the benchmark locally with `make benchmark` or `build/cursed-drone-benchmark 5`.
 
 ## Documentation
 
@@ -100,6 +109,7 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 
 - Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
 - NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
+- Android ARM64 preview: [русская инструкция](docs/install.android.ru.md) · [English](docs/install.android.en.md)
 
 ## Сквозная логика
 
@@ -125,7 +135,10 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 - 21 эффект, включая Reverse Grains и пять составных процессоров;
 - четыре actor FX и четыре Master FX;
 - восемь слотов памяти, autosave, русский и английский интерфейс;
-- нативный SDL-интерфейс 512×384 без записанных семплов.
+- отдельный кнопочный SDL-интерфейс 512×384 для приставки и desktop;
+- полноэкранный touch-first интерфейс Android на том же DSP и формате сессии;
+- единая версия, корневой CMake и CI для всех платформ;
+- никаких записанных семплов.
 
 ## Управление
 

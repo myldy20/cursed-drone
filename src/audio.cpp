@@ -36,6 +36,21 @@ float next_noise(std::uint32_t& state) noexcept {
     return static_cast<float>(state) * (2.0F / 4'294'967'295.0F) - 1.0F;
 }
 
+// Low-frequency modulation does not need libm-grade sine accuracy. This
+// approximation stays smooth and bounded while avoiding hundreds of thousands
+// of transcendental calls per second on the handheld CPU.
+float fast_sine_lfo(float phase) noexcept {
+    phase -= std::floor(phase);
+    float x = phase * kTwoPi;
+    if (x > kPi) x -= kTwoPi;
+    constexpr float b = 4.0F / kPi;
+    constexpr float c = -4.0F / (kPi * kPi);
+    float y = b * x + c * x * std::abs(x);
+    constexpr float correction = 0.225F;
+    y = correction * (y * std::abs(y) - y) + y;
+    return y;
+}
+
 struct SmoothedValue {
     float current{0.0F};
     float target{0.0F};
@@ -74,7 +89,7 @@ public:
         float value = 0.0F;
         switch (settings.wave) {
         case ModWave::sine:
-            value = std::sin(phase_ * kTwoPi);
+            value = fast_sine_lfo(phase_);
             break;
         case ModWave::triangle:
             value = 1.0F - 4.0F * std::abs(phase_ - 0.5F);
@@ -223,7 +238,13 @@ public:
         soundscape_.prepare(sample_rate_, slot_index_);
         event_phase_ = 1.0F;
         event_period_ = 1.0F;
+        cached_event_rate_ = 0.0F;
+        event_control_counter_ = 0U;
+        cached_event_kind_ = EngineKind::diagnostic;
+        cached_triggerable_ = false;
         grain_envelope_ = 0.0F;
+        grain_decay_ = 0.999F;
+        grain_control_counter_ = 0U;
         drift_phase_ = 0.0F;
         soundscape_.reset();
         plaits_.reset();
@@ -249,9 +270,18 @@ public:
         texture = clamp01(texture);
         events = clamp01(events);
 
-        const bool triggerable = supports_event_rate(kind);
-        const float event_rate = event_rate_hz(tempo_bpm, events, motion);
-        if (triggerable) event_phase_ += event_rate / sample_rate_;
+        if (event_control_counter_ == 0U || kind != cached_event_kind_) {
+            cached_event_kind_ = kind;
+            cached_triggerable_ = supports_event_rate(kind);
+            cached_event_rate_ = cached_triggerable_
+                ? event_rate_hz(tempo_bpm, events, motion)
+                : 0.0F;
+            event_control_counter_ = 31U;
+        } else {
+            --event_control_counter_;
+        }
+        const bool triggerable = cached_triggerable_;
+        if (triggerable) event_phase_ += cached_event_rate_ / sample_rate_;
         bool trigger = triggerable && external_trigger;
         if (triggerable && event_phase_ >= event_period_) {
             event_phase_ -= event_period_;
@@ -265,7 +295,7 @@ public:
 
         drift_phase_ += (0.007F + motion * motion * 0.19F) / sample_rate_;
         drift_phase_ -= std::floor(drift_phase_);
-        const float drift = std::sin(drift_phase_ * kTwoPi) * (0.0005F + motion * 0.018F);
+        const float drift = fast_sine_lfo(drift_phase_) * (0.0005F + motion * 0.018F);
 
         switch (kind) {
         case EngineKind::plaits:
@@ -301,8 +331,14 @@ public:
             grain_.SetShape(timbre * 2.85F);
             grain_.SetBleed(0.03F + texture * 0.92F);
             clocked_noise_.SetFreq(frequency * (1.0F + texture * 52.0F));
-            const float decay = std::exp(-1.0F / (sample_rate_ * (0.025F + (1.0F - motion) * 0.48F)));
-            grain_envelope_ *= decay;
+            if (grain_control_counter_ == 0U) {
+                grain_decay_ = std::exp(-1.0F /
+                    (sample_rate_ * (0.025F + (1.0F - motion) * 0.48F)));
+                grain_control_counter_ = 31U;
+            } else {
+                --grain_control_counter_;
+            }
+            grain_envelope_ *= grain_decay_;
             const float gate = 0.12F + grain_envelope_ * (0.42F + events * 0.46F);
             return grain_.Process() * gate * 1.7F + clocked_noise_.Process() * texture * 0.12F;
         }
@@ -404,7 +440,13 @@ private:
     std::uint32_t random_state_{0x91E1'0DA5U};
     float event_phase_{1.0F};
     float event_period_{1.0F};
+    float cached_event_rate_{0.0F};
+    unsigned event_control_counter_{0U};
+    EngineKind cached_event_kind_{EngineKind::diagnostic};
+    bool cached_triggerable_{false};
     float grain_envelope_{0.0F};
+    float grain_decay_{0.999F};
+    unsigned grain_control_counter_{0U};
     float drift_phase_{0.0F};
     bool event_fired_{false};
     DiagnosticEngine diagnostic_{};
@@ -449,6 +491,20 @@ public:
         short_write_ = 0U;
         crusher_counter_ = 0U;
         crusher_held_ = {};
+        drive_control_counter_ = 0U;
+        lowpass_control_counter_ = 0U;
+        highpass_control_counter_ = 0U;
+        delay_control_counter_ = 0U;
+        ring_control_counter_ = 0U;
+        comb_control_counter_ = 0U;
+        phaser_control_counter_ = 0U;
+        drive_normalizer_ = 1.0F;
+        lowpass_coefficient_ = 0.1F;
+        highpass_coefficient_ = 0.1F;
+        delay_frames_ = 1.0F;
+        ring_rate_ = 1.0F;
+        comb_frames_ = 1.0F;
+        phaser_coefficient_ = 0.0F;
         phaser_left_.fill(0.0F);
         phaser_right_.fill(0.0F);
         // Do not clear the large delay buffers here. reset() can run from the
@@ -504,6 +560,15 @@ private:
         return phase;
     }
 
+    static bool control_due(unsigned& counter) noexcept {
+        if (counter == 0U) {
+            counter = 15U;
+            return true;
+        }
+        --counter;
+        return false;
+    }
+
     StereoFrame read_delay(
         const std::vector<StereoFrame>& buffer,
         std::size_t write,
@@ -525,44 +590,53 @@ private:
         };
     }
 
-    static StereoFrame drive(StereoFrame input, float amount) noexcept {
+    StereoFrame drive(StereoFrame input, float amount) noexcept {
         const float gain = 1.0F + amount * 48.0F;
-        const float normalizer = 1.0F / std::max(0.001F, std::tanh(gain));
+        if (control_due(drive_control_counter_)) {
+            drive_normalizer_ = 1.0F / std::max(0.001F, std::tanh(gain));
+        }
         const StereoFrame wet{
-            std::tanh(input.left * gain) * normalizer,
-            std::tanh(input.right * gain) * normalizer,
+            std::tanh(input.left * gain) * drive_normalizer_,
+            std::tanh(input.right * gain) * drive_normalizer_,
         };
         return mix(input, wet, amount);
     }
 
     StereoFrame lowpass(StereoFrame input, float amount, float tone) noexcept {
-        const float cutoff = std::min(sample_rate_ * 0.42F, 18.0F * std::pow(1'000.0F, tone));
-        const float coefficient = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
-        lowpass_.left += (input.left - lowpass_.left) * coefficient;
-        lowpass_.right += (input.right - lowpass_.right) * coefficient;
+        if (control_due(lowpass_control_counter_)) {
+            const float cutoff = std::min(sample_rate_ * 0.42F, 18.0F * std::pow(1'000.0F, tone));
+            lowpass_coefficient_ = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
+        }
+        lowpass_.left += (input.left - lowpass_.left) * lowpass_coefficient_;
+        lowpass_.right += (input.right - lowpass_.right) * lowpass_coefficient_;
         return mix(input, lowpass_, amount);
     }
 
     StereoFrame highpass(StereoFrame input, float amount, float tone) noexcept {
-        const float cutoff = std::min(sample_rate_ * 0.42F, 12.0F * std::pow(1'000.0F, tone));
-        const float coefficient = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
-        highpass_low_.left += (input.left - highpass_low_.left) * coefficient;
-        highpass_low_.right += (input.right - highpass_low_.right) * coefficient;
+        if (control_due(highpass_control_counter_)) {
+            const float cutoff = std::min(sample_rate_ * 0.42F, 12.0F * std::pow(1'000.0F, tone));
+            highpass_coefficient_ = 1.0F - std::exp(-kTwoPi * cutoff / sample_rate_);
+        }
+        highpass_low_.left += (input.left - highpass_low_.left) * highpass_coefficient_;
+        highpass_low_.right += (input.right - highpass_low_.right) * highpass_coefficient_;
         return mix(input, {input.left - highpass_low_.left, input.right - highpass_low_.right}, amount);
     }
 
     StereoFrame tremolo(StereoFrame input, float amount, float tone) noexcept {
         const float rate = 0.015F + tone * tone * 18.0F;
         const float phase = advance(tremolo_phase_, rate, sample_rate_);
-        const float wave = 0.5F + 0.5F * std::sin(phase * kTwoPi);
+        const float wave = 0.5F + 0.5F * fast_sine_lfo(phase);
         const float modulation = 1.0F - amount * (0.20F + wave * 0.80F);
         return {input.left * modulation, input.right * modulation};
     }
 
     StereoFrame delay(StereoFrame input, float amount, float tone, float feedback) noexcept {
         if (delay_.empty()) return input;
-        const float delay_seconds = 0.025F + std::pow(tone, 1.35F) * 1.265F;
-        const StereoFrame wet = read_delay(delay_, delay_write_, delay_seconds * sample_rate_, delay_valid_);
+        if (control_due(delay_control_counter_)) {
+            const float delay_seconds = 0.025F + std::pow(tone, 1.35F) * 1.265F;
+            delay_frames_ = delay_seconds * sample_rate_;
+        }
+        const StereoFrame wet = read_delay(delay_, delay_write_, delay_frames_, delay_valid_);
         const float regeneration = std::min(0.985F, feedback * 0.985F);
         delay_[delay_write_] = {
             input.left + wet.right * regeneration,
@@ -599,8 +673,10 @@ private:
     }
 
     StereoFrame ringmod(StereoFrame input, float amount, float tone) noexcept {
-        const float frequency = 0.05F * std::pow(160'000.0F, tone);
-        const float phase = advance(ring_phase_, frequency, sample_rate_);
+        if (control_due(ring_control_counter_)) {
+            ring_rate_ = 0.05F * std::pow(160'000.0F, tone);
+        }
+        const float phase = advance(ring_phase_, ring_rate_, sample_rate_);
         const float carrier = std::sin(phase * kTwoPi);
         return {
             input.left * (1.0F - amount + carrier * amount),
@@ -610,8 +686,10 @@ private:
 
     StereoFrame comb(StereoFrame input, float amount, float tone, float feedback) noexcept {
         if (delay_.empty()) return input;
-        const float seconds = 0.0007F * std::pow(90.0F, tone);
-        const StereoFrame wet = read_delay(delay_, delay_write_, seconds * sample_rate_, delay_valid_);
+        if (control_due(comb_control_counter_)) {
+            comb_frames_ = 0.0007F * std::pow(90.0F, tone) * sample_rate_;
+        }
+        const StereoFrame wet = read_delay(delay_, delay_write_, comb_frames_, delay_valid_);
         const float regeneration = 0.12F + feedback * 0.85F;
         delay_[delay_write_] = {
             input.left + wet.left * regeneration,
@@ -628,8 +706,8 @@ private:
         const float phase = advance(chorus_phase_, rate, sample_rate_);
         const float depth_ms = 1.0F + feedback * 14.0F;
         const float base_ms = 7.0F + feedback * 17.0F;
-        const float left_frames = (base_ms + std::sin(phase * kTwoPi) * depth_ms) * 0.001F * sample_rate_;
-        const float right_frames = (base_ms + std::sin((phase + 0.27F) * kTwoPi) * depth_ms) * 0.001F * sample_rate_;
+        const float left_frames = (base_ms + fast_sine_lfo(phase) * depth_ms) * 0.001F * sample_rate_;
+        const float right_frames = (base_ms + fast_sine_lfo(phase + 0.27F) * depth_ms) * 0.001F * sample_rate_;
         const StereoFrame left_tap = read_delay(short_delay_, short_write_, left_frames, short_valid_);
         const StereoFrame right_tap = read_delay(short_delay_, short_write_, right_frames, short_valid_);
         const StereoFrame wet{left_tap.left * 0.72F + right_tap.left * 0.28F,
@@ -644,7 +722,7 @@ private:
         if (short_delay_.empty()) return input;
         const float rate = 0.025F + tone * tone * 7.0F;
         const float phase = advance(flanger_phase_, rate, sample_rate_);
-        const float delay_ms = 0.35F + (0.5F + 0.5F * std::sin(phase * kTwoPi)) * (1.5F + tone * 7.0F);
+        const float delay_ms = 0.35F + (0.5F + 0.5F * fast_sine_lfo(phase)) * (1.5F + tone * 7.0F);
         const StereoFrame wet = read_delay(short_delay_, short_write_, delay_ms * 0.001F * sample_rate_, short_valid_);
         const float regeneration = feedback * 0.92F;
         short_delay_[short_write_] = {
@@ -668,17 +746,20 @@ private:
     StereoFrame phaser(StereoFrame input, float amount, float tone, float feedback) noexcept {
         const float rate = 0.01F + tone * tone * 5.5F;
         const float phase = advance(phaser_phase_, rate, sample_rate_);
-        const float sweep = 0.5F + 0.5F * std::sin(phase * kTwoPi);
-        const float frequency = std::min(sample_rate_ * 0.18F, 45.0F * std::pow(120.0F, sweep));
-        const float tangent = std::tan(kPi * frequency / sample_rate_);
-        const float coefficient = std::clamp((1.0F - tangent) / (1.0F + tangent), -0.98F, 0.98F);
+        if (control_due(phaser_control_counter_)) {
+            const float sweep = clamp01(0.5F + 0.5F * fast_sine_lfo(phase));
+            const float frequency = std::min(sample_rate_ * 0.18F, 45.0F * std::pow(120.0F, sweep));
+            const float tangent = std::tan(kPi * frequency / sample_rate_);
+            phaser_coefficient_ = std::clamp(
+                (1.0F - tangent) / (1.0F + tangent), -0.98F, 0.98F);
+        }
         const StereoFrame driven{
             input.left + phaser_feedback_.left * feedback * 0.88F,
             input.right + phaser_feedback_.right * feedback * 0.88F,
         };
         const StereoFrame wet{
-            allpass(driven.left, phaser_left_, coefficient),
-            allpass(driven.right, phaser_right_, -coefficient),
+            allpass(driven.left, phaser_left_, phaser_coefficient_),
+            allpass(driven.right, phaser_right_, -phaser_coefficient_),
         };
         phaser_feedback_ = wet;
         return mix(input, wet, amount);
@@ -786,8 +867,8 @@ private:
             reverse_phase_b_ -= 1.0F;
             reverse_offset_b_ = 0.12F + (next_noise(reverse_random_state_) * 0.5F + 0.5F) * (0.30F + tone * 1.60F);
         }
-        const float window_a = 0.5F - 0.5F * std::cos(reverse_phase_a_ * kTwoPi);
-        const float window_b = 0.5F - 0.5F * std::cos(reverse_phase_b_ * kTwoPi);
+        const float window_a = clamp01(0.5F - 0.5F * fast_sine_lfo(reverse_phase_a_ + 0.25F));
+        const float window_b = clamp01(0.5F - 0.5F * fast_sine_lfo(reverse_phase_b_ + 0.25F));
         const float read_a = reverse_offset_a_ * sample_rate_ + reverse_phase_a_ * grain_frames * 2.0F;
         const float read_b = reverse_offset_b_ * sample_rate_ + reverse_phase_b_ * grain_frames * 2.0F;
         const StereoFrame a = read_delay(delay_, delay_write_, read_a, delay_valid_);
@@ -829,6 +910,20 @@ private:
     std::size_t short_write_{0U};
     std::size_t delay_valid_{0U};
     std::size_t short_valid_{0U};
+    unsigned drive_control_counter_{0U};
+    unsigned lowpass_control_counter_{0U};
+    unsigned highpass_control_counter_{0U};
+    unsigned delay_control_counter_{0U};
+    unsigned ring_control_counter_{0U};
+    unsigned comb_control_counter_{0U};
+    unsigned phaser_control_counter_{0U};
+    float drive_normalizer_{1.0F};
+    float lowpass_coefficient_{0.1F};
+    float highpass_coefficient_{0.1F};
+    float delay_frames_{1.0F};
+    float ring_rate_{1.0F};
+    float comb_frames_{1.0F};
+    float phaser_coefficient_{0.0F};
     unsigned crusher_counter_{0U};
     StereoFrame crusher_held_{};
     std::array<float, 4> phaser_left_{};
@@ -955,6 +1050,17 @@ public:
         session_ = initial_session;
         chaos_slew_ = 1.0F - std::exp(-1.0F / (config_.sample_rate * 0.075F));
         event_indicator_decay_ = std::exp(-1.0F / (config_.sample_rate * 0.18F));
+        // Preserve the sub-drone fundamentals: the old fixed coefficient placed
+        // the DC-blocker corner near 38 Hz at 48 kHz. A sample-rate-derived
+        // 12 Hz corner removes DC without hollowing out the intended low end.
+        dc_coefficient_ = std::exp(-kTwoPi * 12.0F / config_.sample_rate);
+        for (std::size_t index = 0; index < pan_left_.size(); ++index) {
+            const float normalized = static_cast<float>(index) /
+                static_cast<float>(pan_left_.size() - 1U);
+            const float pan = normalized * 2.0F - 1.0F;
+            pan_left_[index] = std::sqrt(0.5F * (1.0F - pan));
+            pan_right_[index] = std::sqrt(0.5F * (1.0F + pan));
+        }
         rebuild_effective_slots();
         master_.prepare(session_.master_level * session_.performance.fade, config_.sample_rate, 100.0F);
         performance_texture_.prepare(session_.performance.texture, config_.sample_rate, 80.0F);
@@ -1034,6 +1140,10 @@ public:
             received = true;
         }
         if (received) {
+            std::array<bool, kSlotCount> was_enabled{};
+            for (std::size_t index = 0; index < kSlotCount; ++index) {
+                was_enabled[index] = effective_slots_[index].enabled;
+            }
             session_ = incoming;
             master_.set(session_.master_level * clamp01(session_.performance.fade));
             performance_texture_.set(clamp01(session_.performance.texture));
@@ -1042,8 +1152,23 @@ public:
             performance_space_.set(clamp01(session_.performance.space));
             performance_events_.set(clamp01(session_.performance.events));
             rebuild_effective_slots();
+            bool any_actor_enabled = false;
             for (std::size_t index = 0; index < kSlotCount; ++index) {
                 slots_[index].update_targets(effective_slots_[index]);
+                any_actor_enabled = any_actor_enabled || effective_slots_[index].enabled;
+                // Explicit mute is a lifecycle boundary: invalidate the actor and
+                // its private FX tails once, then keep the dormant slot entirely
+                // out of the sample loop until it is enabled again.
+                if (was_enabled[index] != effective_slots_[index].enabled) {
+                    slots_[index].reset();
+                    slot_event_hold_[index] = 0.0F;
+                }
+            }
+            if (!any_actor_enabled) {
+                // Do not let the DC blocker itself imitate a source tail after the
+                // last actor is muted. Master FX still process their own memory.
+                dc_input_ = {};
+                dc_output_ = {};
             }
         }
 
@@ -1099,6 +1224,10 @@ public:
             for (std::size_t slot_index = 0; slot_index < kSlotCount; ++slot_index) {
                 const auto& settings = effective_slots_[slot_index];
                 auto& runtime = slots_[slot_index];
+                if (!settings.enabled) {
+                    if (capture_scope) scope_frames[slot_index][scope_index] = 0.0F;
+                    continue;
+                }
                 ModulatedParameters parameters{
                     runtime.frequency.next(),
                     runtime.timbre.next(),
@@ -1267,7 +1396,8 @@ public:
                 pulse_phases_[slot_index] -= std::floor(pulse_phases_[slot_index]);
                 float slot_pulse_phase = pulse_phases_[slot_index] + chaos_value * 0.08F;
                 slot_pulse_phase -= std::floor(slot_pulse_phase);
-                const float pulse_wave = 0.5F + 0.5F * std::sin(slot_pulse_phase * kTwoPi - kPi * 0.5F);
+                const float pulse_wave = clamp01(
+                    0.5F + 0.5F * fast_sine_lfo(slot_pulse_phase - 0.25F));
                 const float pulse_envelope = std::pow(pulse_wave, 1.0F + pulse_macro * 10.0F);
                 const float pulse_gain = 1.0F - pulse_macro * pulse_depth * (1.0F - pulse_envelope);
                 parameters.level *= pulse_gain * std::clamp(1.0F + chaos_value * 0.72F, 0.16F, 1.65F);
@@ -1319,27 +1449,23 @@ public:
                 parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
 
-                StereoFrame actor_frame{};
-                if (settings.enabled) {
-                    actor_frame = runtime.engine.next(
-                        settings,
-                        parameters.frequency,
-                        parameters.timbre,
-                        parameters.color,
-                        parameters.motion,
-                        parameters.texture,
-                        session_.tempo_bpm,
-                        pulse_macro,
-                        chaos_macro,
-                        effective_event_density(parameters.event_density, events_macro),
-                        euclidean_trigger || manual_trigger,
-                        manual_trigger);
-                }
+                const StereoFrame actor_frame = runtime.engine.next(
+                    settings,
+                    parameters.frequency,
+                    parameters.timbre,
+                    parameters.color,
+                    parameters.motion,
+                    parameters.texture,
+                    session_.tempo_bpm,
+                    pulse_macro,
+                    chaos_macro,
+                    effective_event_density(parameters.event_density, events_macro),
+                    euclidean_trigger || manual_trigger,
+                    manual_trigger);
                 if (runtime.engine.consume_event_fired()) {
                     slot_event_hold_[slot_index] = 1.0F;
                 }
-                const float left_pan = std::sqrt(0.5F * (1.0F - parameters.pan));
-                const float right_pan = std::sqrt(0.5F * (1.0F + parameters.pan));
+                const auto [left_pan, right_pan] = pan_gains(parameters.pan);
                 StereoFrame slot_frame{
                     actor_frame.left * parameters.level * left_pan,
                     actor_frame.right * parameters.level * right_pan,
@@ -1355,9 +1481,6 @@ public:
                         parameters.effect_tone[effect_index],
                         parameters.effect_feedback[effect_index]);
                 }
-                // Process silence so buffers decay internally, but do not let an old
-                // actor-FX tail bypass an explicit mute. Master FX tails remain audible.
-                if (!settings.enabled) slot_frame = {};
                 if (capture_scope) {
                     scope_frames[slot_index][scope_index] = 0.5F * (slot_frame.left + slot_frame.right);
                 }
@@ -1376,10 +1499,9 @@ public:
                     mix, settings.kind, settings.amount, settings.tone, settings.feedback);
             }
 
-            constexpr float dc_coefficient = 0.995F;
             const StereoFrame dc_removed{
-                mix.left - dc_input_.left + dc_coefficient * dc_output_.left,
-                mix.right - dc_input_.right + dc_coefficient * dc_output_.right,
+                mix.left - dc_input_.left + dc_coefficient_ * dc_output_.left,
+                mix.right - dc_input_.right + dc_coefficient_ * dc_output_.right,
             };
             dc_input_ = mix;
             dc_output_ = dc_removed;
@@ -1463,6 +1585,18 @@ private:
         }
     }
 
+    std::pair<float, float> pan_gains(float pan) const noexcept {
+        constexpr float scale = 0.5F * static_cast<float>(1024U);
+        const float position = (std::clamp(pan, -1.0F, 1.0F) + 1.0F) * scale;
+        const std::size_t lower = static_cast<std::size_t>(position);
+        const std::size_t upper = std::min(lower + 1U, pan_left_.size() - 1U);
+        const float fraction = position - static_cast<float>(lower);
+        return {
+            pan_left_[lower] + (pan_left_[upper] - pan_left_[lower]) * fraction,
+            pan_right_[lower] + (pan_right_[upper] - pan_right_[lower]) * fraction,
+        };
+    }
+
     static void publish_meter(std::atomic<float>& destination, float& smoothed, float value, float mix) noexcept {
         smoothed += (value - smoothed) * mix;
         destination.store(smoothed, std::memory_order_relaxed);
@@ -1500,7 +1634,7 @@ private:
     std::array<SlotSettings, kSlotCount> effective_slots_{};
     std::array<SlotRuntime, kSlotCount> slots_{};
     std::array<EffectRuntime, kMasterEffects> master_effects_{};
-    SpscQueue<Session, 8> sessions_{};
+    SpscQueue<Session, 32> sessions_{};
     SmoothedValue master_{};
     SmoothedValue performance_texture_{};
     SmoothedValue performance_pulse_{};
@@ -1509,6 +1643,9 @@ private:
     SmoothedValue performance_events_{};
     StereoFrame dc_input_{};
     StereoFrame dc_output_{};
+    float dc_coefficient_{0.998F};
+    std::array<float, 1025> pan_left_{};
+    std::array<float, 1025> pan_right_{};
     std::array<float, kSlotCount> chaos_current_{};
     std::array<float, kSlotCount> chaos_target_{};
     std::array<float, kSlotCount> pulse_phases_{};

@@ -108,6 +108,9 @@ private:
     EngineKind last_kind_{EngineKind::diagnostic};
     std::uint32_t random_state_{0x3141'5926U};
     unsigned control_counter_{0U};
+    unsigned slow_slew_counter_{0U};
+    unsigned modal_control_counter_{0U};
+    float slow_slew_{0.001F};
     float time_{0.0F};
     float event_countdown_{0.0F};
     float event_age_{99.0F};
@@ -130,6 +133,8 @@ private:
     std::array<float, 8> phases_{};
     std::array<float, 6> mode_phases_{};
     std::array<float, 6> mode_amplitudes_{};
+    std::array<float, 6> mode_brightness_{};
+    std::array<float, 6> mode_decay_{};
     std::array<daisysp::Svf, 6> filters_{};
 };
 

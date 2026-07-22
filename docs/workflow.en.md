@@ -1,4 +1,4 @@
-# Cursed Drone 0.12.3 — Guided Workflow
+# Cursed Drone 0.13.0 — Guided Workflow
 
 Cursed Drone is a live soundscape instrument: choose a **place**, shape four **actors**, process them with actor FX, then finish the whole space with Master FX.
 

@@ -1,4 +1,4 @@
-# Установка Cursed Drone 0.12.3 на Knulli / PortMaster
+# Установка Cursed Drone 0.13.0 на Knulli / PortMaster
 
 > Проверено на реальной TrimUI Brick с Knulli. Другие AArch64-консоли с PortMaster пока не подтверждены.
 
