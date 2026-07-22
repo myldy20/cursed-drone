@@ -1,8 +1,8 @@
 name: apply-v0.13.0
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [release/v0.13.0-performance-android]
     paths:
       - .github/workflows/apply-v0.13.0.yml
 
