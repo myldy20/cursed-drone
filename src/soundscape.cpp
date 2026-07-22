@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "soundscape.hpp"
 
 #include <algorithm>
@@ -29,7 +31,8 @@ float decay_coefficient(float sample_rate, float seconds) noexcept {
 }
 
 bool is_soundscape_engine(EngineKind kind) noexcept {
-    return static_cast<int>(kind) >= static_cast<int>(EngineKind::derelict_bed);
+    return static_cast<int>(kind) >= static_cast<int>(EngineKind::derelict_bed) &&
+        static_cast<int>(kind) <= static_cast<int>(EngineKind::earth_rumble);
 }
 
 } // namespace
@@ -61,6 +64,8 @@ void SoundscapeVoice::reset() noexcept {
     sequence_index_ = 0;
     sequence_length_ = 0;
     chirps_remaining_ = 0;
+    external_trigger_pending_ = false;
+    event_fired_ = false;
     phases_.fill(0.0F);
     mode_phases_.fill(0.0F);
     mode_amplitudes_.fill(0.0F);
@@ -102,16 +107,36 @@ void SoundscapeVoice::configure_filter(
     filter.SetDrive(clamp01(drive));
 }
 
+bool SoundscapeVoice::take_external_trigger() noexcept {
+    const bool triggered = external_trigger_pending_;
+    external_trigger_pending_ = false;
+    return triggered;
+}
+
+void SoundscapeVoice::mark_event_fired() noexcept {
+    event_fired_ = true;
+}
+
 bool SoundscapeVoice::tick_event(float rate_hz, float irregularity) noexcept {
-    event_countdown_ -= inverse_sample_rate_;
-    if (event_countdown_ > 0.0F) {
-        return false;
+    const bool forced = take_external_trigger();
+    if (!forced) {
+        event_countdown_ -= inverse_sample_rate_;
+        if (event_countdown_ > 0.0F) {
+            return false;
+        }
     }
     const float random_unit = noise() * 0.5F + 0.5F;
     const float base = 1.0F / std::max(0.005F, rate_hz);
     event_countdown_ = base * std::clamp(
         1.0F + (random_unit * 2.0F - 1.0F) * irregularity, 0.18F, 2.7F);
+    mark_event_fired();
     return true;
+}
+
+bool SoundscapeVoice::consume_event_fired() noexcept {
+    const bool fired = event_fired_;
+    event_fired_ = false;
+    return fired;
 }
 
 void SoundscapeVoice::excite_modes(float amount, float irregularity) noexcept {
@@ -146,7 +171,8 @@ float SoundscapeVoice::next(
     float tempo_bpm,
     float activity,
     float tension,
-    float evolution) noexcept {
+    float evolution,
+    bool external_trigger) noexcept {
     if (!is_soundscape_engine(kind)) {
         return 0.0F;
     }
@@ -157,6 +183,8 @@ float SoundscapeVoice::next(
             secondary_countdown_ = 0.0F;
         }
     }
+    external_trigger_pending_ = external_trigger;
+    event_fired_ = false;
     time_ += inverse_sample_rate_;
     timbre = clamp01(timbre);
     color = clamp01(color);
@@ -235,6 +263,7 @@ float SoundscapeVoice::next(
     case EngineKind::grain:
     case EngineKind::particle:
     case EngineKind::water_drip:
+    case EngineKind::plaits:
         break;
     }
     return 0.0F;
@@ -267,9 +296,12 @@ float SoundscapeVoice::footsteps(float frequency, float timbre, float color, flo
     float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept {
     const float tempo = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
     const float rate = 0.24F + motion * 0.85F + activity * activity * 1.55F + tempo * activity * 0.18F;
+    const bool forced = take_external_trigger();
     step_phase_ += rate * inverse_sample_rate_;
-    if (step_phase_ >= 1.0F) {
-        step_phase_ -= 1.0F;
+    if (forced || step_phase_ >= 1.0F) {
+        if (forced) step_phase_ = 0.0F;
+        else step_phase_ -= 1.0F;
+        mark_event_fired();
         primary_envelope_ = 1.0F;
         secondary_countdown_ = 0.065F + (noise() * 0.5F + 0.5F) * (0.10F + timbre * 0.07F);
         event_pan_ = -event_pan_;
@@ -532,6 +564,11 @@ float SoundscapeVoice::insects(float frequency, float timbre, float color, float
 
 float SoundscapeVoice::signal(float frequency, float timbre, float color, float motion,
     float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept {
+    if (take_external_trigger()) {
+        sequence_index_ = 0;
+        sequence_length_ = 1;
+        secondary_countdown_ = 0.0F;
+    }
     secondary_countdown_ -= inverse_sample_rate_;
     if (sequence_index_ >= sequence_length_ && secondary_countdown_ <= 0.0F) {
         sequence_length_ = 3 + static_cast<int>((noise() * 0.5F + 0.5F) * (3.0F + activity * 6.0F));
@@ -539,6 +576,7 @@ float SoundscapeVoice::signal(float frequency, float timbre, float color, float 
         secondary_countdown_ = 0.0F;
     }
     if (sequence_index_ < sequence_length_ && secondary_countdown_ <= 0.0F) {
+        mark_event_fired();
         primary_envelope_ = 1.0F;
         ++sequence_index_;
         const float tempo = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
@@ -643,9 +681,12 @@ float SoundscapeVoice::rail_joint(float frequency, float timbre, float color, fl
     float texture, float tempo_bpm, float activity, float tension, float evolution) noexcept {
     const float tempo = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
     const float rate = 0.42F + activity * 2.8F + motion * 2.0F + tempo * 0.18F;
+    const bool forced = take_external_trigger();
     step_phase_ += rate * inverse_sample_rate_;
-    if (step_phase_ >= 1.0F) {
-        step_phase_ -= 1.0F;
+    if (forced || step_phase_ >= 1.0F) {
+        if (forced) step_phase_ = 0.0F;
+        else step_phase_ -= 1.0F;
+        mark_event_fired();
         primary_envelope_ = 1.0F;
         secondary_countdown_ = 0.055F + (1.0F - tension) * 0.035F;
         excite_modes(0.14F + texture * 0.20F, 0.55F);
@@ -751,9 +792,12 @@ float SoundscapeVoice::toy_voice(float frequency, float timbre, float color, flo
 float SoundscapeVoice::toy_gears(float frequency, float timbre, float color, float motion,
     float texture, float activity, float tension, float evolution) noexcept {
     const float speed = std::clamp(frequency, 12.0F, 100.0F) * (0.42F + activity * 1.15F);
+    const bool forced = take_external_trigger();
     step_phase_ += speed * inverse_sample_rate_;
-    if (step_phase_ >= 1.0F) {
-        step_phase_ -= 1.0F;
+    if (forced || step_phase_ >= 1.0F) {
+        if (forced) step_phase_ = 0.0F;
+        else step_phase_ -= 1.0F;
+        mark_event_fired();
         primary_envelope_ = 1.0F;
         if (noise() > 0.72F - evolution * 0.34F) slow_target_ = -1.0F;
     }

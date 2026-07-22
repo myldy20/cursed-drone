@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #pragma once
 
 #include "cursed_drone/session.hpp"
@@ -29,7 +31,10 @@ public:
         float tempo_bpm,
         float activity,
         float tension,
-        float evolution) noexcept;
+        float evolution,
+        bool external_trigger) noexcept;
+
+    [[nodiscard]] bool consume_event_fired() noexcept;
 
 private:
     float derelict_bed(float frequency, float timbre, float color, float motion,
@@ -92,6 +97,8 @@ private:
     float modal_sum(float base_frequency, float damping, float brightness) noexcept;
     void excite_modes(float amount, float irregularity) noexcept;
     bool tick_event(float rate_hz, float irregularity) noexcept;
+    bool take_external_trigger() noexcept;
+    void mark_event_fired() noexcept;
     bool control_tick() noexcept;
     void configure_filter(std::size_t index, float frequency, float resonance, float drive = 0.0F) noexcept;
 
@@ -118,6 +125,8 @@ private:
     int sequence_index_{0};
     int sequence_length_{0};
     int chirps_remaining_{0};
+    bool external_trigger_pending_{false};
+    bool event_fired_{false};
     std::array<float, 8> phases_{};
     std::array<float, 6> mode_phases_{};
     std::array<float, 6> mode_amplitudes_{};

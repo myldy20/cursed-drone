@@ -1,6 +1,6 @@
 # Third-party notices / Сторонний код
 
-Cursed Drone project code is GPL-3.0-or-later. The components below retain their upstream licences.
+Cursed Drone first-party code is GPL-3.0-or-later and, for files that point to it, is also subject to `ADDITIONAL_TERMS.md`. `NOTICE.md` summarizes the required attribution. The components below are third-party material and retain their upstream licences; Cursed Drone's additional terms do not apply to them.
 
 ## DaisySP subset
 

@@ -1,5 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Myldy Design
+# Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 
 XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 

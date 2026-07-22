@@ -1,4 +1,4 @@
-# Установка Cursed Drone 0.12.1 на Knulli / PortMaster
+# Установка Cursed Drone 0.12.2 на Knulli / PortMaster
 
 > Проверено на реальной TrimUI Brick с Knulli. Другие AArch64-консоли с PortMaster пока не подтверждены.
 
@@ -39,3 +39,5 @@ curseddrone/conf/cursed-drone.log
 Встроенные строи находятся в `curseddrone/assets/scales/`. Дополнительные Scala-файлы `.scl` копируйте в `conf/scales/`.
 
 Архивы для Knulli и NextUI не взаимозаменяемы.
+
+В пакет также входят `NOTICE.md` и `ADDITIONAL_TERMS.md` в `curseddrone/licenses/`.

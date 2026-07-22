@@ -1,4 +1,4 @@
-# Install Cursed Drone 0.12.1 on Knulli / PortMaster
+# Install Cursed Drone 0.12.2 on Knulli / PortMaster
 
 > Verified on a real TrimUI Brick running Knulli. Other AArch64 PortMaster handhelds remain unverified.
 
@@ -39,3 +39,5 @@ curseddrone/conf/cursed-drone.log
 Built-in scales are packaged under `curseddrone/assets/scales/`. Copy additional Scala `.scl` files into `conf/scales/`.
 
 The Knulli and NextUI archives are not interchangeable.
+
+The package also includes `NOTICE.md` and `ADDITIONAL_TERMS.md` under `curseddrone/licenses/`.

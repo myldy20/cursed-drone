@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #pragma once
 
 #include "cursed_drone/session.hpp"
@@ -49,6 +51,7 @@ struct AudioConfig {
 struct AudioTelemetry {
     std::array<float, kSlotCount> slot_rms{};
     std::array<float, kSlotCount> slot_peak{};
+    std::array<float, kSlotCount> slot_event{};
     std::array<std::array<float, kScopePointCount>, kSlotCount> slot_scope{};
     std::array<float, kScopePointCount> master_scope{};
     float master_rms{0.0F};
@@ -110,6 +113,9 @@ public:
 
     // UI thread. Atomically snapshots meters produced by the audio callback.
     [[nodiscard]] AudioTelemetry telemetry() const noexcept;
+
+    // UI thread. Requests one immediate excitation/event for a slot.
+    void trigger_slot(std::size_t slot_index) noexcept;
 
     // UI thread. Clears voices and effect memory on the next audio block.
     void panic() noexcept;

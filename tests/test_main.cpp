@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/audio.hpp"
 #include "cursed_drone/i18n.hpp"
 #include "cursed_drone/scala.hpp"
@@ -117,6 +119,30 @@ void test_audio() {
         scope_peak = std::max(scope_peak, std::abs(sample));
     }
     expect(scope_peak > 0.0F, "master scope should contain real audio samples");
+
+    const float density = cd::effective_event_density(0.50F, 0.44F);
+    expect(cd::event_rate_hz(45.0F, density, 0.25F) > 0.0F,
+        "event rate should be positive");
+    expect(cd::event_max_wait_seconds(45.0F, density, 0.25F) > 0.0F,
+        "event maximum wait should be finite and positive");
+    expect(cd::supports_manual_trigger(cd::EngineKind::door),
+        "door should support manual triggering");
+    expect(!cd::supports_manual_trigger(cd::EngineKind::wind),
+        "continuous wind should not pretend to support manual triggering");
+
+    auto trigger_session = default_session;
+    cd::apply_scene_recipe(trigger_session, cd::SceneKind::derelict);
+    for (std::size_t slot = 1; slot < cd::kSlotCount; ++slot) trigger_session.slots[slot].enabled = false;
+    trigger_session.slots[0] = trigger_session.slots[2];
+    trigger_session.slots[0].enabled = true;
+    for (auto& effect : trigger_session.slots[0].effects) effect.kind = cd::EffectKind::bypass;
+    cd::AudioGraph trigger_graph;
+    trigger_graph.prepare({48'000.0F, 256U}, trigger_session);
+    trigger_graph.trigger_slot(0U);
+    std::array<cd::StereoFrame, 256> trigger_block{};
+    trigger_graph.process({trigger_block.data(), trigger_block.size()});
+    expect(trigger_graph.telemetry().slot_event[0] > 0.5F,
+        "manual actor trigger should publish visible event telemetry");
 
     graph.panic();
     graph.process({block.data(), block.size()});
@@ -340,6 +366,7 @@ void test_session_roundtrip() {
     original.slots[1].plaits_model = cd::PlaitsModel::wavetable;
     original.slots[1].plaits_output = cd::PlaitsOutputMode::aux;
     original.slots[1].euclidean = {true, 13, 5, 3, 0.73F};
+    original.slots[1].event_density = 0.731F;
     original.slots[1].modulators[2].depth = -0.42F;
     original.slots[1].modulators[2].rate_mod_source = 0;
     original.slots[1].modulators[2].rate_mod_amount = -0.31F;
@@ -352,7 +379,7 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 10, "session should upgrade to schema 10");
+    expect(loaded.schema_version == 11, "session should upgrade to schema 11");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
@@ -375,6 +402,8 @@ void test_session_roundtrip() {
     expect(loaded.slots[1].plaits_output == cd::PlaitsOutputMode::aux, "macro output should roundtrip");
     expect(loaded.slots[1].euclidean.steps == 13 && loaded.slots[1].euclidean.pulses == 5,
         "Euclidean settings should roundtrip");
+    expect(std::abs(loaded.slots[1].event_density - 0.731F) < 0.0001F,
+        "per-actor event density should roundtrip");
     expect(std::abs(loaded.slots[1].modulators[2].depth + 0.42F) < 0.0001F,
         "bipolar modulation depth should roundtrip");
     expect(loaded.slots[1].modulators[2].rate_mod_source == 0,

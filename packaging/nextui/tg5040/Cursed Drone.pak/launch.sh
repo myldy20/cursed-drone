@@ -1,5 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Myldy Design
+# Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 set -u
 
 PAK_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

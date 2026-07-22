@@ -1,5 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Myldy Design
+# Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 set -eu
 if [ "$#" -ne 2 ]; then echo "usage: $0 BUILD_DIR OUTPUT_DIR" >&2; exit 2; fi
 BUILD_DIR=$(CDPATH= cd -- "$1" && pwd)
@@ -21,6 +23,8 @@ cp "$ROOT_DIR/assets/scales/"*.scl "$PAK_DIR/assets/scales/"
 cp "$ROOT_DIR/docs/install.nextui.en.md" "$ROOT_DIR/docs/install.nextui.ru.md" "$ROOT_DIR/docs/workflow.en.md" "$ROOT_DIR/docs/workflow.ru.md" "$PAK_DIR/docs/"
 cp "$ROOT_DIR/LICENSE" "$PAK_DIR/licenses/GPL-3.0.txt"
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$PAK_DIR/licenses/THIRD_PARTY_NOTICES.md"
+cp "$ROOT_DIR/NOTICE.md" "$PAK_DIR/licenses/NOTICE.md"
+cp "$ROOT_DIR/ADDITIONAL_TERMS.md" "$PAK_DIR/licenses/ADDITIONAL_TERMS.md"
 cp "$ROOT_DIR/third_party/font512/LICENSE" "$PAK_DIR/licenses/font512-UNLICENSE.txt"
 cp "$ROOT_DIR/third_party/PLAITS_LICENSE.txt" "$PAK_DIR/licenses/Musical-engine-MIT.txt"
 chmod +x "$PAK_DIR/launch.sh" "$PAK_DIR/cursed-drone-sdl.aarch64"

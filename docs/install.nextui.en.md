@@ -1,4 +1,4 @@
-# Install Cursed Drone 0.12.1 on NextUI
+# Install Cursed Drone 0.12.2 on NextUI
 
 > Verified on a real TrimUI Brick with NextUI: launch, video, audio and controls work.
 
@@ -38,3 +38,5 @@ Replace `Tools/tg5040/Cursed Drone.pak/`. Runtime data remains under `.userdata/
 ```
 
 NextUI save states and auto-resume do not apply because Cursed Drone is a standalone SDL app.
+
+The Tool Pak includes `NOTICE.md` and `ADDITIONAL_TERMS.md` under `licenses/`.
