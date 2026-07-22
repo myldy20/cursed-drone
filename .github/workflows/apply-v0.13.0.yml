@@ -18,7 +18,7 @@ jobs:
           ref: release/v0.13.0-performance-android
           submodules: false
           fetch-depth: 0
-      - name: Apply validated v0.13.0 patch
+      - name: Apply validated v0.13.0 product patch
         shell: bash
         run: |
           set -euo pipefail
@@ -26,6 +26,9 @@ jobs:
           base64 -d /tmp/v0130.patch.gz.b64 | gzip -d > /tmp/v0130.patch
           git apply --check /tmp/v0130.patch
           git apply /tmp/v0130.patch
+          # GitHub Actions tokens cannot update an existing workflow file.
+          # The unified build workflow is installed separately through the GitHub connector.
+          git checkout HEAD -- .github/workflows/build.yml
           rm -rf .v0130 .github/workflows/apply-v0.13.0.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
