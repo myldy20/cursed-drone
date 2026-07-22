@@ -1,0 +1,94 @@
+name: publish-v0.13.0
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/publish-v0.13.0.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_SHA: c7fac30f70b39191dbf1d85c8744d9d543fa299b
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download validated CI artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v0130/{nextui,portmaster,macos,android,benchmark} release
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/8544386634/zip > /tmp/nextui.zip
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/8544386310/zip > /tmp/portmaster.zip
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/8544380012/zip > /tmp/macos.zip
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/8544429199/zip > /tmp/android.zip
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/8544387203/zip > /tmp/benchmark.zip
+          unzip -q /tmp/nextui.zip -d /tmp/v0130/nextui
+          unzip -q /tmp/portmaster.zip -d /tmp/v0130/portmaster
+          unzip -q /tmp/macos.zip -d /tmp/v0130/macos
+          unzip -q /tmp/android.zip -d /tmp/v0130/android
+          unzip -q /tmp/benchmark.zip -d /tmp/v0130/benchmark
+
+          cp "$(find /tmp/v0130/nextui -type f -name '*.zip' -print -quit)" \
+            release/cursed-drone-v0.13.0-nextui-tg5040.zip
+          cp "$(find /tmp/v0130/portmaster -type f -name '*.zip' -print -quit)" \
+            release/cursed-drone-v0.13.0-portmaster-aarch64.zip
+          cp "$(find /tmp/v0130/android -type f -name '*.apk' -print -quit)" \
+            release/cursed-drone-v0.13.0-android-arm64-preview.apk
+          cp "$(find /tmp/v0130/benchmark -type f -name '*.txt' -print -quit)" \
+            release/performance-benchmark-v0.13.0.txt
+          (cd /tmp/v0130/macos && zip -qr "$GITHUB_WORKSPACE/release/cursed-drone-v0.13.0-macos-arm64.zip" .)
+          (cd release && sha256sum cursed-drone-v0.13.0-* performance-benchmark-v0.13.0.txt > SHA256SUMS.txt)
+          ls -lh release
+      - name: Create GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/release-notes.md <<'NOTES'
+          ## Cursed Drone 0.13.0 — performance and unified platforms
+
+          This release moves the handheld, desktop and Android builds onto one maintained `main` branch, one DSP core, one shared catalogue and one version source.
+
+          ### Performance
+          - moves stable effect coefficients and event calculations to bounded control-rate updates;
+          - suspends muted actors after resetting their runtime state;
+          - adds an equal-power pan lookup table and low-frequency sine approximation;
+          - replaces the old fixed DC blocker with a sample-rate-derived 12 Hz filter;
+          - preserves the constant-time Kill Silence path and atomic saves from 0.12.3.
+
+          Comparative x86 benchmarks show approximately 20% higher throughput in the default scene and approximately 70% higher throughput in a 20× Black Hole stress test. Actual TrimUI Brick results depend on device clock, firmware and scene.
+
+          ### Unified delivery
+          Every change in `main` now builds and tests:
+          - NextUI for TrimUI Brick;
+          - PortMaster/Knulli AArch64;
+          - macOS ARM64;
+          - Android ARM64 preview APK.
+
+          Android remains a touch-first frontend while Brick/macOS retain the controller/keyboard frontend. They share DSP, session format, engine/effect catalogues, versioning and CI.
+
+          ### Android preview
+          The APK is an ARM64, debug-signed sideloadable preview for Android 8+. It is not a Play Store production build.
+          NOTES
+          gh release create v0.13.0 \
+            --target "$TARGET_SHA" \
+            --title "Cursed Drone v0.13.0" \
+            --notes-file /tmp/release-notes.md \
+            release/cursed-drone-v0.13.0-nextui-tg5040.zip \
+            release/cursed-drone-v0.13.0-portmaster-aarch64.zip \
+            release/cursed-drone-v0.13.0-macos-arm64.zip \
+            release/cursed-drone-v0.13.0-android-arm64-preview.apk \
+            release/performance-benchmark-v0.13.0.txt \
+            release/SHA256SUMS.txt
+      - name: Verify published release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir verify
+          gh release download v0.13.0 --dir verify
+          cd verify
+          sha256sum -c SHA256SUMS.txt
+          test "$(git ls-remote https://github.com/${GITHUB_REPOSITORY}.git refs/tags/v0.13.0 | cut -f1)" = "$TARGET_SHA"
