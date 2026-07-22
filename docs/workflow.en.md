@@ -1,4 +1,4 @@
-# Cursed Drone 0.12.1 — Guided Workflow
+# Cursed Drone 0.12.2 — Guided Workflow
 
 Cursed Drone is a live soundscape instrument: choose a **place**, shape four **actors**, process them with actor FX, then finish the whole space with Master FX.
 
@@ -30,7 +30,9 @@ X cycles **Landscape → Macros → Actors**. In Actors, Left/Right selects an a
 
 ## Actor
 
-The actor selector is available on this page. Basic mode contains active state, Landscape/Musical source, engine, frequency and character. Advanced mode contains 16 Musical models, MAIN/AUX/MIX/STEREO routing, built-in or user Scala tuning, root note, Euclidean events and four modulation rows with bipolar depth and bounded rate cross-modulation.
+The actor selector is available on this page. Basic mode contains active state, **Trigger Now**, Landscape/Musical source, engine, frequency, character and **Event Rate**. Advanced mode contains 16 Musical models, MAIN/AUX/MIX/STEREO routing, built-in or user Scala tuning, root note, Euclidean events and four modulation rows with bipolar depth and bounded rate cross-modulation.
+
+For event-based engines, select **Trigger Now** and press A to hear the selected actor immediately. A short `!` flash on actor cards confirms both manual and generated events. Event Rate controls that actor's average event frequency; the value line shows both events per second/minute and **MAX**, the upper-bound wait before the actor scheduler forces the next event. Natural events may still happen earlier. The global **Events** macro raises or lowers activity across the whole place. Hold B for about 1.1 seconds to run **Kill Silence**, which resets voices and effect memory; it is an emergency silence command, not the preview trigger.
 
 ## FX and Master
 

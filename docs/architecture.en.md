@@ -1,4 +1,4 @@
-# Architecture — Cursed Drone 0.12.1
+# Architecture — Cursed Drone 0.12.2
 
 ```text
 Place macros
@@ -10,7 +10,7 @@ Actor 4 source → modulation → FX1 → FX2 → FX3 → FX4 → level/pan ┘
                               mix → Master FX1..4 → DC blocker → limiter → fade
 ```
 
-The audio thread receives complete `Session` snapshots through an SPSC queue. Schema 10 stores four actors, Scala tuning, Euclidean settings, four modulation rows, actor FX, Master FX and performance macros.
+The audio thread receives complete `Session` snapshots through an SPSC queue. Schema 11 stores four actors, per-actor Event Rate, Scala tuning, Euclidean settings, four modulation rows, actor FX, Master FX and performance macros. Manual trigger requests use a lock-free atomic bit mask; event flashes are published through telemetry and are not saved as session state.
 
 Actor `enabled` is authoritative. Landscape/morph recipe construction may change topology and parameters but cannot re-enable a muted actor. Disabled actors still feed silence through their processors so buffers decay internally; their actor-FX tails are suppressed. Master tails remain global.
 

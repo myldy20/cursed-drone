@@ -1,9 +1,0 @@
-+            slot_event_[index].store(slot_event_hold_[index], std::memory_order_relaxed);
-             if (capture_scope) {
-                 for (std::size_t point = 0; point < kScopePointCount; ++point) {
-                     slot_scope_[index][point].store(scope_frames[index][point], std::memory_order_relaxed);
-@@ -1399,6 +1443,7 @@ private:
-             result.color = blend(source.color, destination.color);
-             result.motion = blend(source.motion, destination.motion);
-             result.texture = blend(source.texture, destination.texture);
-+            result.event_density = blend(source.event_density, destination.event_density);

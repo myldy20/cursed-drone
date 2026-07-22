@@ -1,4 +1,4 @@
-# Synthesis catalogue — 0.12
+# Synthesis catalogue — 0.12.2
 
 Cursed Drone combines project-specific environmental engines, an audited DaisySP subset and a pinned upstream macro-oscillator implementation.
 
@@ -12,4 +12,4 @@ The user-facing name is **Musical**. Internally it wraps selected engines from t
 
 ## Pitch and events
 
-The Musical actor supports 12-TET, bundled Scala scales and user `.scl` files, plus Euclidean trigger generation. Four modulation rows provide sine, triangle, sample-and-hold and random-walk movement.
+The Musical actor supports 12-TET, bundled Scala scales and user `.scl` files, plus Euclidean trigger generation. Event-based landscape actors expose Trigger Now and Event Rate; a short `!` flash confirms each trigger. Four modulation rows provide sine, triangle, sample-and-hold and random-walk movement.

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #pragma once
 
 #include <SDL.h>

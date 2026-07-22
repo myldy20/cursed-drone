@@ -1,4 +1,4 @@
-# Установка Cursed Drone 0.12.1 на NextUI
+# Установка Cursed Drone 0.12.2 на NextUI
 
 > Проверено на реальной TrimUI Brick с NextUI: работают запуск, изображение, звук и управление.
 
@@ -38,3 +38,5 @@
 ```
 
 Save states и auto-resume NextUI не применяются: Cursed Drone запускается как отдельное SDL-приложение.
+
+В Tool Pak входят `NOTICE.md` и `ADDITIONAL_TERMS.md` в папке `licenses/`.

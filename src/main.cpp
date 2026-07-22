@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/i18n.hpp"
 #include "cursed_drone/session.hpp"
 #include "cursed_drone/wav.hpp"

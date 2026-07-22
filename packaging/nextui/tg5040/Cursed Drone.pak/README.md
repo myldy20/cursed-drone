@@ -1,4 +1,4 @@
-# Cursed Drone 0.12.1 — NextUI Tool Pak
+# Cursed Drone 0.12.2 — NextUI Tool Pak
 
 Verified on **TrimUI Brick with NextUI**. Extract the distribution ZIP to the SD-card root; the final path is `Tools/tg5040/Cursed Drone.pak/launch.sh`. Open **Tools → Cursed Drone**.
 
@@ -23,3 +23,10 @@ Verified on **TrimUI Brick with NextUI**. Extract the distribution ZIP to the SD
 Runtime data and eight memories are stored under `.userdata/tg5040/cursed-drone/`. Launch errors are written to `.userdata/tg5040/logs/Cursed Drone.txt`. NextUI save states do not apply to this standalone SDL app.
 
 Разработано **Myldy design — @myldy20**.
+## Licence and modified versions
+
+Source: `https://github.com/myldy20/cursed-drone`
+
+Original development: **Cursed Drone by Myldy Design**.
+
+First-party code is GPL-3.0-or-later with the additional terms bundled under `licenses/ADDITIONAL_TERMS.md`. Modified distributions must preserve `licenses/NOTICE.md`, attribute Cursed Drone by Myldy Design, and identify themselves as modified and unofficial.

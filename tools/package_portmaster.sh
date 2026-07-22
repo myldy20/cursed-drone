@@ -1,5 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Myldy Design
+# Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 set -eu
 
 if [ "$#" -ne 2 ]; then echo "usage: $0 BUILD_DIR OUTPUT_DIR" >&2; exit 2; fi
@@ -24,6 +26,8 @@ cp "$ROOT_DIR/assets/scales/"*.scl "$PACKAGE_ROOT/curseddrone/assets/scales/"
 cp "$ROOT_DIR/docs/install.en.md" "$ROOT_DIR/docs/install.ru.md" "$ROOT_DIR/docs/workflow.en.md" "$ROOT_DIR/docs/workflow.ru.md" "$PACKAGE_ROOT/curseddrone/docs/"
 cp "$ROOT_DIR/LICENSE" "$PACKAGE_ROOT/curseddrone/licenses/GPL-3.0.txt"
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$PACKAGE_ROOT/curseddrone/licenses/THIRD_PARTY_NOTICES.md"
+cp "$ROOT_DIR/NOTICE.md" "$PACKAGE_ROOT/curseddrone/licenses/NOTICE.md"
+cp "$ROOT_DIR/ADDITIONAL_TERMS.md" "$PACKAGE_ROOT/curseddrone/licenses/ADDITIONAL_TERMS.md"
 cp "$ROOT_DIR/third_party/font512/LICENSE" "$PACKAGE_ROOT/curseddrone/licenses/font512-UNLICENSE.txt"
 cp "$ROOT_DIR/third_party/PLAITS_LICENSE.txt" "$PACKAGE_ROOT/curseddrone/licenses/Musical-engine-MIT.txt"
 cp "$BUILD_DIR/cursed-drone-sdl" "$PACKAGE_ROOT/curseddrone/cursed-drone-sdl.aarch64"

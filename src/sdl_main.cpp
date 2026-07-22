@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 
@@ -763,7 +765,7 @@ int page_index(Page page) noexcept { return static_cast<int>(page); }
 int parameter_count(Page page) noexcept {
     switch (page) {
     case Page::perform: return 5;
-    case Page::slot: return 10;
+    case Page::slot: return 12;
     case Page::effects: return 4;
     case Page::master: return 2;
     case Page::memory: return 3;
@@ -877,10 +879,12 @@ std::string_view mod_destination_name(cd::ModDestination destination, bool russi
 }
 
 std::string_view actor_basic_label(int field, bool russian) noexcept {
-    constexpr std::array<std::string_view, 10> en{
-        "ACTIVE", "SOURCE", "ENGINE", "PITCH", "CHARACTER", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN"};
-    constexpr std::array<std::string_view, 10> ru_names{
-        "АКТИВЕН", "ИСТОЧНИК", "ДВИЖОК", "ВЫСОТА", "ХАРАКТЕР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА"};
+    constexpr std::array<std::string_view, 12> en{
+        "ACTIVE", "SOURCE", "ENGINE", "TRIGGER NOW", "EVENT RATE", "PITCH",
+        "CHARACTER", "BODY", "MOTION", "TEXTURE", "LEVEL", "PAN"};
+    constexpr std::array<std::string_view, 12> ru_names{
+        "АКТИВЕН", "ИСТОЧНИК", "ДВИЖОК", "ЗАПУСТИТЬ", "ЧАСТОТА СОБ.", "ВЫСОТА",
+        "ХАРАКТЕР", "ТЕЛО", "ДВИЖЕНИЕ", "ТЕКСТУРА", "УРОВЕНЬ", "ПАНОРАМА"};
     return (russian ? ru_names : en)[static_cast<std::size_t>(field)];
 }
 
@@ -896,17 +900,38 @@ std::string_view actor_advanced_label(int field, bool russian) noexcept {
 
 std::string actor_basic_value(const cd::Session& session, const UiState& state, int field) {
     const auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
-    char value[40]{};
+    char value[48]{};
     if (field == 0) return slot.enabled ? (ru(session) ? "ДА" : "YES") : (ru(session) ? "НЕТ" : "NO");
     if (field == 1) return slot.engine == cd::EngineKind::plaits
         ? (ru(session) ? "МУЗЫКАЛЬНЫЙ" : "MUSICAL")
         : (ru(session) ? "ЛАНДШАФТ" : "LANDSCAPE");
     if (field == 2) return std::string{engine_name(slot.engine, ru(session))};
-    if (field == 3) std::snprintf(value, sizeof(value), "%.1f HZ", static_cast<double>(slot.frequency_hz));
-    else if (field == 9) std::snprintf(value, sizeof(value), "%+.0f%%", static_cast<double>(slot.pan * 100.0F));
+    if (field == 3) return cd::supports_manual_trigger(slot.engine)
+        ? (ru(session) ? "A: ЗАПУСК" : "A: FIRE")
+        : (ru(session) ? "НЕПРЕРЫВНЫЙ" : "CONTINUOUS");
+    if (field == 4) {
+        if (!cd::supports_event_rate(slot.engine)) {
+            return slot.engine == cd::EngineKind::plaits
+                ? (ru(session) ? "СМ. EUCLIDEAN" : "SEE EUCLIDEAN")
+                : (ru(session) ? "НЕ ПРИМЕНЯЕТСЯ" : "NOT APPLICABLE");
+        }
+        const float density = cd::effective_event_density(slot.event_density, session.performance.events);
+        const float rate = cd::event_rate_hz(session.tempo_bpm, density, slot.motion);
+        const float maximum = cd::event_max_wait_seconds(session.tempo_bpm, density, slot.motion);
+        if (rate < 0.25F) {
+            std::snprintf(value, sizeof(value), "%.1f/M  MAX %.0fS",
+                static_cast<double>(rate * 60.0F), static_cast<double>(maximum));
+        } else {
+            std::snprintf(value, sizeof(value), "%.2f/S  MAX %.1fS",
+                static_cast<double>(rate), static_cast<double>(maximum));
+        }
+        return value;
+    }
+    if (field == 5) std::snprintf(value, sizeof(value), "%.1f HZ", static_cast<double>(slot.frequency_hz));
+    else if (field == 11) std::snprintf(value, sizeof(value), "%+.0f%%", static_cast<double>(slot.pan * 100.0F));
     else {
         const float values[]{slot.timbre, slot.color, slot.motion, slot.texture, slot.level};
-        std::snprintf(value, sizeof(value), "%.0f%%", static_cast<double>(values[field - 4] * 100.0F));
+        std::snprintf(value, sizeof(value), "%.0f%%", static_cast<double>(values[field - 6] * 100.0F));
     }
     return value;
 }
@@ -1027,7 +1052,12 @@ std::string current_label(const cd::Session& session, const UiState& state) {
 bool current_adjustable(const cd::Session& session, const UiState& state) {
     if (state.page == Page::perform) return state.focus_zone == 1 || state.focus_zone == 2;
     if (state.page == Page::slot) {
-        if (state.focus_zone == 1) return parameter(state) >= 3;
+        if (state.focus_zone == 1) {
+            if (parameter(state) == 4) {
+                return cd::supports_event_rate(session.slots[static_cast<std::size_t>(state.slot)].engine);
+            }
+            return parameter(state) >= 5;
+        }
         if (state.focus_zone == 2) {
             switch (state.actor_advanced_field) {
             case 3: case 5: case 6: case 7: case 8: case 13: case 14: case 16: return true;
@@ -1067,13 +1097,14 @@ void adjust(cd::Session& session, UiState& state, float steps) {
         auto& slot = session.slots[static_cast<std::size_t>(state.slot)];
         if (state.focus_zone == 1) {
             switch (parameter(state)) {
-            case 3: slot.frequency_hz = std::clamp(slot.frequency_hz * std::pow(2.0F, steps / 12.0F), kMinimumAudibleFrequency, 2'000.0F); break;
-            case 4: slot.timbre = std::clamp(slot.timbre + steps * 0.01F, 0.0F, 1.0F); break;
-            case 5: slot.color = std::clamp(slot.color + steps * 0.01F, 0.0F, 1.0F); break;
-            case 6: slot.motion = std::clamp(slot.motion + steps * 0.01F, 0.0F, 1.0F); break;
-            case 7: slot.texture = std::clamp(slot.texture + steps * 0.01F, 0.0F, 1.0F); break;
-            case 8: slot.level = std::clamp(slot.level + steps * 0.01F, 0.0F, 1.0F); break;
-            case 9: slot.pan = std::clamp(slot.pan + steps * 0.02F, -1.0F, 1.0F); break;
+            case 4: slot.event_density = std::clamp(slot.event_density + steps * 0.01F, 0.0F, 1.0F); break;
+            case 5: slot.frequency_hz = std::clamp(slot.frequency_hz * std::pow(2.0F, steps / 12.0F), kMinimumAudibleFrequency, 2'000.0F); break;
+            case 6: slot.timbre = std::clamp(slot.timbre + steps * 0.01F, 0.0F, 1.0F); break;
+            case 7: slot.color = std::clamp(slot.color + steps * 0.01F, 0.0F, 1.0F); break;
+            case 8: slot.motion = std::clamp(slot.motion + steps * 0.01F, 0.0F, 1.0F); break;
+            case 9: slot.texture = std::clamp(slot.texture + steps * 0.01F, 0.0F, 1.0F); break;
+            case 10: slot.level = std::clamp(slot.level + steps * 0.01F, 0.0F, 1.0F); break;
+            case 11: slot.pan = std::clamp(slot.pan + steps * 0.02F, -1.0F, 1.0F); break;
             default: break;
             }
         } else if (state.focus_zone == 2) {
@@ -1371,6 +1402,9 @@ void draw_scene(
         cd::ui::draw_text(renderer, x + 6, 270,
             std::to_string(index + 1) + " " + std::string{engine_name(slot.engine, ru(session))},
             selected ? kInk : kDim);
+        if (telemetry.slot_event[static_cast<std::size_t>(index)] > 0.04F) {
+            cd::ui::draw_text(renderer, x + 96, 270, "!", kFxColors[static_cast<std::size_t>(index)]);
+        }
         const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(index)] * 4.2F, 0.0F, 1.0F);
         bar(renderer, x + 6, 289, 97, 8, meter, react(kFxColors[static_cast<std::size_t>(index)], meter));
         char level[16]{};
@@ -1399,6 +1433,9 @@ void draw_tracks(
         cd::ui::draw_text(renderer, x + 6, 61,
             std::to_string(actor + 1) + " " + std::string{engine_name(session.slots[static_cast<std::size_t>(actor)].engine, ru(session))},
             selected ? kInk : kDim);
+        if (telemetry.slot_event[static_cast<std::size_t>(actor)] > 0.04F) {
+            cd::ui::draw_text(renderer, x + 100, 61, "!", kFxColors[static_cast<std::size_t>(actor)]);
+        }
         const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(actor)] * 4.2F, 0.0F, 1.0F);
         bar(renderer, x + 6, 73, 99, 4, meter, react(kFxColors[static_cast<std::size_t>(actor)], meter));
     }
@@ -1414,10 +1451,10 @@ void draw_tracks(
     fill(renderer, {18, 114, 476, 225}, list_focus ? SDL_Color{38, 28, 50, 255} : SDL_Color{27, 23, 36, 255});
     if (list_focus) outline(renderer, {18, 114, 476, 225}, kInk);
     if (!show_advanced) {
-        for (int field = 0; field < 10; ++field) {
-            const int y = 121 + field * 21;
+        for (int field = 0; field < 12; ++field) {
+            const int y = 120 + field * 18;
             const bool active = state.focus_zone == 1 && parameter(state) == field;
-            if (active) fill(renderer, {23, y - 3, 466, 18}, {73, 46, 104, 255});
+            if (active) fill(renderer, {23, y - 3, 466, 16}, {73, 46, 104, 255});
             const std::string label{actor_basic_label(field, ru(session))};
             const std::string value = actor_basic_value(session, state, field);
             cd::ui::draw_text(renderer, 30, y, label, active ? kInk : kDim);
@@ -1585,6 +1622,9 @@ void draw_effects(
         cd::ui::draw_text(renderer, x + 6, 61,
             std::to_string(actor + 1) + " " + std::string{engine_name(session.slots[static_cast<std::size_t>(actor)].engine, ru(session))},
             selected ? kInk : kDim);
+        if (telemetry.slot_event[static_cast<std::size_t>(actor)] > 0.04F) {
+            cd::ui::draw_text(renderer, x + 100, 61, "!", kFxColors[static_cast<std::size_t>(actor)]);
+        }
         const float meter = std::clamp(telemetry.slot_rms[static_cast<std::size_t>(actor)] * 4.2F, 0.0F, 1.0F);
         bar(renderer, x + 6, 73, 99, 4, meter, react(kFxColors[static_cast<std::size_t>(actor)], meter));
     }
@@ -1814,7 +1854,7 @@ void draw_setup(SDL_Renderer* renderer, const cd::Session& session, const UiStat
         ru(session) ? "АВТОСОХРАНЕНИЕ: ПОСЛЕДНЕЕ СОСТОЯНИЕ" : "AUTOSAVE: LAST STATE IS ALWAYS RESUMED", kDim);
     draw_myldy_mark(renderer, 22, 317, 1, kInk);
     cd::ui::draw_text(renderer, 62, 330, "DEVELOPED BY MYLDY DESIGN  @MYLDY20", kDim);
-    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.1"), 330, "V0.12.1", kDim);
+    cd::ui::draw_text(renderer, 484 - cd::ui::text_width("V0.12.2"), 330, "V0.12.2", kDim);
 }
 
 void draw_picker(SDL_Renderer* renderer, const cd::Session& session, const UiState& state) {
@@ -2059,7 +2099,7 @@ bool execute_memory_action(cd::Session& session, UiState& state) {
     return true;
 }
 
-void activate_current(cd::Session& session, UiState& state) {
+void activate_current(cd::Session& session, UiState& state, cd::AudioGraph& graph) {
     if (state.page == Page::perform) {
         if (state.focus_zone == 0) open_scene_picker(state, session);
         else if (state.focus_zone == 2) {
@@ -2085,6 +2125,17 @@ void activate_current(cd::Session& session, UiState& state) {
                     state.focus_zone = 2;
                     state.actor_advanced_field = 0;
                 } else open_engine_picker(state, session);
+            }
+            else if (parameter(state) == 3) {
+                if (!actor.enabled) {
+                    set_toast(state, ru(session) ? "АКТЕР ЗАГЛУШЕН" : "ACTOR IS MUTED");
+                } else if (!cd::supports_manual_trigger(actor.engine)) {
+                    set_toast(state, ru(session) ? "ЭТО НЕПРЕРЫВНЫЙ ЗВУК" : "CONTINUOUS ACTOR");
+                } else {
+                    graph.trigger_slot(static_cast<std::size_t>(state.slot));
+                    set_toast(state, ru(session) ? "СОБЫТИЕ ЗАПУЩЕНО" : "EVENT TRIGGERED");
+                }
+                return;
             }
         } else {
             auto& mod = actor.modulators[static_cast<std::size_t>(state.actor_modulator)];
@@ -2398,7 +2449,7 @@ int main(int, char**) {
                     case SDLK_RIGHT: changed = handle_dpad(session, state, 1, 0, now) || changed; break;
                     case SDLK_UP: changed = handle_dpad(session, state, 0, -1, now) || changed; break;
                     case SDLK_DOWN: changed = handle_dpad(session, state, 0, 1, now) || changed; break;
-                    case SDLK_RETURN: activate_current(session, state); changed = true; break;
+                    case SDLK_RETURN: activate_current(session, state, audio.graph); changed = true; break;
                     case SDLK_TAB: change_page(state, 1); break;
                     case SDLK_x: cycle_focus(state); break;
                     case SDLK_h: state.help_open = true; break;
@@ -2441,7 +2492,7 @@ int main(int, char**) {
                     case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: change_page(state, -1); break;
                     case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: change_page(state, 1); break;
                     // TrimUI physical A is SDL B; physical B is SDL A.
-                    case SDL_CONTROLLER_BUTTON_B: activate_current(session, state); changed = true; break;
+                    case SDL_CONTROLLER_BUTTON_B: activate_current(session, state, audio.graph); changed = true; break;
                     case SDL_CONTROLLER_BUTTON_A:
                         state.back_held = true; state.back_long_action = false; state.back_held_since = now; break;
                     case SDL_CONTROLLER_BUTTON_Y: cycle_focus(state); break;

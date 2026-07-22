@@ -8,7 +8,7 @@
   "items_opt": null,
   "attr": {
     "title": "Cursed Drone",
-    "desc": "Live procedural soundscape instrument with ten places, four actors, musical engines, actor and master FX, modulation and eight memories.",
+    "desc": "Live procedural soundscape instrument with ten places, four actors, manual event preview, musical engines, actor and master FX, modulation and eight memories.",
     "inst": "Verified on TrimUI Brick with Knulli. Install into Ports; first launch checks video, audio and controls. Saves and logs live under curseddrone/conf.",
     "genres": [
       "music"

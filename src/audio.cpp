@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/audio.hpp"
 #include "plaits_actor.hpp"
 #include "soundscape.hpp"
@@ -225,6 +227,7 @@ public:
         drift_phase_ = 0.0F;
         soundscape_.reset();
         plaits_.reset();
+        event_fired_ = false;
     }
 
     float next_mono(
@@ -246,11 +249,11 @@ public:
         texture = clamp01(texture);
         events = clamp01(events);
 
-        const float beat_hz = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
-        const float event_rate = beat_hz * (0.08F + events * events * 2.9F) * (0.65F + motion * 1.25F);
-        event_phase_ += event_rate / sample_rate_;
-        bool trigger = external_trigger;
-        if (event_phase_ >= event_period_) {
+        const bool triggerable = supports_event_rate(kind);
+        const float event_rate = event_rate_hz(tempo_bpm, events, motion);
+        if (triggerable) event_phase_ += event_rate / sample_rate_;
+        bool trigger = triggerable && external_trigger;
+        if (triggerable && event_phase_ >= event_period_) {
             event_phase_ -= event_period_;
             const float random_unit = next_noise(random_state_) * 0.5F + 0.5F;
             const float irregularity = (0.18F + chaos * 0.72F) * (1.0F - pulse * 0.72F);
@@ -258,6 +261,7 @@ public:
             trigger = true;
             grain_envelope_ = 1.0F;
         }
+        event_fired_ = trigger;
 
         drift_phase_ += (0.007F + motion * motion * 0.19F) / sample_rate_;
         drift_phase_ -= std::floor(drift_phase_);
@@ -343,9 +347,13 @@ public:
         case EngineKind::tape_drone:
         case EngineKind::bowed_metal:
         case EngineKind::earth_rumble:
-            return soundscape_.next(
-                kind, frequency, timbre, color, motion, texture,
-                tempo_bpm, pulse, chaos, events);
+            {
+                const float sample = soundscape_.next(
+                    kind, frequency, timbre, color, motion, texture,
+                    tempo_bpm, pulse, chaos, events, trigger);
+                event_fired_ = soundscape_.consume_event_fired();
+                return sample;
+            }
         }
         return 0.0F;
     }
@@ -361,8 +369,11 @@ public:
         float pulse,
         float chaos,
         float events,
-        bool external_trigger) noexcept {
+        bool external_trigger,
+        bool force_trigger_patch = false) noexcept {
+        event_fired_ = false;
         if (settings.engine == EngineKind::plaits) {
+            event_fired_ = external_trigger;
             return plaits_.next(
                 settings.plaits_model,
                 settings.plaits_output,
@@ -373,12 +384,18 @@ public:
                 motion,
                 texture,
                 external_trigger,
-                settings.euclidean.enabled);
+                settings.euclidean.enabled || force_trigger_patch);
         }
         const float mono = next_mono(
             settings.engine, frequency, timbre, color, motion, texture,
             tempo_bpm, pulse, chaos, events, external_trigger);
         return {mono, mono};
+    }
+
+    [[nodiscard]] bool consume_event_fired() noexcept {
+        const bool fired = event_fired_;
+        event_fired_ = false;
+        return fired;
     }
 
 private:
@@ -389,6 +406,7 @@ private:
     float event_period_{1.0F};
     float grain_envelope_{0.0F};
     float drift_phase_{0.0F};
+    bool event_fired_{false};
     DiagnosticEngine diagnostic_{};
     daisysp::Oscillator fundamental_{};
     daisysp::Oscillator overtone_{};
@@ -813,6 +831,7 @@ struct SlotRuntime {
     SmoothedValue color{};
     SmoothedValue motion{};
     SmoothedValue texture{};
+    SmoothedValue event_density{};
     SmoothedValue level{};
     SmoothedValue pan{};
     std::array<SmoothedValue, kEffectsPerSlot> effect_amount{};
@@ -826,6 +845,7 @@ struct SlotRuntime {
         color.prepare(settings.color, sample_rate);
         motion.prepare(settings.motion, sample_rate);
         texture.prepare(settings.texture, sample_rate);
+        event_density.prepare(settings.event_density, sample_rate);
         level.prepare(settings.level, sample_rate);
         pan.prepare(settings.pan, sample_rate);
         for (std::size_t index = 0; index < kEffectsPerSlot; ++index) {
@@ -842,6 +862,7 @@ struct SlotRuntime {
         color.set(settings.color);
         motion.set(settings.motion);
         texture.set(settings.texture);
+        event_density.set(settings.event_density);
         level.set(settings.level);
         pan.set(settings.pan);
         for (std::size_t index = 0; index < kEffectsPerSlot; ++index) {
@@ -869,6 +890,7 @@ struct ModulatedParameters {
     float color{0.5F};
     float motion{0.25F};
     float texture{0.25F};
+    float event_density{0.50F};
     float level{0.35F};
     float pan{0.0F};
     std::array<float, kEffectsPerSlot> effect_amount{};
@@ -918,6 +940,7 @@ public:
         config_ = config;
         session_ = initial_session;
         chaos_slew_ = 1.0F - std::exp(-1.0F / (config_.sample_rate * 0.075F));
+        event_indicator_decay_ = std::exp(-1.0F / (config_.sample_rate * 0.18F));
         rebuild_effective_slots();
         master_.prepare(session_.master_level * session_.performance.fade, config_.sample_rate, 100.0F);
         performance_texture_.prepare(session_.performance.texture, config_.sample_rate, 80.0F);
@@ -942,6 +965,8 @@ public:
         pulse_phases_.fill(0.0F);
         chaos_current_.fill(0.0F);
         chaos_target_.fill(0.0F);
+        slot_event_hold_.fill(0.0F);
+        manual_trigger_mask_.store(0U, std::memory_order_relaxed);
         master_.snap();
         performance_texture_.snap();
         performance_pulse_.snap();
@@ -955,6 +980,11 @@ public:
 
     bool submit_session(const Session& session) noexcept { return sessions_.push(session); }
 
+    void trigger_slot(std::size_t slot_index) noexcept {
+        if (slot_index >= kSlotCount) return;
+        manual_trigger_mask_.fetch_or(std::uint32_t{1} << slot_index, std::memory_order_release);
+    }
+
     void panic() noexcept { panic_requested_.store(true, std::memory_order_release); }
 
     AudioTelemetry telemetry() const noexcept {
@@ -962,6 +992,7 @@ public:
         for (std::size_t index = 0; index < kSlotCount; ++index) {
             result.slot_rms[index] = slot_rms_[index].load(std::memory_order_relaxed);
             result.slot_peak[index] = slot_peak_[index].load(std::memory_order_relaxed);
+            result.slot_event[index] = slot_event_[index].load(std::memory_order_relaxed);
             for (std::size_t point = 0; point < kScopePointCount; ++point) {
                 result.slot_scope[index][point] =
                     slot_scope_[index][point].load(std::memory_order_relaxed);
@@ -1007,6 +1038,9 @@ public:
             return;
         }
 
+        const std::uint32_t manual_trigger_mask =
+            manual_trigger_mask_.exchange(0U, std::memory_order_acq_rel);
+
         std::array<double, kSlotCount> slot_energy{};
         std::array<float, kSlotCount> slot_peak{};
         double master_energy = 0.0;
@@ -1018,6 +1052,7 @@ public:
         if (capture_scope) scope_publish_counter_ = 0U;
 
         for (std::size_t frame_index = 0; frame_index < output.size(); ++frame_index) {
+            for (auto& hold : slot_event_hold_) hold *= event_indicator_decay_;
             auto& frame = output[frame_index];
             const std::size_t scope_index = capture_scope
                 ? std::min(kScopePointCount - 1U, frame_index * kScopePointCount / output.size())
@@ -1056,6 +1091,7 @@ public:
                     runtime.color.next(),
                     runtime.motion.next(),
                     runtime.texture.next(),
+                    runtime.event_density.next(),
                     runtime.level.next(),
                     runtime.pan.next(),
                     {},
@@ -1082,6 +1118,8 @@ public:
                 }
                 const bool euclidean_trigger = runtime.euclidean.next(
                     settings.euclidean, session_.tempo_bpm, config_.sample_rate);
+                const bool manual_trigger = frame_index == 0U &&
+                    (manual_trigger_mask & (std::uint32_t{1} << slot_index)) != 0U;
 
                 const float chaos_value = chaos_current_[slot_index] * chaos_macro;
                 parameters.frequency *= std::pow(2.0F, chaos_value * 0.36F);
@@ -1263,6 +1301,7 @@ public:
                 parameters.color = clamp01(parameters.color);
                 parameters.motion = clamp01(parameters.motion);
                 parameters.texture = clamp01(parameters.texture);
+                parameters.event_density = clamp01(parameters.event_density);
                 parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
 
@@ -1278,8 +1317,12 @@ public:
                         session_.tempo_bpm,
                         pulse_macro,
                         chaos_macro,
-                        events_macro,
-                        euclidean_trigger);
+                        effective_event_density(parameters.event_density, events_macro),
+                        euclidean_trigger || manual_trigger,
+                        manual_trigger);
+                }
+                if (runtime.engine.consume_event_fired()) {
+                    slot_event_hold_[slot_index] = 1.0F;
                 }
                 const float left_pan = std::sqrt(0.5F * (1.0F - parameters.pan));
                 const float right_pan = std::sqrt(0.5F * (1.0F + parameters.pan));
@@ -1344,6 +1387,7 @@ public:
             publish_meter(slot_rms_[index], slot_rms_smooth_[index],
                 std::sqrt(static_cast<float>(slot_energy[index]) / frame_count), 0.18F);
             publish_peak(slot_peak_[index], slot_peak_smooth_[index], slot_peak[index]);
+            slot_event_[index].store(slot_event_hold_[index], std::memory_order_relaxed);
             if (capture_scope) {
                 for (std::size_t point = 0; point < kScopePointCount; ++point) {
                     slot_scope_[index][point].store(scope_frames[index][point], std::memory_order_relaxed);
@@ -1399,6 +1443,7 @@ private:
             result.color = blend(source.color, destination.color);
             result.motion = blend(source.motion, destination.motion);
             result.texture = blend(source.texture, destination.texture);
+            result.event_density = blend(source.event_density, destination.event_density);
             result.level = blend(source.level, destination.level);
             result.pan = blend(source.pan, destination.pan);
         }
@@ -1420,6 +1465,7 @@ private:
         for (std::size_t index = 0; index < kSlotCount; ++index) {
             slot_rms_[index].store(0.0F, std::memory_order_relaxed);
             slot_peak_[index].store(0.0F, std::memory_order_relaxed);
+            slot_event_[index].store(0.0F, std::memory_order_relaxed);
             for (auto& point : slot_scope_[index]) {
                 point.store(0.0F, std::memory_order_relaxed);
             }
@@ -1455,10 +1501,12 @@ private:
     float pulse_phase_{0.0F};
     float chaos_phase_{0.0F};
     float chaos_slew_{0.0F};
+    float event_indicator_decay_{1.0F};
     unsigned scope_publish_counter_{0U};
     std::uint32_t chaos_random_state_{0xD00D'F00DU};
     std::array<std::atomic<float>, kSlotCount> slot_rms_{};
     std::array<std::atomic<float>, kSlotCount> slot_peak_{};
+    std::array<std::atomic<float>, kSlotCount> slot_event_{};
     std::array<std::array<std::atomic<float>, kScopePointCount>, kSlotCount> slot_scope_{};
     std::array<std::atomic<float>, kScopePointCount> master_scope_{};
     std::atomic<float> master_rms_{0.0F};
@@ -1467,8 +1515,10 @@ private:
     std::atomic<float> chaos_meter_{0.0F};
     std::array<float, kSlotCount> slot_rms_smooth_{};
     std::array<float, kSlotCount> slot_peak_smooth_{};
+    std::array<float, kSlotCount> slot_event_hold_{};
     float master_rms_smooth_{0.0F};
     float master_peak_smooth_{0.0F};
+    std::atomic<std::uint32_t> manual_trigger_mask_{0U};
     std::atomic<bool> panic_requested_{false};
     bool prepared_{false};
 };
@@ -1486,6 +1536,7 @@ void AudioGraph::reset() noexcept { impl_->reset(); }
 bool AudioGraph::submit_session(const Session& session) noexcept { return impl_->submit_session(session); }
 void AudioGraph::process(BufferView<StereoFrame> output) noexcept { impl_->process(output); }
 AudioTelemetry AudioGraph::telemetry() const noexcept { return impl_->telemetry(); }
+void AudioGraph::trigger_slot(std::size_t slot_index) noexcept { impl_->trigger_slot(slot_index); }
 void AudioGraph::panic() noexcept { impl_->panic(); }
 float AudioGraph::sample_rate() const noexcept { return impl_->sample_rate(); }
 

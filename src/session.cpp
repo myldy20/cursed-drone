@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Myldy Design
+// Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/session.hpp"
 #include "cursed_drone/scala.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -332,6 +335,7 @@ void apply_scene_recipe(Session& session, SceneKind scene) {
         slot.color = color;
         slot.motion = motion;
         slot.texture = texture;
+        slot.event_density = std::clamp(0.30F + motion * 0.60F, 0.0F, 1.0F);
         slot.level = level;
         slot.pan = pan;
         slot.plaits_model = PlaitsModel::virtual_analog;
@@ -494,6 +498,7 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
         output << key(slot_index, "color") << '=' << slot.color << '\n';
         output << key(slot_index, "motion") << '=' << slot.motion << '\n';
         output << key(slot_index, "texture") << '=' << slot.texture << '\n';
+        output << key(slot_index, "event_density") << '=' << slot.event_density << '\n';
         output << key(slot_index, "level") << '=' << slot.level << '\n';
         output << key(slot_index, "pan") << '=' << slot.pan << '\n';
         output << key(slot_index, "plaits_model") << '=' << to_string(slot.plaits_model) << '\n';
@@ -566,7 +571,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
             schema->second != "4" && schema->second != "5" && schema->second != "6" &&
             schema->second != "7" && schema->second != "8" && schema->second != "9" &&
-            schema->second != "10")) {
+            schema->second != "10" && schema->second != "11")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -621,6 +626,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
             !parse_float(values, key(slot_index, "color"), slot.color) ||
             !parse_float(values, key(slot_index, "motion"), slot.motion) ||
             !parse_float(values, key(slot_index, "texture"), slot.texture) ||
+            !parse_float(values, key(slot_index, "event_density"), slot.event_density) ||
             !parse_float(values, key(slot_index, "level"), slot.level) ||
             !parse_float(values, key(slot_index, "pan"), slot.pan) ||
             !parse_enum_value(values, key(slot_index, "plaits_model"), slot.plaits_model, kPlaitsModels) ||
@@ -689,6 +695,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
     for (auto& slot : loaded.slots) {
         slot.frequency_hz = std::clamp(slot.frequency_hz, 20.0F, 2'000.0F);
+        slot.event_density = std::clamp(slot.event_density, 0.0F, 1.0F);
         slot.tuning.root_midi = std::clamp(slot.tuning.root_midi, 0, 127);
         slot.tuning.degree_count = std::clamp(slot.tuning.degree_count, 1, static_cast<int>(kScaleDegreeCount));
         slot.tuning.period_cents = std::clamp(slot.tuning.period_cents, 50.0F, 4800.0F);
@@ -704,12 +711,59 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
     if (schema->second != "4" && schema->second != "5" && schema->second != "6" &&
         schema->second != "7" && schema->second != "8" && schema->second != "9" &&
-        schema->second != "10") {
+        schema->second != "10" && schema->second != "11") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 10;
+    loaded.schema_version = 11;
     session = loaded;
     return true;
+}
+
+bool supports_event_rate(EngineKind value) noexcept {
+    switch (value) {
+    case EngineKind::body:
+    case EngineKind::grain:
+    case EngineKind::particle:
+    case EngineKind::footsteps:
+    case EngineKind::door:
+    case EngineKind::pipe:
+    case EngineKind::machinery:
+    case EngineKind::metal:
+    case EngineKind::birds:
+    case EngineKind::signal:
+    case EngineKind::water_drip:
+    case EngineKind::water_flow:
+    case EngineKind::stone:
+    case EngineKind::rail_joint:
+    case EngineKind::brake:
+    case EngineKind::music_box:
+    case EngineKind::toy_voice:
+    case EngineKind::toy_gears:
+    case EngineKind::lullaby:
+    case EngineKind::earth_rumble:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool supports_manual_trigger(EngineKind value) noexcept {
+    return supports_event_rate(value) || value == EngineKind::plaits;
+}
+
+float effective_event_density(float actor_density, float global_events) noexcept {
+    return std::clamp(actor_density * 0.72F + global_events * 0.55F, 0.0F, 1.0F);
+}
+
+float event_rate_hz(float tempo_bpm, float event_density, float motion) noexcept {
+    const float beat_hz = std::clamp(tempo_bpm, 10.0F, 300.0F) / 60.0F;
+    const float density = std::clamp(event_density, 0.0F, 1.0F);
+    const float movement = std::clamp(motion, 0.0F, 1.0F);
+    return beat_hz * (0.08F + density * density * 2.9F) * (0.65F + movement * 1.25F);
+}
+
+float event_max_wait_seconds(float tempo_bpm, float event_density, float motion) noexcept {
+    return 1.8F / std::max(0.001F, event_rate_hz(tempo_bpm, event_density, motion));
 }
 
 std::string to_string(Locale value) { return enum_name(value, kLocales); }
