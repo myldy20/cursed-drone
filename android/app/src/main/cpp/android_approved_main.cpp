@@ -5,6 +5,8 @@
 // Reuse the 0.13 Android platform bridge, storage, audio, pickers and Session
 // mutation code. Only SDL_main is renamed; this file supplies the approved
 // widescreen renderer and the real entry point.
+#include "cursed_drone/parameter_mapping.hpp"
+
 #define SDL_main cursed_drone_legacy_android_main
 #include "android_touch_main.cpp"
 #undef SDL_main
@@ -143,6 +145,12 @@ extern "C" int SDL_main(int argc, char** argv) {
             set_toast(state, ru(session) ? "СОБЫТИЕ ЗАПУЩЕНО" :
                 "EVENT TRIGGERED");
             state.pending_trigger = -1;
+        }
+        if (g_panic_requested) {
+            audio.graph.panic();
+            set_toast(state, ru(session) ? "ЗВУК СБРОШЕН" :
+                "KILL SILENCE");
+            g_panic_requested = false;
         }
         if (changed) {
             static_cast<void>(audio.graph.submit_session(session));

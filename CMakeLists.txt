@@ -133,6 +133,13 @@ else()
         add_executable(cursed-drone-tests tests/test_main.cpp)
         target_link_libraries(cursed-drone-tests PRIVATE cursed_drone_core)
         add_test(NAME cursed-drone-tests COMMAND cursed-drone-tests)
+
+        add_executable(cursed-drone-parameter-mapping-tests
+            tests/parameter_mapping_tests.cpp)
+        target_link_libraries(cursed-drone-parameter-mapping-tests
+            PRIVATE cursed_drone_core)
+        add_test(NAME cursed-drone-parameter-mapping-tests
+            COMMAND cursed-drone-parameter-mapping-tests)
     endif()
 
     if(CURSED_DRONE_BUILD_SDL)

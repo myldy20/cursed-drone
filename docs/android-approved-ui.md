@@ -25,3 +25,13 @@ Android uses the same `cursed_drone_core`, `Session`, catalogues, audio graph, s
 - No touch action is translated into keyboard or D-pad focus navigation.
 
 The generated concepts are visual references, but implementation exposes only fields that really exist in the 0.13 core. Decorative parameters that are not represented by `Session` are intentionally omitted.
+
+## P0 interaction hardening
+
+- Android slider mappings now use the full shared core ranges: 20–2000 Hz actor frequency, 0.001–40 Hz modulator rate, 0.25–30 second fades and MIDI roots 0–127.
+- Modulation depth is correctly bipolar.
+- Rate cross-modulation only offers earlier modulation rows, matching the DSP graph.
+- The persistent KILL control performs the same constant-time audio and effect reset as handheld Kill Silence.
+- Continuous actors no longer expose inactive Event Rate or Euclidean controls.
+- Compact geometry prevents the Actor and FX headers/cards from overlapping at 1280×720-class landscape resolutions.
+- Picker pagination is clamped so inactive navigation cannot open empty pages.

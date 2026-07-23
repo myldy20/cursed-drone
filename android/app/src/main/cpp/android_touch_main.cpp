@@ -4,6 +4,7 @@
 
 #include "bitmap_text.hpp"
 #include "cursed_drone/audio.hpp"
+#include "cursed_drone/parameter_mapping.hpp"
 #include "cursed_drone/catalog.hpp"
 #include "cursed_drone/scala.hpp"
 #include "cursed_drone/session.hpp"
@@ -448,19 +449,19 @@ void set_toast(UiState& state, std::string message) {
 }
 
 float normalized_frequency(float hz) noexcept {
-    return std::clamp(std::log(std::max(hz, 20.0F) / 20.0F) / std::log(44.0F), 0.0F, 1.0F);
+    return cd::mapping::normalized_frequency(hz);
 }
 
 float frequency_from_normalized(float normalized) noexcept {
-    return 20.0F * std::pow(44.0F, std::clamp(normalized, 0.0F, 1.0F));
+    return cd::mapping::frequency_from_normalized(normalized);
 }
 
 float normalized_rate(float rate) noexcept {
-    return std::clamp(std::log(std::max(rate, 0.01F) / 0.01F) / std::log(2000.0F), 0.0F, 1.0F);
+    return cd::mapping::normalized_mod_rate(rate);
 }
 
 float rate_from_normalized(float normalized) noexcept {
-    return 0.01F * std::pow(2000.0F, std::clamp(normalized, 0.0F, 1.0F));
+    return cd::mapping::mod_rate_from_normalized(normalized);
 }
 
 void set_slider_value(cd::Session& session, const UiState& state,
@@ -484,7 +485,7 @@ void set_slider_value(cd::Session& session, const UiState& state,
     case SliderKind::actor_level: slot.level = normalized; break;
     case SliderKind::actor_pan: slot.pan = normalized * 2.0F - 1.0F; break;
     case SliderKind::actor_event_density: slot.event_density = normalized; break;
-    case SliderKind::tuning_root: slot.tuning.root_midi = static_cast<int>(std::lround(normalized * 127.0F)); break;
+    case SliderKind::tuning_root: slot.tuning.root_midi = cd::mapping::tuning_root_from_normalized(normalized); break;
     case SliderKind::euclidean_steps:
         slot.euclidean.steps = 1 + static_cast<int>(std::lround(normalized * 31.0F));
         slot.euclidean.pulses = std::min(slot.euclidean.pulses, slot.euclidean.steps);
@@ -496,7 +497,7 @@ void set_slider_value(cd::Session& session, const UiState& state,
         slot.euclidean.rotation = static_cast<int>(std::lround(normalized * std::max(1, slot.euclidean.steps - 1))); break;
     case SliderKind::euclidean_probability: slot.euclidean.probability = normalized; break;
     case SliderKind::mod_rate: mod.rate_hz = rate_from_normalized(normalized); break;
-    case SliderKind::mod_depth: mod.depth = normalized; break;
+    case SliderKind::mod_depth: mod.depth = cd::mapping::bipolar_from_normalized(normalized); break;
     case SliderKind::mod_offset: mod.offset = normalized * 2.0F - 1.0F; break;
     case SliderKind::mod_cross: mod.rate_mod_amount = normalized * 2.0F - 1.0F; break;
     case SliderKind::actor_fx_amount: actor_fx.amount = normalized; break;
@@ -507,8 +508,8 @@ void set_slider_value(cd::Session& session, const UiState& state,
     case SliderKind::master_fx_amount: master_fx.amount = normalized; break;
     case SliderKind::master_fx_tone: master_fx.tone = normalized; break;
     case SliderKind::master_fx_feedback: master_fx.feedback = normalized; break;
-    case SliderKind::fade_in: session.fade_in_seconds = 0.2F + normalized * 19.8F; break;
-    case SliderKind::fade_out: session.fade_out_seconds = 0.2F + normalized * 19.8F; break;
+    case SliderKind::fade_in: session.fade_in_seconds = cd::mapping::fade_seconds_from_normalized(normalized); break;
+    case SliderKind::fade_out: session.fade_out_seconds = cd::mapping::fade_seconds_from_normalized(normalized); break;
     case SliderKind::none: break;
     }
     session.scene_modified = true;
@@ -646,7 +647,9 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
     case Action::mod_source_cycle: {
         auto& source = session.slots[static_cast<std::size_t>(state.actor)]
             .modulators[static_cast<std::size_t>(state.modulator)].rate_mod_source;
-        source = source >= 3 ? -1 : source + 1; return true;
+        source = cd::mapping::next_rate_mod_source(source, state.modulator);
+        session.scene_modified = true;
+        return true;
     }
     case Action::memory_select: state.memory_slot = hit.a; return false;
     case Action::memory_load: {
@@ -679,8 +682,13 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
         session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
         return true;
     case Action::picker_item: apply_picker_item(session, state, hit.a); return true;
-    case Action::picker_previous: state.picker_page = std::max(0, state.picker_page - 1); return false;
-    case Action::picker_next: state.picker_page += 1; return false;
+    case Action::picker_previous:
+        state.picker_page = cd::mapping::picker_previous_page(state.picker_page);
+        return false;
+    case Action::picker_next:
+        state.picker_page = cd::mapping::picker_next_page(
+            state.picker_page, picker_count(state.picker), 8);
+        return false;
     case Action::picker_close: state.picker = PickerKind::none; state.picker_page = 0; return false;
     case Action::slider:
     case Action::none: return false;
@@ -1145,10 +1153,10 @@ void draw_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
         Action::locale_toggle, 0, 0, scale, kPurple);
     slider(renderer, state, {area.x + pad + setting_w + gap, settings_y, setting_w, settings_h},
         ru(session) ? "ФЕЙД ВХОДА" : "FADE IN", decimal(session.fade_in_seconds, "S"),
-        (session.fade_in_seconds - 0.2F) / 19.8F, SliderKind::fade_in, 0, 0, scale, kGreen);
+        cd::mapping::normalized_fade_seconds(session.fade_in_seconds), SliderKind::fade_in, 0, 0, scale, kGreen);
     slider(renderer, state, {area.x + pad + 2 * (setting_w + gap), settings_y, setting_w, settings_h},
         ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT", decimal(session.fade_out_seconds, "S"),
-        (session.fade_out_seconds - 0.2F) / 19.8F, SliderKind::fade_out, 0, 0, scale, kGreen);
+        cd::mapping::normalized_fade_seconds(session.fade_out_seconds), SliderKind::fade_out, 0, 0, scale, kGreen);
 }
 
 void draw_picker(SDL_Renderer* renderer, cd::Session& session, UiState& state,

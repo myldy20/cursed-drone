@@ -6,8 +6,9 @@ constexpr SDL_Color aActive{73, 46, 104, 255};
 constexpr SDL_Color aTrack{54, 46, 68, 255};
 constexpr SDL_Color aYellow{215, 181, 61, 255};
 constexpr std::array<SDL_Color, 4> aActor{{kGreen, kActorColors[1], kRed, kActorColors[3]}};
-constexpr int kSourceLandscape = 90;
-constexpr int kSourceMusical = 91;
+bool a_compact_layout(int width, int height) noexcept {
+    return width < 1'600 || height < 850;
+}
 
 void a_panel(SDL_Renderer* renderer, SDL_Rect rect, SDL_Color color = aPanel,
     SDL_Color border = kBorder) {
@@ -75,48 +76,68 @@ void a_mini_slider(SDL_Renderer* renderer, UiState& state, SDL_Rect rect,
 void a_header(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const cd::AudioTelemetry& telemetry, float cpu, int width, int height,
     int scale, int& content_y) {
-    const int brand_h = std::max(78, height / 12);
-    const int nav_h = std::max(66, height / 15);
+    const bool compact = a_compact_layout(width, height);
+    const int brand_h = compact ? 64 : std::max(78, height / 12);
+    const int nav_h = compact ? 54 : std::max(66, height / 15);
+    const int margin = compact ? 18 : 30;
     fill(renderer, {0, 0, width, brand_h + nav_h + 8}, aTop);
-    text(renderer, 34, 20, "CURSED DRONE", kInk, scale + 1);
-    text(renderer, 34 + cd::ui::text_width("CURSED DRONE", scale + 1) + 26,
-        30, std::string{"V"} + CURSED_DRONE_VERSION, kDim,
+    const int brand_x = compact ? 20 : 34;
+    text(renderer, brand_x, compact ? 16 : 20, "CURSED DRONE", kInk,
+        scale + 1);
+    text(renderer, brand_x + cd::ui::text_width("CURSED DRONE", scale + 1) +
+        (compact ? 14 : 26), compact ? 23 : 30,
+        std::string{"V"} + CURSED_DRONE_VERSION, kDim,
         std::max(1, scale - 1));
 
-    const int status_w = std::max(460, width / 4);
-    const int fade_w = std::max(190, status_w * 2 / 5);
-    SDL_Rect fade{width - status_w - 30, 14, fade_w, brand_h - 28};
+    const int status_w = compact ? std::min(450, width / 2) :
+        std::max(460, width / 4);
+    const int status_x = width - status_w - margin;
+    const int gap = compact ? 8 : 12;
+    const int fade_w = compact ? std::max(150, status_w * 38 / 100) :
+        std::max(190, status_w * 2 / 5);
+    const int kill_w = compact ? 90 : 116;
+    SDL_Rect fade{status_x, compact ? 10 : 14, fade_w,
+        brand_h - (compact ? 20 : 28)};
     a_panel(renderer, fade, state.fade_active ? aActive : aPanel2, kPurple);
-    text(renderer, fade.x + 18, fade.y + 12,
+    text(renderer, fade.x + (compact ? 10 : 18), fade.y + 12,
         ru(session) ? "ФЕЙД" : "FADE", kInk, scale);
     const std::string fade_value = percent(session.performance.fade);
-    text(renderer, fade.x + fade.w - 18 - cd::ui::text_width(fade_value, scale),
-        fade.y + 12, fade_value, kGreen, scale);
+    text(renderer, fade.x + fade.w - (compact ? 10 : 18) -
+        cd::ui::text_width(fade_value, scale), fade.y + 12,
+        fade_value, kGreen, scale);
     add_hit(state, fade, Action::fade);
 
-    const int mx = fade.x + fade.w + 24;
-    text(renderer, mx, 18, "DSP", kDim, std::max(1, scale - 1));
+    SDL_Rect kill{fade.x + fade.w + gap, fade.y, kill_w, fade.h};
+    a_button(renderer, state, kill, "KILL", Action::actor_section,
+        kActionPanic, 0, scale, true, kRed);
+
+    const int mx = kill.x + kill.w + gap;
+    text(renderer, mx, compact ? 12 : 18, "DSP", kDim,
+        std::max(1, scale - 1));
     const std::string cpu_text = std::to_string(
         static_cast<int>(std::lround(cpu * 100.0F))) + "%";
-    text(renderer, width - 34 - cd::ui::text_width(cpu_text,
-        std::max(1, scale - 1)), 18, cpu_text, kDim,
+    text(renderer, width - margin - cd::ui::text_width(cpu_text,
+        std::max(1, scale - 1)), compact ? 12 : 18, cpu_text, kDim,
         std::max(1, scale - 1));
     constexpr int segments = 12;
-    const int gap = 5;
-    const int meter_w = width - mx - 34;
-    const int seg_w = (meter_w - gap * (segments - 1)) / segments;
+    const int meter_gap = compact ? 3 : 5;
+    const int meter_w = std::max(segments,
+        width - mx - margin);
+    const int seg_w = std::max(1,
+        (meter_w - meter_gap * (segments - 1)) / segments);
     const float out = std::clamp(telemetry.master_rms * 4.0F, 0.0F, 1.0F);
     for (int i = 0; i < segments; ++i) {
         const float t = static_cast<float>(i + 1) / segments;
-        const SDL_Color c = t <= out ? (t > 0.82F ? kRed :
+        const SDL_Color color = t <= out ? (t > 0.82F ? kRed :
             (t > 0.65F ? kActorColors[1] : kGreen)) : aTrack;
-        fill(renderer, {mx + i * (seg_w + gap), 49, seg_w, 17}, c);
+        fill(renderer, {mx + i * (seg_w + meter_gap),
+            compact ? 42 : 49, seg_w, compact ? 13 : 17}, color);
     }
 
     constexpr std::array<Page, 5> pages{{Page::place, Page::actor,
         Page::fx, Page::master, Page::memory}};
-    const int left = 30;
-    const int tab_gap = 12;
+    const int left = compact ? 18 : 30;
+    const int tab_gap = compact ? 8 : 12;
     const int tab_w = (width - 2 * left - 4 * tab_gap) / 5;
     for (int i = 0; i < 5; ++i) {
         SDL_Rect tab{left + i * (tab_w + tab_gap), brand_h, tab_w, nav_h};
@@ -142,11 +163,34 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
     text(renderer, rect.x + 14, rect.y + 12, std::to_string(actor + 1),
         color, scale);
     text(renderer, rect.x + 14 + 3 * 8 * scale, rect.y + 12,
-        engine_name(slot.engine, ru(session)), slot.enabled ? kInk : kDim, scale);
+        engine_name(slot.engine, ru(session)), slot.enabled ? kInk : kDim,
+        scale);
     if (telemetry.slot_event[static_cast<std::size_t>(actor)] > 0.04F)
         fill(renderer, {rect.x + rect.w - 30, rect.y + 14, 16, 16}, color);
 
-    const int mute_h = std::max(40, rect.h / 5);
+    const bool compact = rect.h < 132;
+    const int mute_h = compact ? std::max(34, rect.h / 3) :
+        std::max(40, rect.h / 5);
+    SDL_Rect mute{rect.x + 12, rect.y + rect.h - mute_h - 10,
+        rect.w - 24, mute_h};
+    if (compact) {
+        const int meter_y = rect.y + std::max(38, rect.h / 2 - 8);
+        a_meter(renderer, {rect.x + 14, meter_y, rect.w - 28, 10},
+            telemetry.slot_rms[static_cast<std::size_t>(actor)] * 4.2F,
+            color);
+        a_panel(renderer, mute, slot.enabled ? aPanel : kRed,
+            slot.enabled ? color : kRed);
+        centered_text(renderer, mute,
+            slot.enabled ? (ru(session) ? "ЗАГЛУШИТЬ" : "MUTE") :
+                (ru(session) ? "ВКЛЮЧИТЬ" : "UNMUTE"),
+            slot.enabled ? kDim : kInk, std::max(1, scale - 1));
+        add_hit(state, mute, Action::actor_toggle, actor);
+        add_hit(state, {rect.x, rect.y, rect.w,
+            std::max(1, mute.y - rect.y - 4)}, Action::actor_select,
+            actor, open_actor ? 1 : 0);
+        return;
+    }
+
     const int level_y = rect.y + rect.h - mute_h - 58;
     text(renderer, rect.x + 14, level_y,
         ru(session) ? "УРОВЕНЬ" : "LEVEL", kDim,
@@ -160,8 +204,6 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
     add_hit(state, {bar.x - 4, level_y - 4, bar.w + 8, 42},
         Action::slider, actor, 0, SliderKind::actor_level);
 
-    SDL_Rect mute{rect.x + 12, rect.y + rect.h - mute_h - 10,
-        rect.w - 24, mute_h};
     a_panel(renderer, mute, slot.enabled ? aPanel : kRed,
         slot.enabled ? color : kRed);
     centered_text(renderer, mute,

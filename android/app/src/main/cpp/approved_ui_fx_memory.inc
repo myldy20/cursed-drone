@@ -7,7 +7,7 @@ void a_fx_card(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const SDL_Color color = aActor[static_cast<std::size_t>(index)];
     a_panel(renderer, rect, selected ? aPanel2 : aPanel,
         selected ? color : kBorder);
-    const int select_w = std::max(210, rect.w / 5);
+    const int select_w = rect.w < 1'000 ? std::max(150, rect.w / 5) : std::max(210, rect.w / 5);
     SDL_Rect select{rect.x + 10, rect.y + 10, select_w, rect.h - 20};
     a_panel(renderer, select, selected ? aActive : aPanel2,
         selected ? color : kBorder);
@@ -51,7 +51,7 @@ void a_fx_card(SDL_Renderer* renderer, cd::Session& session, UiState& state,
 void a_fx(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const cd::AudioTelemetry& telemetry, SDL_Rect area, int scale) {
     const int gap = 12;
-    const int side_w = std::max(310, area.w / 6);
+    const int side_w = area.w < 1'450 ? std::clamp(area.w / 5, 220, 270) : std::max(310, area.w / 6);
     SDL_Rect side{area.x, area.y, side_w, area.h};
     SDL_Rect main{area.x + side_w + gap, area.y,
         area.w - side_w - gap, area.h};
@@ -86,7 +86,7 @@ void a_master(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     a_slider(renderer, state, {area.x + pad, area.y + pad, sw, top_h},
         ru(session) ? "ОБЩИЙ УРОВЕНЬ" : "MASTER LEVEL",
         percent(session.master_level), session.master_level,
-        SliderKind::master_level, 0, 0, scale, kGreen, "0", "+12 DB");
+        SliderKind::master_level, 0, 0, scale, kGreen, "MUTE", "0 DB");
     a_slider(renderer, state, {area.x + pad + sw + gap, area.y + pad,
         sw, top_h}, ru(session) ? "ТЕМП" : "TEMPO",
         std::to_string(static_cast<int>(std::lround(session.tempo_bpm))) + " BPM",
@@ -174,13 +174,13 @@ void a_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     a_slider(renderer, state, {right.x + 12, right.y + 50 + bh + gap,
         right.w - 24, bh}, ru(session) ? "ФЕЙД ВХОДА" : "FADE IN",
         decimal(session.fade_in_seconds, "S"),
-        (session.fade_in_seconds - 0.2F) / 19.8F,
+        cd::mapping::normalized_fade_seconds(session.fade_in_seconds),
         SliderKind::fade_in, 0, 0, scale, kGreen);
     a_slider(renderer, state, {right.x + 12,
         right.y + 50 + 2 * (bh + gap), right.w - 24, bh},
         ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT",
         decimal(session.fade_out_seconds, "S"),
-        (session.fade_out_seconds - 0.2F) / 19.8F,
+        cd::mapping::normalized_fade_seconds(session.fade_out_seconds),
         SliderKind::fade_out, 0, 0, scale, kActorColors[1]);
     SDL_Rect about{right.x + 12, right.y + 50 + 3 * (bh + gap),
         right.w - 24, right.y + right.h -
@@ -206,7 +206,9 @@ void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     int content_y = 0;
     a_header(renderer, session, state, telemetry, cpu, width, height,
         scale, content_y);
-    SDL_Rect content{28, content_y, width - 56, height - content_y - 28};
+    const int outer = a_compact_layout(width, height) ? 16 : 28;
+    SDL_Rect content{outer, content_y, width - 2 * outer,
+        height - content_y - outer};
     switch (state.page) {
     case Page::place: a_place(renderer, session, state, telemetry, content, scale); break;
     case Page::actor: a_actor(renderer, session, state, telemetry, content, scale); break;
@@ -240,6 +242,10 @@ bool approved_release(cd::Session& session, UiState& state, int x, int y) {
     }
     const HitTarget hit = state.pressed;
     state.pressed = {};
+    if (hit.action == Action::actor_section && hit.a == kActionPanic) {
+        g_panic_requested = true;
+        return false;
+    }
     if (hit.action == Action::actor_section && hit.a == kSourceLandscape) {
         restore_landscape_actor(session, state.actor);
         return true;
