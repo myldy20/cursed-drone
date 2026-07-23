@@ -20,20 +20,20 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - name: Install exact UI build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev python3-pil fonts-dejavu-core
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev python3-pil fonts-dejavu-core
       - name: Apply exact Place UI
         run: python3 scripts/apply_place_exact_ui.py
       - name: Validate patch
         run: git diff --check
       - name: Build tests and reference snapshots
         run: |
-          cmake -S . -B build-place -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build-place -DCMAKE_BUILD_TYPE=Release > /tmp/place-config.log 2>&1 || { cat /tmp/place-config.log; exit 1; }
           cmake --build build-place --parallel 2 --target \
             cursed-drone-tests \
             cursed-drone-parameter-mapping-tests \
-            cursed-drone-android-ui-snapshots
-          ctest --test-dir build-place --output-on-failure
-          build-place/cursed-drone-android-ui-snapshots android-ui-snapshots
+            cursed-drone-android-ui-snapshots > /tmp/place-build.log 2>&1 || { tail -n 220 /tmp/place-build.log; exit 1; }
+          ctest --test-dir build-place --output-on-failure > /tmp/place-test.log 2>&1 || { cat /tmp/place-test.log; exit 1; }
+          build-place/cursed-drone-android-ui-snapshots android-ui-snapshots > /tmp/place-snapshot.log 2>&1 || { cat /tmp/place-snapshot.log; exit 1; }
           test -s android-ui-snapshots/android-place.bmp
       - name: Commit validated product files
         run: |
