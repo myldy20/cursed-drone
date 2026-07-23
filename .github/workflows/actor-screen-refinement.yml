@@ -1,0 +1,55 @@
+name: actor-screen-refinement
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  actor-screen:
+    if: github.head_ref == 'agent/android-audio-ui-rebuild'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/android-audio-ui-rebuild
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply Place polish and exact Actor integration
+        run: python3 scripts/advance_actor_screen.py
+      - name: Validate and render
+        run: |
+          git diff --check
+          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev
+            cmake -S . -B build-actor -DCMAKE_BUILD_TYPE=Release
+            cmake --build build-actor --parallel 4 --target \
+              cursed-drone-tests \
+              cursed-drone-parameter-mapping-tests \
+              cursed-drone-android-ui-snapshots
+            ctest --test-dir build-actor --output-on-failure
+            mkdir -p dist/android-ui-snapshots
+            SDL_VIDEODRIVER=dummy build-actor/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
+            test -s dist/android-ui-snapshots/android-place.bmp
+            test -s dist/android-ui-snapshots/android-actor.bmp
+          '
+      - name: Commit validated product files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            android/app/src/main/cpp/android_approved_main.cpp \
+            android/app/src/main/cpp/android_touch_main.cpp \
+            android/app/src/main/cpp/approved_ui_place_exact.inc \
+            android/app/src/main/cpp/approved_ui_actor_exact.inc \
+            tools/android_ui_snapshots.cpp
+          git commit -m "Polish Place and implement exact Actor screen"
+          git push origin HEAD:agent/android-audio-ui-rebuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: place-and-actor-2992x1344
+          path: dist/android-ui-snapshots
