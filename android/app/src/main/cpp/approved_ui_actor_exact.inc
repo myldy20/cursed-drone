@@ -83,7 +83,7 @@ void x_actor_sound_exact(SDL_Renderer* renderer, cd::Session& session,
         decimal(slot.texture, ""), decimal(20.0F * std::log10(std::max(slot.level, 0.0001F)), "DB"),
         signed_percent(slot.pan)}};
     const std::array<std::string, 7> low_ru{{
-        "20 ГЦ", "МЯГКО", "ТЁМНЫЙ", "СТАТИЧНО", "ГЛАДКАЯ", "−∞ ДБ", "ЛЕВО"}};
+        "20 ГЦ", "МЯГКО", "ТЁМНЫЙ", "СТАТИЧНО", "ГЛАДКАЯ", "MUTE", "ЛЕВО"}};
     const std::array<std::string, 7> high_ru{{
         "2 КГЦ", "ЯРКО", "СВЕТЛЫЙ", "ДВИЖЕТСЯ", "ЗЕРНИСТАЯ", "0 ДБ", "ПРАВО"}};
     const int start = left.y + 8;
