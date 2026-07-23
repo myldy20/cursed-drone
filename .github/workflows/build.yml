@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   apply-place-exact-ui:
-    if: github.ref == 'refs/heads/agent/android-audio-ui-rebuild' && hashFiles('scripts/apply_place_exact_ui.py') != ''
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/android-audio-ui-rebuild'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
