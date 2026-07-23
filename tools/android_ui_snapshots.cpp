@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2026 Myldy Design
 // Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 
+#include "cursed_drone/parameter_mapping.hpp"
+
 #define SDL_main cursed_drone_snapshot_unused_main
 #include "../android/app/src/main/cpp/android_touch_main.cpp"
 #undef SDL_main
