@@ -37,11 +37,15 @@ jobs:
           test -s android-ui-snapshots/android-place.bmp
       - name: Commit validated product files
         run: |
-          git show 6df7a39c2ce419a33066eb83ac565658e611d848:.github/workflows/build.yml > .github/workflows/build.yml
-          rm -rf .staging scripts/apply_place_exact_ui.py .github/workflows/apply-place-exact-ui.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add \
+            android/app/src/main/cpp/android_approved_main.cpp \
+            android/app/src/main/cpp/approved_ui_font.inc \
+            android/app/src/main/cpp/approved_ui_font_data.hpp \
+            android/app/src/main/cpp/approved_ui_place_exact.inc \
+            android/app/src/main/cpp/approved_ui_primitives.inc \
+            tools/android_ui_snapshots.cpp
           git commit -m "Implement exact Place visual system"
           git push origin HEAD:agent/android-audio-ui-rebuild
 
