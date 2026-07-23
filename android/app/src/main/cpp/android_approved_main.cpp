@@ -13,10 +13,30 @@
 
 namespace {
 
+constexpr int kAndroidUiWidth = 1496;
+constexpr int kAndroidUiHeight = 672;
+
 #include "approved_ui_compat.inc"
 #include "approved_ui_primitives.inc"
 #include "approved_ui_actor.inc"
 #include "approved_ui_fx_memory.inc"
+
+void logical_touch_position(SDL_Renderer* renderer, SDL_Window* window,
+    float normalized_x, float normalized_y, int& x, int& y) {
+    int window_width = 1;
+    int window_height = 1;
+    SDL_GetWindowSize(window, &window_width, &window_height);
+    const int window_x = static_cast<int>(std::lround(
+        normalized_x * static_cast<float>(window_width)));
+    const int window_y = static_cast<int>(std::lround(
+        normalized_y * static_cast<float>(window_height)));
+    float logical_x = 0.0F;
+    float logical_y = 0.0F;
+    SDL_RenderWindowToLogical(renderer, window_x, window_y,
+        &logical_x, &logical_y);
+    x = static_cast<int>(std::lround(logical_x));
+    y = static_cast<int>(std::lround(logical_y));
+}
 
 } // namespace
 
@@ -25,6 +45,7 @@ extern "C" int SDL_main(int argc, char** argv) {
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         std::fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
@@ -43,10 +64,9 @@ extern "C" int SDL_main(int argc, char** argv) {
         SDL_Quit();
         return 1;
     }
-    int width = 0;
-    int height = 0;
-    SDL_GetRendererOutputSize(renderer, &width, &height);
-    show_splash(renderer, width, height);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_RenderSetLogicalSize(renderer, kAndroidUiWidth, kAndroidUiHeight);
+    show_splash(renderer, kAndroidUiWidth, kAndroidUiHeight);
 
     cd::Session session = cd::make_default_session();
     if (!g_autosave_path.empty() && std::filesystem::exists(g_autosave_path)) {
@@ -94,7 +114,6 @@ extern "C" int SDL_main(int argc, char** argv) {
     Uint32 changed_at = 0;
     Uint32 previous = SDL_GetTicks();
     while (running) {
-        SDL_GetRendererOutputSize(renderer, &width, &height);
         SDL_Event event{};
         while (SDL_PollEvent(&event) != 0) {
             if (event.type == SDL_QUIT) running = false;
@@ -109,17 +128,19 @@ extern "C" int SDL_main(int argc, char** argv) {
             } else if (event.type == SDL_FINGERDOWN && !state.finger_down) {
                 state.finger_down = true;
                 state.finger_id = event.tfinger.fingerId;
-                const int x = static_cast<int>(std::lround(
-                    event.tfinger.x * width));
-                const int y = static_cast<int>(std::lround(
-                    event.tfinger.y * height));
+                int x = 0;
+                int y = 0;
+                logical_touch_position(renderer, window, event.tfinger.x,
+                    event.tfinger.y, x, y);
                 changed = approved_press(session, state,
                     hit_at(state, x, y), x) || changed;
             } else if (event.type == SDL_FINGERMOTION && state.finger_down &&
                 event.tfinger.fingerId == state.finger_id &&
                 state.slider_active) {
-                const int x = static_cast<int>(std::lround(
-                    event.tfinger.x * width));
+                int x = 0;
+                int y = 0;
+                logical_touch_position(renderer, window, event.tfinger.x,
+                    event.tfinger.y, x, y);
                 const float normalized = static_cast<float>(
                     x - state.pressed.rect.x) / static_cast<float>(
                         std::max(1, state.pressed.rect.w));
@@ -127,10 +148,10 @@ extern "C" int SDL_main(int argc, char** argv) {
                 changed = true;
             } else if (event.type == SDL_FINGERUP && state.finger_down &&
                 event.tfinger.fingerId == state.finger_id) {
-                const int x = static_cast<int>(std::lround(
-                    event.tfinger.x * width));
-                const int y = static_cast<int>(std::lround(
-                    event.tfinger.y * height));
+                int x = 0;
+                int y = 0;
+                logical_touch_position(renderer, window, event.tfinger.x,
+                    event.tfinger.y, x, y);
                 changed = approved_release(session, state, x, y) || changed;
                 state.finger_down = false;
             }
@@ -166,7 +187,8 @@ extern "C" int SDL_main(int argc, char** argv) {
             else changed_at = now;
         }
         approved_draw(renderer, session, state, audio.graph.telemetry(),
-            audio.cpu_load.load(std::memory_order_relaxed), width, height);
+            audio.cpu_load.load(std::memory_order_relaxed),
+            kAndroidUiWidth, kAndroidUiHeight);
         SDL_Delay(1);
     }
     if (save_pending && !g_autosave_path.empty()) {
