@@ -6,6 +6,7 @@ on:
       - agent/android-audio-ui-rebuild
     paths:
       - scripts/apply_place_exact_ui.py
+      - .github/workflows/apply-place-exact-ui.yml
 
 permissions:
   contents: write
