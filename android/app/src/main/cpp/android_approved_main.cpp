@@ -15,11 +15,28 @@ namespace {
 
 constexpr int kAndroidUiWidth = 1496;
 constexpr int kAndroidUiHeight = 672;
+std::atomic<std::uint32_t> g_audio_deadline_misses{0U};
 
 #include "approved_ui_compat.inc"
 #include "approved_ui_primitives.inc"
 #include "approved_ui_actor.inc"
 #include "approved_ui_fx_memory.inc"
+
+void monitored_audio_callback(void* userdata, Uint8* bytes, int byte_count) {
+    const Uint64 started = SDL_GetPerformanceCounter();
+    audio_callback(userdata, bytes, byte_count);
+    const auto& bridge = *static_cast<AudioBridge*>(userdata);
+    const auto frames = static_cast<double>(byte_count) /
+        static_cast<double>(sizeof(cd::StereoFrame));
+    const double available = frames /
+        static_cast<double>(std::max(1.0F, bridge.sample_rate));
+    const double elapsed = static_cast<double>(
+        SDL_GetPerformanceCounter() - started) /
+        static_cast<double>(SDL_GetPerformanceFrequency());
+    if (elapsed > available * 0.90) {
+        g_audio_deadline_misses.fetch_add(1U, std::memory_order_relaxed);
+    }
+}
 
 void logical_touch_position(SDL_Renderer* renderer, SDL_Window* window,
     float normalized_x, float normalized_y, int& x, int& y) {
@@ -89,7 +106,7 @@ extern "C" int SDL_main(int argc, char** argv) {
     desired.channels = 2;
     desired.samples = static_cast<Uint16>(std::clamp(
         next_power_of_two(std::max(512, burst * 3)), 512, 2048));
-    desired.callback = audio_callback;
+    desired.callback = monitored_audio_callback;
     desired.userdata = &audio;
     const SDL_AudioDeviceID device = SDL_OpenAudioDevice(nullptr, 0,
         &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
@@ -101,6 +118,13 @@ extern "C" int SDL_main(int argc, char** argv) {
         SDL_Quit();
         return 1;
     }
+    std::fprintf(stderr,
+        "android audio requested rate=%d burst=%d callback=%u; "
+        "obtained rate=%d callback=%u channels=%u format=0x%x\n",
+        native_rate, burst, static_cast<unsigned>(desired.samples),
+        obtained.freq, static_cast<unsigned>(obtained.samples),
+        static_cast<unsigned>(obtained.channels),
+        static_cast<unsigned>(obtained.format));
     audio.graph.prepare({static_cast<float>(obtained.freq), obtained.samples},
         session);
     audio.sample_rate = static_cast<float>(obtained.freq);
@@ -113,6 +137,8 @@ extern "C" int SDL_main(int argc, char** argv) {
     bool save_pending = false;
     Uint32 changed_at = 0;
     Uint32 previous = SDL_GetTicks();
+    Uint32 last_audio_report = previous;
+    std::uint32_t previous_deadline_misses = 0U;
     while (running) {
         SDL_Event event{};
         while (SDL_PollEvent(&event) != 0) {
@@ -185,6 +211,18 @@ extern "C" int SDL_main(int argc, char** argv) {
             if (cd::save_session(session, g_autosave_path, error))
                 save_pending = false;
             else changed_at = now;
+        }
+        if (now - last_audio_report >= 2'000U) {
+            const auto misses = g_audio_deadline_misses.load(
+                std::memory_order_relaxed);
+            std::fprintf(stderr,
+                "android audio dsp=%.1f%% deadline_misses=%u (+%u)\n",
+                static_cast<double>(audio.cpu_load.load(
+                    std::memory_order_relaxed) * 100.0F),
+                static_cast<unsigned>(misses),
+                static_cast<unsigned>(misses - previous_deadline_misses));
+            previous_deadline_misses = misses;
+            last_audio_report = now;
         }
         approved_draw(renderer, session, state, audio.graph.telemetry(),
             audio.cpu_load.load(std::memory_order_relaxed),
