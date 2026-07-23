@@ -19,7 +19,7 @@ jobs:
           submodules: recursive
       - name: Install deterministic UI generator
         run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil fonts-dejavu-core
-      - name: Generate pixel-exact Place files
+      - name: Generate exact Place refinement
         run: python3 scripts/refine_exact_place.py
       - name: Validate and render in AArch64 container
         run: |
@@ -43,12 +43,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            android/app/src/main/cpp/approved_ui_font.inc \
             android/app/src/main/cpp/approved_ui_font_data.hpp \
             android/app/src/main/cpp/approved_ui_place_exact.inc
-          git commit -m "Refine Place to approved pixel geometry"
+          git commit -m "Align UI text baseline and remove Place footer"
           git push origin HEAD:agent/android-audio-ui-rebuild
       - uses: actions/upload-artifact@v4
         with:
-          name: exact-place-refined-2992x1344
+          name: exact-place-v2-2992x1344
           path: dist/android-ui-snapshots
