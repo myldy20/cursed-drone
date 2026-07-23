@@ -1,5 +1,6 @@
-void a_actor(SDL_Renderer* renderer, cd::Session& session, UiState& state,
-    const cd::AudioTelemetry& telemetry, SDL_Rect area, int scale) {
+void a_actor_approved(SDL_Renderer* renderer, cd::Session& session,
+    UiState& state, const cd::AudioTelemetry& telemetry, SDL_Rect area,
+    int scale) {
     const int gap = 8;
     const int side_w = std::clamp(area.w / 5, 250, 286);
     SDL_Rect side{area.x, area.y, side_w, area.h};
