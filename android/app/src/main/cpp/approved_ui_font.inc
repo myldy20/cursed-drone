@@ -98,7 +98,7 @@ AFontTexture& a_font_texture(SDL_Renderer* renderer, std::uint32_t codepoint) {
     glyph.width = static_cast<int>(data->width);
     glyph.height = static_cast<int>(data->height);
     glyph.advance = static_cast<float>(data->advance64) / 64.0F;
-    glyph.texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+    glyph.texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
         SDL_TEXTUREACCESS_STATIC, glyph.width, glyph.height);
     if (glyph.texture != nullptr) {
         SDL_UpdateTexture(glyph.texture, nullptr, rgba.data(), glyph.width * 4);
