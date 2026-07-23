@@ -7,6 +7,8 @@
 #undef SDL_main
 
 namespace {
+constexpr int kAndroidUiWidth = 1496;
+constexpr int kAndroidUiHeight = 672;
 #include "../android/app/src/main/cpp/approved_ui_compat.inc"
 #include "../android/app/src/main/cpp/approved_ui_primitives.inc"
 #include "../android/app/src/main/cpp/approved_ui_actor.inc"
@@ -47,6 +49,8 @@ bool render_page(const std::filesystem::path& output_directory, Page page) {
         SDL_FreeSurface(surface);
         return false;
     }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_RenderSetLogicalSize(renderer, kAndroidUiWidth, kAndroidUiHeight);
 
     cd::Session session = cd::make_default_session();
     UiState state{};
@@ -64,7 +68,7 @@ bool render_page(const std::filesystem::path& output_directory, Page page) {
     telemetry.slot_rms = {0.10F, 0.06F, 0.13F, 0.08F};
     telemetry.slot_event = {0.0F, 0.18F, 0.0F, 0.0F};
     approved_draw(renderer, session, state, telemetry, 0.31F,
-        kPixel8ProLandscapeWidth, kPixel8ProLandscapeHeight);
+        kAndroidUiWidth, kAndroidUiHeight);
 
     const std::filesystem::path output = output_directory / page_filename(page);
     const bool saved = SDL_SaveBMP(surface, output.string().c_str()) == 0;
@@ -88,6 +92,7 @@ int main(int argc, char** argv) {
         std::cerr << "Cannot create output directory: " << error.message() << '\n';
         return 1;
     }
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         std::cerr << "SDL_Init: " << SDL_GetError() << '\n';
         return 1;
