@@ -266,9 +266,4 @@ void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,
                 card_w, card_h}, i, scale, state.actor == i, true);
     }
 
-    const std::string footer = ru(session) ?
-        "КОНЦЕПТ ЭКРАНА «МЕСТО»  •  ВСЕ ЭЛЕМЕНТЫ ВИДИМЫ И НАЖИМАЕМЫ  •  БЕЗ СКРЫТОГО ФОКУСА" :
-        "PLACE SCREEN  •  EVERY CONTROL IS VISIBLE AND DIRECTLY TOUCHABLE";
-    a_text(renderer, area.x + 15, area.y + area.h - 12,
-        footer, aMutedCream, scale);
 }
