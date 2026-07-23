@@ -16,6 +16,15 @@ jobs:
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --parallel 2
       - run: ctest --test-dir build --output-on-failure
+      - name: Render Pixel 8 Pro Android UI snapshots
+        run: |
+          mkdir -p dist/android-ui-snapshots
+          SDL_VIDEODRIVER=dummy build/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
+          test "$(find dist/android-ui-snapshots -name 'android-*.bmp' | wc -l)" -eq 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-android-ui-snapshots-2992x1344
+          path: dist/android-ui-snapshots
       - name: Verify Musical engine is linked
         run: grep -q 'CURSED_DRONE_HAS_PLAITS=1' build/CMakeFiles/cursed_drone_core.dir/flags.make
       - name: Performance benchmark
