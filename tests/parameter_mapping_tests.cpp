@@ -82,6 +82,8 @@ int main() {
         "picker max page");
     expect(map::picker_next_page(2, 21, 8) == 2,
         "picker next must clamp at final page");
+    expect(map::picker_next_page(99, 21, 8) == 2,
+        "stale picker page must recover to final page");
     expect(map::picker_previous_page(0) == 0,
         "picker previous must clamp at first page");
 
