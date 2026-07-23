@@ -35,8 +35,6 @@ replace_once(
     '''    SDL_Rect bar{rect.x + label_w + 26, rect.y + 18,
         rect.w - label_w - 34, 9};''',
 )
-replace_once(place, "            low, aMutedCream, label_scale);",
-    "            low, aMutedCream, label_scale);")
 replace_once(
     place,
     '''        a_text(renderer, bar.x, rect.y + 28,
@@ -68,6 +66,10 @@ actor_exact = CPP / "approved_ui_actor_exact.inc"
 actor_source = actor_exact.read_text(encoding="utf-8")
 actor_source = actor_source.replace('previous, "◀",', 'previous, "<",')
 actor_source = actor_source.replace('next, "▶",', 'next, ">",')
+actor_source = actor_source.replace(
+    'decimal(slot.level * 0.0F, "DB")',
+    'decimal(20.0F * std::log10(std::max(slot.level, 0.0001F)), "DB")',
+)
 actor_exact.write_text(actor_source, encoding="utf-8")
 
 main_cpp = CPP / "android_approved_main.cpp"
