@@ -52,6 +52,8 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      CURSED_DRONE_PREVIEW_SIGNING: "1"
     steps:
       - uses: actions/checkout@v4
         with: {submodules: recursive}
@@ -70,12 +72,12 @@ jobs:
             "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: "8.10.2"}
-      - name: Build touch-first preview APK
+      - name: Build release-optimised touch preview APK
         id: android_build
         continue-on-error: true
         run: |
           set -o pipefail
-          gradle -p android :app:assembleDebug --stacktrace 2>&1 | tee android-build.log
+          gradle -p android :app:assembleRelease --stacktrace 2>&1 | tee android-build.log
       - name: Upload Android build log
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,18 +87,24 @@ jobs:
       - name: Stop after Android build failure
         if: steps.android_build.outcome == 'failure'
         run: exit 1
+      - name: Verify native release optimisation
+        run: |
+          NINJA=$(find android/app/.cxx -path '*Release*' -name build.ninja | head -n 1)
+          test -n "$NINJA"
+          grep -Eq -- '(^| )-O(2|3)( |$)' "$NINJA"
+          ! grep -Eq -- '(^| )-O0( |$)' "$NINJA"
       - name: Verify APK identity and version
         run: |
-          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          APK=android/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee android-apk-badging.txt
           grep -q "versionName='$(cat VERSION)'" android-apk-badging.txt
           mkdir -p dist
-          cp "$APK" "dist/cursed-drone-v$(cat VERSION)-android-arm64-preview.apk"
+          cp "$APK" "dist/cursed-drone-v$(cat VERSION)-android-arm64-release-preview.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: cursed-drone-android-arm64-preview
-          path: dist/cursed-drone-v*-android-arm64-preview.apk
+          name: cursed-drone-android-arm64-release-preview
+          path: dist/cursed-drone-v*-android-arm64-release-preview.apk
 
   aarch64-packages:
     runs-on: ubuntu-24.04-arm
