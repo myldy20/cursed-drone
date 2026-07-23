@@ -29,7 +29,28 @@ exact_path.write_text(
     exact_path.read_text(encoding="utf-8").replace("aBorderDim", "aBorderSoft"),
     encoding="utf-8",
 )
-decode_payload(["snapshots.b64"], "tools/android_ui_snapshots.cpp")
+snapshot_path = decode_payload(["snapshots.b64"], "tools/android_ui_snapshots.cpp")
+translation_unit_includes = """#include <array>
+#include <cstdint>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+"""
+snapshot_source = snapshot_path.read_text(encoding="utf-8")
+if "#include <unordered_map>" not in snapshot_source:
+    snapshot_source = snapshot_source.replace(
+        '#include "cursed_drone/parameter_mapping.hpp"\n',
+        '#include "cursed_drone/parameter_mapping.hpp"\n\n' + translation_unit_includes,
+    )
+    snapshot_path.write_text(snapshot_source, encoding="utf-8")
+main_path = CPP / "android_approved_main.cpp"
+main_source = main_path.read_text(encoding="utf-8")
+if "#include <unordered_map>" not in main_source:
+    main_source = main_source.replace(
+        '#include "cursed_drone/parameter_mapping.hpp"\n',
+        '#include "cursed_drone/parameter_mapping.hpp"\n\n' + translation_unit_includes,
+    )
+    main_path.write_text(main_source, encoding="utf-8")
 
 # Generate deterministic alpha-mask glyph data. No font file is shipped in the app.
 font_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf")
@@ -80,13 +101,6 @@ out = [
     "// Generated raster glyph atlas from DejaVu Sans Condensed Bold.",
     "// The source font is not embedded; only pre-rasterized alpha masks are stored.",
     "#pragma once",
-    "#include <SDL.h>",
-    "#include <algorithm>",
-    "#include <array>",
-    "#include <cstdint>",
-    "#include <string_view>",
-    "#include <unordered_map>",
-    "#include <vector>",
     "",
     "struct AFontGlyphData {",
     "    std::uint32_t codepoint;",
