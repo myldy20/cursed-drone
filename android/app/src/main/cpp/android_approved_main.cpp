@@ -7,6 +7,12 @@
 // widescreen renderer and the real entry point.
 #include "cursed_drone/parameter_mapping.hpp"
 
+#include <array>
+#include <cstdint>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
 #define SDL_main cursed_drone_legacy_android_main
 #include "android_touch_main.cpp"
 #undef SDL_main

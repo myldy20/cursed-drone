@@ -1,3 +1,10 @@
+#include "approved_ui_font.inc"
+#define text a_text
+#define centered_text a_centered_text
+#define a_header a_header_legacy
+#define a_actor_card a_actor_card_legacy
+#define a_place a_place_legacy
+
 constexpr SDL_Color aTop{8, 7, 12, 255};
 constexpr SDL_Color aBackgroundDeep{8, 7, 12, 255};
 constexpr SDL_Color aPanel{25, 21, 33, 255};
@@ -13,6 +20,7 @@ constexpr SDL_Color aGreen{87, 204, 174, 255};
 constexpr SDL_Color aOrange{238, 164, 57, 255};
 constexpr SDL_Color aRed{226, 82, 94, 255};
 constexpr SDL_Color aBlue{94, 132, 205, 255};
+constexpr SDL_Color aPurple{124, 67, 184, 255};
 constexpr std::array<SDL_Color, 4> aActor{{aGreen, aOrange, aRed, aMutedCream}};
 
 bool a_compact_layout(int width, int height) noexcept {
@@ -360,3 +368,8 @@ void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,
                 card_w, card_h}, i, scale, state.actor == i, true);
     }
 }
+
+#undef a_header
+#undef a_actor_card
+#undef a_place
+#include "approved_ui_place_exact.inc"

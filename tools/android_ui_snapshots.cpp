@@ -4,6 +4,12 @@
 
 #include "cursed_drone/parameter_mapping.hpp"
 
+#include <array>
+#include <cstdint>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
 #define SDL_main cursed_drone_snapshot_unused_main
 #include "../android/app/src/main/cpp/android_touch_main.cpp"
 #undef SDL_main
@@ -55,9 +61,21 @@ bool render_page(const std::filesystem::path& output_directory, Page page) {
     SDL_RenderSetLogicalSize(renderer, kAndroidUiWidth, kAndroidUiHeight);
 
     cd::Session session = cd::make_default_session();
+    session.locale = cd::Locale::ru;
+    session.performance.texture = 0.22F;
+    session.performance.pulse = 0.12F;
+    session.performance.chaos = 0.08F;
+    session.performance.space = 0.20F;
+    session.performance.events = 0.30F;
+    session.slots[0].level = 0.34F;
+    session.slots[1].level = 0.42F;
+    session.slots[2].level = 0.28F;
+    session.slots[3].level = 0.37F;
+    session.slots[3].enabled = false;
+
     UiState state{};
     state.page = page;
-    state.actor = 0;
+    state.actor = 1;
     state.actor_fx = 0;
     state.master_fx = 0;
     state.modulator = 0;
@@ -67,7 +85,7 @@ bool render_page(const std::filesystem::path& output_directory, Page page) {
 
     cd::AudioTelemetry telemetry{};
     telemetry.master_rms = 0.14F;
-    telemetry.slot_rms = {0.10F, 0.06F, 0.13F, 0.08F};
+    telemetry.slot_rms = {0.13F, 0.06F, 0.03F, 0.0F};
     telemetry.slot_event = {0.0F, 0.18F, 0.0F, 0.0F};
     approved_draw(renderer, session, state, telemetry, 0.31F,
         kAndroidUiWidth, kAndroidUiHeight);
