@@ -1,0 +1,29 @@
+name: exact-place-snapshot
+
+on:
+  pull_request:
+    types: [reopened]
+
+jobs:
+  snapshot:
+    if: github.head_ref == 'agent/android-audio-ui-rebuild'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with: {submodules: recursive}
+      - name: Build exact Android UI snapshot in AArch64 container
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev
+            cmake -S . -B build-snapshot -DCMAKE_BUILD_TYPE=Release
+            cmake --build build-snapshot --parallel 4 --target cursed-drone-android-ui-snapshots
+            mkdir -p dist/android-ui-snapshots
+            SDL_VIDEODRIVER=dummy build-snapshot/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
+            test -s dist/android-ui-snapshots/android-place.bmp
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-place-snapshot-2992x1344
+          path: dist/android-ui-snapshots
