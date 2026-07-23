@@ -80,7 +80,7 @@ void x_actor_sound_exact(SDL_Renderer* renderer, cd::Session& session,
     const std::array<std::string, 7> values{{
         decimal(slot.frequency_hz, "HZ"), decimal(slot.timbre, ""),
         decimal(slot.color, ""), decimal(slot.motion, ""),
-        decimal(slot.texture, ""), decimal(slot.level * 0.0F, "DB"),
+        decimal(slot.texture, ""), decimal(20.0F * std::log10(std::max(slot.level, 0.0001F)), "DB"),
         signed_percent(slot.pan)}};
     const std::array<std::string, 7> low_ru{{
         "20 ГЦ", "МЯГКО", "ТЁМНЫЙ", "СТАТИЧНО", "ГЛАДКАЯ", "−∞ ДБ", "ЛЕВО"}};
@@ -126,7 +126,7 @@ void x_actor_sound_exact(SDL_Renderer* renderer, cd::Session& session,
     SDL_Rect next{root.x + root.w - 48, controls_y, 48, 45};
     SDL_Rect note{previous.x + previous.w + 7, controls_y,
         root.w - previous.w - next.w - 14, 45};
-    x_button(renderer, state, previous, "◀", Action::actor_root_step,
+    x_button(renderer, state, previous, "<", Action::actor_root_step,
         -1, 0, scale + 1, false, aPurple);
     a_card(renderer, note, aPanel2, aBorderSoft, 7, false);
     a_centered_text(renderer, note,
@@ -134,7 +134,7 @@ void x_actor_sound_exact(SDL_Renderer* renderer, cd::Session& session,
             std::to_string(slot.tuning.root_midi),
         aGreen, scale + 2);
     add_hit(state, note, Action::slider, 0, 0, SliderKind::tuning_root);
-    x_button(renderer, state, next, "▶", Action::actor_root_step,
+    x_button(renderer, state, next, ">", Action::actor_root_step,
         1, 0, scale + 1, false, aPurple);
     SDL_Rect snap{root.x, controls_y + 54, root.w, 40};
     x_button(renderer, state, snap,

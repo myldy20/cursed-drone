@@ -19,7 +19,10 @@ constexpr int kAndroidUiWidth = 1496;
 constexpr int kAndroidUiHeight = 672;
 #include "../android/app/src/main/cpp/approved_ui_compat.inc"
 #include "../android/app/src/main/cpp/approved_ui_primitives.inc"
+#define a_actor a_actor_legacy
 #include "../android/app/src/main/cpp/approved_ui_actor.inc"
+#undef a_actor
+#include "../android/app/src/main/cpp/approved_ui_actor_exact.inc"
 #include "../android/app/src/main/cpp/approved_ui_fx_memory.inc"
 } // namespace
 

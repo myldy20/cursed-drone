@@ -51,7 +51,8 @@ enum class PickerKind {
 };
 enum class Action {
     none, page, fade, actor_select, actor_toggle, actor_section,
-    scene_picker, engine_picker, actor_trigger, actor_fx_select, actor_fx_picker,
+    scene_picker, engine_picker, actor_trigger, actor_root_step,
+    actor_fx_select, actor_fx_picker,
     master_fx_select, master_fx_picker, euclidean_toggle,
     mod_select, mod_toggle, mod_source_cycle,
     memory_select, memory_load, memory_save, landscape_reset, locale_toggle,
@@ -622,10 +623,54 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
             !session.slots[static_cast<std::size_t>(hit.a)].enabled;
         session.scene_modified = true;
         return true;
-    case Action::actor_section: state.actor_section = static_cast<ActorSection>(hit.a); return false;
+    case Action::actor_section: {
+        auto& slot = session.slots[static_cast<std::size_t>(state.actor)];
+        if (hit.a == 90) {
+            if (slot.engine == cd::EngineKind::plaits) {
+                cd::Session recipe = session;
+                cd::apply_scene_recipe(recipe, session.scene);
+                const float level = slot.level;
+                const float pan = slot.pan;
+                slot = recipe.slots[static_cast<std::size_t>(state.actor)];
+                slot.level = level;
+                slot.pan = pan;
+                session.scene_modified = true;
+                return true;
+            }
+            return false;
+        }
+        if (hit.a == 91) {
+            slot.engine = cd::EngineKind::plaits;
+            session.scene_modified = true;
+            return true;
+        }
+        if (hit.a == 99) {
+            state.picker = PickerKind::scale;
+            state.picker_page = 0;
+            return false;
+        }
+        if (hit.a == 97) {
+            state.picker = PickerKind::plaits_model;
+            state.picker_page = 0;
+            return false;
+        }
+        if (hit.a == 98) {
+            state.picker = PickerKind::output;
+            state.picker_page = 0;
+            return false;
+        }
+        state.actor_section = static_cast<ActorSection>(hit.a);
+        return false;
+    }
     case Action::scene_picker: state.picker = PickerKind::scene; state.picker_page = 0; return false;
     case Action::engine_picker: state.picker = PickerKind::engine; state.picker_page = 0; return false;
     case Action::actor_trigger: state.pending_trigger = hit.a; return false;
+    case Action::actor_root_step: {
+        auto& root = session.slots[static_cast<std::size_t>(state.actor)].tuning.root_midi;
+        root = std::clamp(root + hit.a, 0, 127);
+        session.scene_modified = true;
+        return true;
+    }
     case Action::actor_fx_select: state.actor_fx = hit.a; return false;
     case Action::actor_fx_picker:
         state.picker = PickerKind::effect; state.picker_master = false;

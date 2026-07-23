@@ -47,18 +47,19 @@ void x_slider(SDL_Renderer* renderer, UiState& state, SDL_Rect rect,
     a_text(renderer, rect.x, rect.y + 5, label, aCream, scale);
     a_text(renderer, rect.x + label_w - a_text_width(value, scale),
         rect.y + 5, value, color, scale);
-    SDL_Rect bar{rect.x + label_w + 26, rect.y + 12,
+    SDL_Rect bar{rect.x + label_w + 26, rect.y + 18,
         rect.w - label_w - 34, 9};
     a_slider_track(renderer, bar, normalized, color);
     if (!low.empty()) {
-        a_text(renderer, bar.x, rect.y + 28,
+        a_text(renderer, bar.x, rect.y + rect.h - 18,
             low, aMutedCream, label_scale);
     }
     if (!high.empty()) {
         a_text(renderer, bar.x + bar.w - a_text_width(high, label_scale),
-            rect.y + 28, high, aMutedCream, label_scale);
+            rect.y + rect.h - 18, high, aMutedCream, label_scale);
     }
-    a_hline(renderer, rect.x, rect.y + 48, rect.w, aBorderSoft);
+    a_hline(renderer, rect.x, rect.y + rect.h - 1,
+        rect.w, aBorderSoft);
     add_hit(state, rect, Action::slider, a, b, kind);
 }
 
@@ -134,12 +135,8 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
     a_text(renderer, rect.x + 34, rect.y + 10,
         engine_name(slot.engine, ru(session)),
         slot.enabled ? aCream : aMutedCream, scale + 1);
-    if (telemetry.slot_event[static_cast<std::size_t>(actor)] > 0.04F) {
-        SDL_Rect event{rect.x + rect.w - 30, rect.y + 9, 20, 20};
-        a_round_fill(renderer, event, 10, color);
-        a_round_fill(renderer, {event.x + 3, event.y + 3,
-            event.w - 6, event.h - 6}, 7, aTop);
-    }
+    // Event activity belongs on the detailed Actor screen. On Place it
+    // looked like an unexplained decorative dot and competed with the title.
 
     const int signal_y = rect.y + 36;
     a_meter(renderer, {rect.x + 11, signal_y, rect.w - 22, 8},
@@ -241,7 +238,8 @@ void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const std::array<std::string, 5> high_ru{{"ГРУБО", "ПЛОТНО",
         "НЕСТАБИЛЬНО", "ДАЛЕКО", "МЕНЯЕТСЯ"}};
     const int start = macros.y + 39;
-    constexpr int row_h = 58;
+    const int row_h = std::max(58,
+        (macros.y + macros.h - 8 - start) / 5);
     for (int i = 0; i < 5; ++i) {
         x_slider(renderer, state,
             {macros.x + 15, start + i * row_h,
