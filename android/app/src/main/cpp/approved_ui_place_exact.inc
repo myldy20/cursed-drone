@@ -43,22 +43,22 @@ void x_slider(SDL_Renderer* renderer, UiState& state, SDL_Rect rect,
     std::string low = {}, std::string high = {}) {
     normalized = std::clamp(normalized, 0.0F, 1.0F);
     const int label_scale = std::max(1, scale - 1);
-    const int label_w = std::clamp(rect.w / 4, 135, 220);
+    const int label_w = 192;
     a_text(renderer, rect.x, rect.y + 5, label, aCream, scale);
     a_text(renderer, rect.x + label_w - a_text_width(value, scale),
         rect.y + 5, value, color, scale);
-    SDL_Rect bar{rect.x + label_w + 26, rect.y + 15,
+    SDL_Rect bar{rect.x + label_w + 26, rect.y + 12,
         rect.w - label_w - 34, 9};
     a_slider_track(renderer, bar, normalized, color);
     if (!low.empty()) {
-        a_text(renderer, bar.x, rect.y + rect.h - 16,
+        a_text(renderer, bar.x, rect.y + 28,
             low, aMutedCream, label_scale);
     }
     if (!high.empty()) {
         a_text(renderer, bar.x + bar.w - a_text_width(high, label_scale),
-            rect.y + rect.h - 16, high, aMutedCream, label_scale);
+            rect.y + 28, high, aMutedCream, label_scale);
     }
-    a_hline(renderer, rect.x, rect.y + rect.h - 1, rect.w, aBorderSoft);
+    a_hline(renderer, rect.x, rect.y + 48, rect.w, aBorderSoft);
     add_hit(state, rect, Action::slider, a, b, kind);
 }
 
@@ -67,8 +67,8 @@ void a_header(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     int scale, int& content_y) {
     (void)height;
     fill(renderer, {0, 0, width, 118}, aTop);
-    a_text(renderer, 28, 11, "CURSED DRONE", aCream, scale + 2);
-    a_text(renderer, 230, 17,
+    a_text(renderer, 27, 20, "CURSED DRONE", aCream, scale + 2);
+    a_text(renderer, 232, 27,
         std::string{CURSED_DRONE_VERSION} + "  •  ANDROID CONCEPT",
         aMutedCream, scale);
 
@@ -129,9 +129,9 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
     const SDL_Color border = selected ? color :
         (slot.enabled ? color : aBorderSoft);
     a_card(renderer, rect, aTop, border, 8, selected);
-    a_text(renderer, rect.x + 12, rect.y + 8,
+    a_text(renderer, rect.x + 11, rect.y + 10,
         std::to_string(actor + 1), color, scale + 1);
-    a_text(renderer, rect.x + 38, rect.y + 8,
+    a_text(renderer, rect.x + 34, rect.y + 10,
         engine_name(slot.engine, ru(session)),
         slot.enabled ? aCream : aMutedCream, scale + 1);
     if (telemetry.slot_event[static_cast<std::size_t>(actor)] > 0.04F) {
@@ -141,15 +141,15 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
             event.w - 6, event.h - 6}, 7, aTop);
     }
 
-    const int signal_y = rect.y + 42;
+    const int signal_y = rect.y + 36;
     a_meter(renderer, {rect.x + 11, signal_y, rect.w - 22, 8},
         telemetry.slot_rms[static_cast<std::size_t>(actor)] * 4.2F, color);
-    a_text(renderer, rect.x + 11, signal_y + 13,
+    a_text(renderer, rect.x + 11, signal_y + 17,
         ru(session) ? "УРОВЕНЬ" : "LEVEL", aMutedCream, scale);
     const std::string level = percent(slot.level);
     a_text(renderer, rect.x + rect.w - 11 - a_text_width(level, scale),
         signal_y + 13, level, color, scale);
-    const int level_y = signal_y + 35;
+    const int level_y = rect.y + 74;
     SDL_Rect level_bar{rect.x + 11, level_y, rect.w - 22, 9};
     a_slider_track(renderer, level_bar, slot.level,
         slot.enabled ? color : aMutedCream);
@@ -157,8 +157,8 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
         level_bar.w + 8, 30}, Action::slider, actor, 0,
         SliderKind::actor_level);
 
-    SDL_Rect mute{rect.x + 11, rect.y + rect.h - 34,
-        rect.w - 22, 24};
+    SDL_Rect mute{rect.x + 11, rect.y + rect.h - 33,
+        rect.w - 22, 22};
     a_card(renderer, mute, slot.enabled ? aPanel : aRed,
         slot.enabled ? border : aRed, 6, false);
     a_centered_text(renderer, mute,
@@ -173,9 +173,13 @@ void a_actor_card(SDL_Renderer* renderer, cd::Session& session,
 
 void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const cd::AudioTelemetry& telemetry, SDL_Rect area, int scale) {
+    // Exact Pixel 8 Pro reference: 54 px sides and 42 px bottom.
+    area.x -= 1;
+    area.w += 2;
+    area.h += 7;
     a_card(renderer, area, aPanel2, aBorderSoft, 10, false);
     const int pad = 12;
-    const int gap = 10;
+    const int gap = 12;
     SDL_Rect scene{area.x + pad, area.y + pad, area.w - 2 * pad, 56};
     x_gradient_fill(renderer, scene, 8,
         a_mix(aPanel2, kPurple, 0.18F), a_mix(aPanel2, kPurple, 0.08F));
@@ -236,8 +240,8 @@ void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,
         "СПОКОЙНО", "БЛИЗКО", "СТАТИЧНО"}};
     const std::array<std::string, 5> high_ru{{"ГРУБО", "ПЛОТНО",
         "НЕСТАБИЛЬНО", "ДАЛЕКО", "МЕНЯЕТСЯ"}};
-    const int start = macros.y + 42;
-    const int row_h = (macros.h - 52) / 5;
+    const int start = macros.y + 39;
+    constexpr int row_h = 58;
     for (int i = 0; i < 5; ++i) {
         x_slider(renderer, state,
             {macros.x + 15, start + i * row_h,
@@ -251,13 +255,13 @@ void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,
             ru(session) ? high_ru[static_cast<std::size_t>(i)] : "HIGH");
     }
 
-    const int card_gap = 8;
-    const int cards_top = actors.y + 42;
-    const int card_w = (actors.w - 24 - card_gap) / 2;
-    const int card_h = (actors.y + actors.h - cards_top - 11 - card_gap) / 2;
+    const int card_gap = 9;
+    const int cards_top = actors.y + 35;
+    const int card_w = (actors.w - 27 - card_gap) / 2;
+    const int card_h = (actors.y + actors.h - cards_top - 9 - card_gap) / 2;
     for (int i = 0; i < 4; ++i) {
         a_actor_card(renderer, session, state, telemetry,
-            {actors.x + 11 + (i % 2) * (card_w + card_gap),
+            {actors.x + 13 + (i % 2) * (card_w + card_gap),
                 cards_top + (i / 2) * (card_h + card_gap),
                 card_w, card_h}, i, scale, state.actor == i, true);
     }

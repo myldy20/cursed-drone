@@ -14,7 +14,7 @@ int a_font_pixel_size(int scale) noexcept {
     switch (std::clamp(scale, 1, 5)) {
     case 1: return 10;
     case 2: return 16;
-    case 3: return 22;
+    case 3: return 24;
     case 4: return 28;
     default: return 34;
     }
