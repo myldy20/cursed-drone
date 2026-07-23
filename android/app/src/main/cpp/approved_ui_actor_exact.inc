@@ -212,8 +212,8 @@ void a_actor(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     if (cd::supports_manual_trigger(slot.engine)) {
         x_button(renderer, state,
             {trigger_x, main.y + 18, trigger_w, 48},
-            ru(session) ? "ЗАПУСК ▶" : "TRIGGER ▶",
-            Action::actor_trigger, state.actor, 0, scale + 1, false, color);
+            ru(session) ? "ЗАПУСК >" : "TRIGGER >",
+            Action::actor_trigger, state.actor, 0, scale + 1, true, color);
     }
 
     constexpr std::array<ActorSection, 3> sections{{
