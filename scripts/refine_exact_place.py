@@ -9,11 +9,14 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 CPP = ROOT / "android/app/src/main/cpp"
 
-# Match the exact typeface and scale used by the approved 2992x1344 mockup.
+# Match the exact typeface used by the approved 2992x1344 mockup.
 font_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf")
 if not font_path.is_file():
     raise SystemExit(f"missing deterministic build font: {font_path}")
 font = ImageFont.truetype(str(font_path), 40)
+ascent, descent = font.getmetrics()
+glyph_height = ascent + descent + 4
+baseline = ascent + 2
 codepoints = sorted(
     set(range(32, 127))
     | set(range(0x0400, 0x0460))
@@ -43,20 +46,26 @@ rle: list[int] = []
 for codepoint in codepoints:
     character = chr(codepoint)
     advance = max(1.0, float(font.getlength(character)))
-    bbox = font.getbbox(character)
-    ink_width = max(1, bbox[2] - bbox[0])
-    width = max(3, int(math.ceil(max(advance, ink_width))) + 6)
-    height = 52
-    image = Image.new("L", (width, height), 0)
-    ImageDraw.Draw(image).text((3 - bbox[0], 4 - bbox[1]), character, font=font, fill=255)
+    bbox = font.getbbox(character, anchor="ls")
+    left_padding = max(3, 3 - bbox[0])
+    ink_right = left_padding + bbox[2]
+    width = max(3, int(math.ceil(max(advance + 6, ink_right + 3))))
+    image = Image.new("L", (width, glyph_height), 0)
+    # Every glyph is drawn against one shared baseline. This is critical for
+    # Cyrillic labels such as ФЕЙД and for punctuation in version strings.
+    ImageDraw.Draw(image).text(
+        (left_padding, baseline), character, font=font, fill=255, anchor="ls"
+    )
     encoded = encode_rle(image.tobytes())
     offset = len(rle)
     rle.extend(encoded)
-    glyphs.append((codepoint, width, height, int(round(advance * 64.0)), offset, len(encoded)))
+    glyphs.append(
+        (codepoint, width, glyph_height, int(round(advance * 64.0)), offset, len(encoded))
+    )
 
 out = [
     "// Generated raster glyph atlas from DejaVu Sans Mono Bold.",
-    "// The source font is not embedded; only pre-rasterized alpha masks are stored.",
+    "// All glyphs share one baseline; the source font file is not embedded.",
     "#pragma once",
     "",
     "struct AFontGlyphData {",
@@ -68,7 +77,7 @@ out = [
     "    std::uint32_t length;",
     "};",
     "constexpr int kAFontBaseSize = 40;",
-    "constexpr int kAFontLineHeight = 52;",
+    f"constexpr int kAFontLineHeight = {glyph_height};",
     f"constexpr std::array<AFontGlyphData, {len(glyphs)}> kAFontGlyphs{{{{",
 ]
 for glyph in glyphs:
@@ -80,61 +89,21 @@ for index in range(0, len(rle), 24):
 out.extend(("}};", ""))
 (CPP / "approved_ui_font_data.hpp").write_text("\n".join(out), encoding="utf-8")
 
-font_renderer = CPP / "approved_ui_font.inc"
-source = font_renderer.read_text(encoding="utf-8")
-source = source.replace("case 3: return 22;", "case 3: return 24;")
-source = source.replace("SDL_PIXELFORMAT_RGBA8888", "SDL_PIXELFORMAT_RGBA32")
-font_renderer.write_text(source, encoding="utf-8")
+place_path = CPP / "approved_ui_place_exact.inc"
+place = place_path.read_text(encoding="utf-8")
+footer_start = "    const std::string footer = ru(session) ?\n"
+start = place.find(footer_start)
+if start < 0:
+    raise SystemExit("Place footer block not found")
+end_marker = "        footer, aMutedCream, scale);\n"
+end = place.find(end_marker, start)
+if end < 0:
+    raise SystemExit("Place footer end not found")
+end += len(end_marker)
+place = place[:start] + place[end:]
+place_path.write_text(place, encoding="utf-8")
 
-place = CPP / "approved_ui_place_exact.inc"
-source = place.read_text(encoding="utf-8")
-replacements = {
-    "const int label_w = std::clamp(rect.w / 4, 135, 220);":
-        "const int label_w = 192;",
-    "SDL_Rect bar{rect.x + label_w + 26, rect.y + 15,\n        rect.w - label_w - 34, 9};":
-        "SDL_Rect bar{rect.x + label_w + 26, rect.y + 12,\n        rect.w - label_w - 34, 9};",
-    "a_text(renderer, bar.x, rect.y + rect.h - 16,":
-        "a_text(renderer, bar.x, rect.y + 28,",
-    "rect.y + rect.h - 16, high, aMutedCream, label_scale);":
-        "rect.y + 28, high, aMutedCream, label_scale);",
-    "a_hline(renderer, rect.x, rect.y + rect.h - 1, rect.w, aBorderSoft);":
-        "a_hline(renderer, rect.x, rect.y + 48, rect.w, aBorderSoft);",
-    "a_text(renderer, 28, 11, \"CURSED DRONE\", aCream, scale + 2);":
-        "a_text(renderer, 27, 20, \"CURSED DRONE\", aCream, scale + 2);",
-    "a_text(renderer, 230, 17,": "a_text(renderer, 232, 27,",
-    "a_text(renderer, rect.x + 12, rect.y + 8,":
-        "a_text(renderer, rect.x + 11, rect.y + 10,",
-    "a_text(renderer, rect.x + 38, rect.y + 8,":
-        "a_text(renderer, rect.x + 34, rect.y + 10,",
-    "const int signal_y = rect.y + 42;": "const int signal_y = rect.y + 36;",
-    "signal_y + 13,": "signal_y + 17,",
-    "const int level_y = signal_y + 35;": "const int level_y = rect.y + 74;",
-    "SDL_Rect mute{rect.x + 11, rect.y + rect.h - 34,\n        rect.w - 22, 24};":
-        "SDL_Rect mute{rect.x + 11, rect.y + rect.h - 33,\n        rect.w - 22, 22};",
-    "void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,\n    const cd::AudioTelemetry& telemetry, SDL_Rect area, int scale) {\n    a_card(renderer, area, aPanel2, aBorderSoft, 10, false);":
-        "void a_place(SDL_Renderer* renderer, cd::Session& session, UiState& state,\n"
-        "    const cd::AudioTelemetry& telemetry, SDL_Rect area, int scale) {\n"
-        "    // Exact Pixel 8 Pro reference: 54 px sides and 42 px bottom.\n"
-        "    area.x -= 1;\n"
-        "    area.w += 2;\n"
-        "    area.h += 7;\n"
-        "    a_card(renderer, area, aPanel2, aBorderSoft, 10, false);",
-    "const int gap = 10;": "const int gap = 12;",
-    "const int start = macros.y + 42;\n    const int row_h = (macros.h - 52) / 5;":
-        "const int start = macros.y + 39;\n    constexpr int row_h = 58;",
-    "const int card_gap = 8;\n    const int cards_top = actors.y + 42;\n"
-    "    const int card_w = (actors.w - 24 - card_gap) / 2;\n"
-    "    const int card_h = (actors.y + actors.h - cards_top - 11 - card_gap) / 2;":
-        "const int card_gap = 9;\n    const int cards_top = actors.y + 35;\n"
-        "    const int card_w = (actors.w - 27 - card_gap) / 2;\n"
-        "    const int card_h = (actors.y + actors.h - cards_top - 9 - card_gap) / 2;",
-    "{actors.x + 11 + (i % 2) * (card_w + card_gap),":
-        "{actors.x + 13 + (i % 2) * (card_w + card_gap),",
-}
-for before, after in replacements.items():
-    if before not in source:
-        raise SystemExit(f"expected Place fragment not found: {before[:80]!r}")
-    source = source.replace(before, after, 1)
-place.write_text(source, encoding="utf-8")
-
-print(f"refined exact Place: glyphs={len(glyphs)} rle={len(rle)}")
+print(
+    f"refined exact Place v2: glyphs={len(glyphs)} rle={len(rle)} "
+    f"baseline={baseline} height={glyph_height}; footer removed"
+)
