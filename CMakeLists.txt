@@ -168,6 +168,22 @@ else()
             if(TARGET SDL2::SDL2main)
                 target_link_libraries(cursed-drone-probe PRIVATE SDL2::SDL2main)
             endif()
+
+            if(CURSED_DRONE_BUILD_TOOLS)
+                add_executable(cursed-drone-android-ui-snapshots
+                    tools/android_ui_snapshots.cpp
+                    src/bitmap_text.cpp)
+                target_include_directories(cursed-drone-android-ui-snapshots
+                    PRIVATE src include)
+                target_compile_features(cursed-drone-android-ui-snapshots
+                    PRIVATE cxx_std_20)
+                target_compile_definitions(cursed-drone-android-ui-snapshots
+                    PRIVATE CURSED_DRONE_VERSION="${PROJECT_VERSION}")
+                target_compile_options(cursed-drone-android-ui-snapshots
+                    PRIVATE -Wall -Wextra -Wpedantic)
+                target_link_libraries(cursed-drone-android-ui-snapshots
+                    PRIVATE cursed_drone_core ${CURSED_DRONE_SDL_TARGET})
+            endif()
         else()
             message(WARNING "SDL2 was not found; cursed-drone-sdl and cursed-drone-probe will not be built")
         endif()
