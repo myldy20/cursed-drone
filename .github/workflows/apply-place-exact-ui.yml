@@ -1,46 +1,44 @@
-name: apply-place-exact-ui
+name: exact-place-diagnostics
 
 on:
-  push:
-    branches:
-      - agent/android-audio-ui-rebuild
-    paths:
-      - scripts/apply_place_exact_ui.py
-      - .github/workflows/apply-place-exact-ui.yml
-
-permissions:
-  contents: write
+  pull_request:
+    types: [reopened]
 
 jobs:
-  apply:
+  diagnose:
+    if: github.head_ref == 'agent/android-audio-ui-rebuild'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/android-audio-ui-rebuild
-          fetch-depth: 0
           submodules: recursive
-      - name: Apply exact Place UI
+      - name: Install dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev python3-pil fonts-dejavu-core
+      - name: Generate exact Place product files
         run: python3 scripts/apply_place_exact_ui.py
-      - name: Check patch
-        run: git diff --check
-      - name: Install SDL build dependency
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
-      - name: Build tests and Android UI snapshots
+      - name: Configure
+        run: cmake -S . -B build-place -DCMAKE_BUILD_TYPE=Release > place-config.log 2>&1
+      - name: Compile exact Place renderer
+        id: compile
+        continue-on-error: true
         run: |
-          cmake -S . -B build-place -DCMAKE_BUILD_TYPE=Release
           cmake --build build-place --parallel 2 --target \
             cursed-drone-tests \
             cursed-drone-parameter-mapping-tests \
-            cursed-drone-android-ui-snapshots
-          ctest --test-dir build-place --output-on-failure
-          build-place/cursed-drone-android-ui-snapshots android-ui-snapshots
-          test -s android-ui-snapshots/android-place.bmp
-      - name: Commit product changes
-        run: |
-          rm scripts/apply_place_exact_ui.py .github/workflows/apply-place-exact-ui.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Implement exact Place visual system"
-          git push origin HEAD:agent/android-audio-ui-rebuild
+            cursed-drone-android-ui-snapshots > place-build.log 2>&1
+      - name: Upload compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-place-compiler-diagnostics
+          path: |
+            place-config.log
+            place-build.log
+            android/app/src/main/cpp/approved_ui_font.inc
+            android/app/src/main/cpp/approved_ui_font_data.hpp
+            android/app/src/main/cpp/approved_ui_place_exact.inc
+            android/app/src/main/cpp/approved_ui_primitives.inc
+      - name: Stop after compiler failure
+        if: steps.compile.outcome == 'failure'
+        run: exit 1
