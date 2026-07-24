@@ -39,13 +39,13 @@ jobs:
             cursed-drone-android-ui-interaction-tests \
             cursed-drone-android-ui-snapshots > control-build.log 2>&1
       - name: Run control and DSP tests
-        id: test
+        id: tests
         if: steps.configure.outcome == 'success' && steps.build.outcome == 'success'
         continue-on-error: true
         run: ctest --test-dir build-controls --output-on-failure > control-test.log 2>&1
       - name: Render cutout-safe snapshots
         id: snapshot
-        if: steps.configure.outcome == 'success' && steps.build.outcome == 'success' && steps.test.outcome == 'success'
+        if: steps.configure.outcome == 'success' && steps.build.outcome == 'success' && steps.tests.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p dist/android-controls
@@ -74,7 +74,7 @@ jobs:
             control-test.log
             control-snapshot.log
       - name: Stop after validation failure
-        if: steps.configure.outcome == 'failure' || steps.build.outcome == 'failure' || steps.test.outcome == 'failure' || steps.snapshot.outcome == 'failure'
+        if: steps.configure.outcome != 'success' || steps.build.outcome != 'success' || steps.tests.outcome != 'success' || steps.snapshot.outcome != 'success'
         run: exit 1
       - name: Commit validated product files
         run: |
