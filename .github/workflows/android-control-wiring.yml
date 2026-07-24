@@ -34,7 +34,19 @@ jobs:
             cursed-drone-android-ui-interaction-tests \
             cursed-drone-android-ui-snapshots
       - name: Run control and DSP tests
-        run: ctest --test-dir build-controls --output-on-failure
+        id: control_tests
+        continue-on-error: true
+        run: ctest --test-dir build-controls --output-on-failure > control-test.log 2>&1
+      - name: Upload control test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-control-test-log
+          path: control-test.log
+      - name: Stop after test failure
+        run: |
+          cat control-test.log
+          test "${{ steps.control_tests.outcome }}" = "success"
       - name: Render cutout-safe snapshots
         run: |
           mkdir -p dist/android-controls
