@@ -55,38 +55,7 @@ void a_fx(SDL_Renderer* renderer, cd::Session& session, UiState& state,
 
 void a_master(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     SDL_Rect area, int scale) {
-    a_panel(renderer, area);
-    const int pad = 12;
-    const int gap = 11;
-    const int top_h = std::max(118, area.h / 5);
-    const int sw = (area.w - 2 * pad - 2 * gap) / 3;
-    a_slider(renderer, state, {area.x + pad, area.y + pad, sw, top_h},
-        ru(session) ? "ОБЩИЙ УРОВЕНЬ" : "MASTER LEVEL",
-        percent(session.master_level), session.master_level,
-        SliderKind::master_level, 0, 0, scale, kGreen, "MUTE", "0 DB");
-    a_slider(renderer, state, {area.x + pad + sw + gap, area.y + pad,
-        sw, top_h}, ru(session) ? "ТЕМП" : "TEMPO",
-        std::to_string(static_cast<int>(std::lround(session.tempo_bpm))) + " BPM",
-        (session.tempo_bpm - 10.0F) / 290.0F, SliderKind::tempo,
-        0, 0, scale, kActorColors[1], "10", "300");
-    SDL_Rect fade{area.x + pad + 2 * (sw + gap), area.y + pad, sw, top_h};
-    a_panel(renderer, fade, aPanel2, kBorder);
-    text(renderer, fade.x + 14, fade.y + 12,
-        ru(session) ? "ВЫХОД / ФЕЙД" : "OUTPUT / FADE", kInk, scale);
-    const std::string fv = percent(session.performance.fade);
-    text(renderer, fade.x + fade.w - 14 - cd::ui::text_width(fv, scale),
-        fade.y + 12, fv, kGreen, scale);
-    a_meter(renderer, {fade.x + 14, fade.y + fade.h / 2,
-        fade.w - 28, 18}, session.performance.fade, kGreen);
-    add_hit(state, fade, Action::fade);
-
-    const int gy = area.y + pad + top_h + gap;
-    const int cw = (area.w - 2 * pad - gap) / 2;
-    const int ch = (area.y + area.h - gy - pad - gap) / 2;
-    for (int i = 0; i < 4; ++i)
-        a_fx_card(renderer, session, state,
-            {area.x + pad + (i % 2) * (cw + gap),
-                gy + (i / 2) * (ch + gap), cw, ch}, i, scale, true);
+    a_master_exact(renderer, session, state, area, scale);
 }
 
 void a_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
