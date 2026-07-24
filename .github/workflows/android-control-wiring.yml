@@ -22,22 +22,60 @@ jobs:
         run: |
           python3 scripts/apply_android_control_fixes.py
           python3 scripts/finalize_android_control_tests.py
-      - name: Validate controls, persistence and DSP
+      - name: Validate patch
+        run: git diff --check
+      - name: Configure
+        id: configure
+        continue-on-error: true
+        run: cmake -S . -B build-controls -DCMAKE_BUILD_TYPE=Release > control-config.log 2>&1
+      - name: Build controls and tests
+        id: build
+        if: steps.configure.outcome == 'success'
+        continue-on-error: true
         run: |
-          git diff --check
-          cmake -S . -B build-controls -DCMAKE_BUILD_TYPE=Release
           cmake --build build-controls --parallel 2 --target \
             cursed-drone-tests \
             cursed-drone-parameter-mapping-tests \
             cursed-drone-android-ui-interaction-tests \
-            cursed-drone-android-ui-snapshots
-          ctest --test-dir build-controls --output-on-failure
+            cursed-drone-android-ui-snapshots > control-build.log 2>&1
+      - name: Run control and DSP tests
+        id: test
+        if: steps.configure.outcome == 'success' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: ctest --test-dir build-controls --output-on-failure > control-test.log 2>&1
+      - name: Render cutout-safe snapshots
+        id: snapshot
+        if: steps.configure.outcome == 'success' && steps.build.outcome == 'success' && steps.test.outcome == 'success'
+        continue-on-error: true
+        run: |
           mkdir -p dist/android-controls
-          SDL_VIDEODRIVER=dummy build-controls/cursed-drone-android-ui-snapshots dist/android-controls
+          SDL_VIDEODRIVER=dummy build-controls/cursed-drone-android-ui-snapshots dist/android-controls > control-snapshot.log 2>&1
           test -s dist/android-controls/android-place.bmp
           test -s dist/android-controls/android-actor-modulation.bmp
           test -s dist/android-controls/android-fx.bmp
           test -s dist/android-controls/android-master.bmp
+      - name: Show concise diagnostics
+        if: always()
+        run: |
+          for log in control-config.log control-build.log control-test.log control-snapshot.log; do
+            if test -f "$log"; then
+              echo "===== $log ====="
+              tail -n 180 "$log"
+            fi
+          done
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-control-wiring-diagnostics
+          path: |
+            control-config.log
+            control-build.log
+            control-test.log
+            control-snapshot.log
+      - name: Stop after validation failure
+        if: steps.configure.outcome == 'failure' || steps.build.outcome == 'failure' || steps.test.outcome == 'failure' || steps.snapshot.outcome == 'failure'
+        run: exit 1
       - name: Commit validated product files
         run: |
           git config user.name "github-actions[bot]"
