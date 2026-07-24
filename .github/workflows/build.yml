@@ -20,7 +20,7 @@ jobs:
         run: |
           mkdir -p dist/android-ui-snapshots
           SDL_VIDEODRIVER=dummy build/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
-          test "$(find dist/android-ui-snapshots -name 'android-*.bmp' | wc -l)" -eq 5
+          test "$(find dist/android-ui-snapshots -name 'android-*.bmp' | wc -l)" -eq 7
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-android-ui-snapshots-2992x1344
