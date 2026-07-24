@@ -223,7 +223,7 @@ void x_actor_events_exact(SDL_Renderer* renderer, cd::Session& session,
             density, slot.motion);
         x_slider(renderer, state,
             {left.x + 14, left.y + 48, left.w - 28, 66},
-            ru(session) ? "ЧАСТОТА СОБЫТИЙ" : "EVENT RATE",
+            ru(session) ? "ЧАСТОТА" : "RATE",
             decimal(rate, "/S"), slot.event_density,
             SliderKind::actor_event_density, 0, 0, scale + 1, color,
             ru(session) ? "РЕДКО" : "SPARSE",
