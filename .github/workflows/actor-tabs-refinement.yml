@@ -1,0 +1,57 @@
+name: actor-tabs-refinement
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  actor-tabs:
+    if: github.head_ref == 'agent/android-audio-ui-rebuild'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/android-audio-ui-rebuild
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply Actor alignment and tab redesign
+        run: python3 scripts/refine_actor_tabs.py
+      - name: Validate and render all Actor tabs
+        run: |
+          git diff --check
+          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev
+            cmake -S . -B build-actor-tabs -DCMAKE_BUILD_TYPE=Release
+            cmake --build build-actor-tabs --parallel 4 --target \
+              cursed-drone-tests \
+              cursed-drone-parameter-mapping-tests \
+              cursed-drone-android-ui-snapshots
+            ctest --test-dir build-actor-tabs --output-on-failure
+            mkdir -p dist/actor-tabs
+            SDL_VIDEODRIVER=dummy build-actor-tabs/cursed-drone-android-ui-snapshots dist/actor-tabs
+            test -s dist/actor-tabs/android-actor.bmp
+            test -s dist/actor-tabs/android-actor-events.bmp
+            test -s dist/actor-tabs/android-actor-modulation.bmp
+          '
+      - name: Commit validated product files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            android/app/src/main/cpp/approved_ui_actor_exact.inc \
+            tools/android_ui_snapshots.cpp \
+            .github/workflows/build.yml
+          git commit -m "Refine Actor layout and redesign Events and Modulation"
+          git push origin HEAD:agent/android-audio-ui-rebuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: actor-tabs-2992x1344
+          path: |
+            dist/actor-tabs/android-actor.bmp
+            dist/actor-tabs/android-actor-events.bmp
+            dist/actor-tabs/android-actor-modulation.bmp
