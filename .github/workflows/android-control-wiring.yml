@@ -22,6 +22,7 @@ jobs:
         run: |
           python3 scripts/apply_android_control_fixes.py
           python3 scripts/finalize_android_control_tests.py
+          python3 scripts/fix_android_cutout_override_and_tests.py
       - name: Validate patch
         run: git diff --check
       - name: Configure
@@ -65,9 +66,11 @@ jobs:
             src/session.cpp \
             src/audio.cpp \
             tests/test_main.cpp \
+            tools/android_ui_interaction_tests.cpp \
             android/app/src/main/cpp/android_touch_main.cpp \
             android/app/src/main/cpp/android_approved_main.cpp \
             android/app/src/main/cpp/approved_ui_primitives.inc \
+            android/app/src/main/cpp/approved_ui_place_exact.inc \
             android/app/src/main/cpp/approved_ui_fx_memory.inc \
             android/app/src/main/cpp/approved_ui_fx_exact.inc \
             android/app/src/main/cpp/approved_ui_master_exact.inc
