@@ -1,0 +1,53 @@
+name: exact-master-refinement
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  exact-master:
+    if: github.head_ref == 'agent/android-audio-ui-rebuild'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/android-audio-ui-rebuild
+          fetch-depth: 0
+          submodules: recursive
+      - name: Integrate exact Master screen
+        run: python3 scripts/integrate_exact_master.py
+      - name: Validate exact Master product code
+        run: |
+          git diff --check
+          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev
+            cmake -S . -B build-exact-master -DCMAKE_BUILD_TYPE=Release
+            cmake --build build-exact-master --parallel 4 --target \
+              cursed-drone-tests \
+              cursed-drone-parameter-mapping-tests \
+              cursed-drone-android-ui-snapshots
+            ctest --test-dir build-exact-master --output-on-failure
+            mkdir -p dist/exact-master
+            SDL_VIDEODRIVER=dummy build-exact-master/cursed-drone-android-ui-snapshots dist/exact-master
+            test -s dist/exact-master/android-master.bmp
+          '
+      - name: Commit validated exact Master files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            android/app/src/main/cpp/android_approved_main.cpp \
+            android/app/src/main/cpp/approved_ui_master_exact.inc \
+            android/app/src/main/cpp/approved_ui_fx_memory.inc \
+            tools/android_ui_snapshots.cpp
+          git commit -m "Implement approved Android Master screen"
+          git push origin HEAD:agent/android-audio-ui-rebuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-master-2992x1344
+          path: dist/exact-master/android-master.bmp
