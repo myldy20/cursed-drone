@@ -4,6 +4,7 @@
 
 #include "bitmap_text.hpp"
 #include "cursed_drone/audio.hpp"
+#include "cursed_drone/parameter_mapping.hpp"
 #include "cursed_drone/catalog.hpp"
 #include "cursed_drone/scala.hpp"
 #include "cursed_drone/session.hpp"
@@ -50,8 +51,9 @@ enum class PickerKind {
 };
 enum class Action {
     none, page, fade, actor_select, actor_toggle, actor_section,
-    scene_picker, engine_picker, actor_trigger, actor_fx_select, actor_fx_picker,
-    master_fx_select, master_fx_picker, euclidean_toggle,
+    scene_picker, engine_picker, actor_trigger, actor_root_step,
+    actor_fx_select, actor_fx_picker, actor_fx_toggle,
+    master_fx_select, master_fx_picker, master_fx_toggle, euclidean_toggle,
     mod_select, mod_toggle, mod_source_cycle,
     memory_select, memory_load, memory_save, landscape_reset, locale_toggle,
     picker_item, picker_previous, picker_next, picker_close, slider
@@ -110,6 +112,8 @@ std::filesystem::path g_data_root{};
 std::filesystem::path g_autosave_path{};
 std::array<std::filesystem::path, cd::kMemorySlots> g_memory_paths{};
 std::vector<cd::ParsedScale> g_scales{};
+// Set by the approved renderer. Legacy/handheld layouts leave it at zero.
+int g_ui_safe_side{0};
 
 bool ru(const cd::Session& session) noexcept { return session.locale == cd::Locale::ru; }
 
@@ -448,19 +452,19 @@ void set_toast(UiState& state, std::string message) {
 }
 
 float normalized_frequency(float hz) noexcept {
-    return std::clamp(std::log(std::max(hz, 20.0F) / 20.0F) / std::log(44.0F), 0.0F, 1.0F);
+    return cd::mapping::normalized_frequency(hz);
 }
 
 float frequency_from_normalized(float normalized) noexcept {
-    return 20.0F * std::pow(44.0F, std::clamp(normalized, 0.0F, 1.0F));
+    return cd::mapping::frequency_from_normalized(normalized);
 }
 
 float normalized_rate(float rate) noexcept {
-    return std::clamp(std::log(std::max(rate, 0.01F) / 0.01F) / std::log(2000.0F), 0.0F, 1.0F);
+    return cd::mapping::normalized_mod_rate(rate);
 }
 
 float rate_from_normalized(float normalized) noexcept {
-    return 0.01F * std::pow(2000.0F, std::clamp(normalized, 0.0F, 1.0F));
+    return cd::mapping::mod_rate_from_normalized(normalized);
 }
 
 void set_slider_value(cd::Session& session, const UiState& state,
@@ -484,7 +488,7 @@ void set_slider_value(cd::Session& session, const UiState& state,
     case SliderKind::actor_level: slot.level = normalized; break;
     case SliderKind::actor_pan: slot.pan = normalized * 2.0F - 1.0F; break;
     case SliderKind::actor_event_density: slot.event_density = normalized; break;
-    case SliderKind::tuning_root: slot.tuning.root_midi = static_cast<int>(std::lround(normalized * 127.0F)); break;
+    case SliderKind::tuning_root: slot.tuning.root_midi = cd::mapping::tuning_root_from_normalized(normalized); break;
     case SliderKind::euclidean_steps:
         slot.euclidean.steps = 1 + static_cast<int>(std::lround(normalized * 31.0F));
         slot.euclidean.pulses = std::min(slot.euclidean.pulses, slot.euclidean.steps);
@@ -496,7 +500,7 @@ void set_slider_value(cd::Session& session, const UiState& state,
         slot.euclidean.rotation = static_cast<int>(std::lround(normalized * std::max(1, slot.euclidean.steps - 1))); break;
     case SliderKind::euclidean_probability: slot.euclidean.probability = normalized; break;
     case SliderKind::mod_rate: mod.rate_hz = rate_from_normalized(normalized); break;
-    case SliderKind::mod_depth: mod.depth = normalized; break;
+    case SliderKind::mod_depth: mod.depth = cd::mapping::bipolar_from_normalized(normalized); break;
     case SliderKind::mod_offset: mod.offset = normalized * 2.0F - 1.0F; break;
     case SliderKind::mod_cross: mod.rate_mod_amount = normalized * 2.0F - 1.0F; break;
     case SliderKind::actor_fx_amount: actor_fx.amount = normalized; break;
@@ -507,8 +511,8 @@ void set_slider_value(cd::Session& session, const UiState& state,
     case SliderKind::master_fx_amount: master_fx.amount = normalized; break;
     case SliderKind::master_fx_tone: master_fx.tone = normalized; break;
     case SliderKind::master_fx_feedback: master_fx.feedback = normalized; break;
-    case SliderKind::fade_in: session.fade_in_seconds = 0.2F + normalized * 19.8F; break;
-    case SliderKind::fade_out: session.fade_out_seconds = 0.2F + normalized * 19.8F; break;
+    case SliderKind::fade_in: session.fade_in_seconds = cd::mapping::fade_seconds_from_normalized(normalized); break;
+    case SliderKind::fade_out: session.fade_out_seconds = cd::mapping::fade_seconds_from_normalized(normalized); break;
     case SliderKind::none: break;
     }
     session.scene_modified = true;
@@ -581,11 +585,15 @@ void apply_picker_item(cd::Session& session, UiState& state, int index) {
     switch (state.picker) {
     case PickerKind::scene: cd::apply_scene_recipe(session, cd::catalog::scenes[static_cast<std::size_t>(index)]); break;
     case PickerKind::engine: slot.engine = cd::catalog::engines[static_cast<std::size_t>(index)]; session.scene_modified = true; break;
-    case PickerKind::effect:
-        if (state.picker_master) session.master_effects[static_cast<std::size_t>(state.picker_effect)].kind = cd::catalog::effects[static_cast<std::size_t>(index)];
-        else slot.effects[static_cast<std::size_t>(state.picker_effect)].kind = cd::catalog::effects[static_cast<std::size_t>(index)];
+    case PickerKind::effect: {
+        auto& effect = state.picker_master
+            ? session.master_effects[static_cast<std::size_t>(state.picker_effect)]
+            : slot.effects[static_cast<std::size_t>(state.picker_effect)];
+        effect.kind = cd::catalog::effects[static_cast<std::size_t>(index)];
+        if (effect.kind != cd::EffectKind::bypass) effect.enabled = true;
         session.scene_modified = true;
         break;
+    }
     case PickerKind::plaits_model: slot.plaits_model = cd::catalog::plaits_models[static_cast<std::size_t>(index)]; break;
     case PickerKind::output: slot.plaits_output = cd::catalog::plaits_outputs[static_cast<std::size_t>(index)]; break;
     case PickerKind::scale: cd::apply_scale(slot.tuning, g_scales[static_cast<std::size_t>(index)]); break;
@@ -621,32 +629,99 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
             !session.slots[static_cast<std::size_t>(hit.a)].enabled;
         session.scene_modified = true;
         return true;
-    case Action::actor_section: state.actor_section = static_cast<ActorSection>(hit.a); return false;
+    case Action::actor_section: {
+        auto& slot = session.slots[static_cast<std::size_t>(state.actor)];
+        if (hit.a == 90) {
+            if (slot.engine == cd::EngineKind::plaits) {
+                cd::Session recipe = session;
+                cd::apply_scene_recipe(recipe, session.scene);
+                const float level = slot.level;
+                const float pan = slot.pan;
+                slot = recipe.slots[static_cast<std::size_t>(state.actor)];
+                slot.level = level;
+                slot.pan = pan;
+                session.scene_modified = true;
+                return true;
+            }
+            return false;
+        }
+        if (hit.a == 91) {
+            slot.engine = cd::EngineKind::plaits;
+            session.scene_modified = true;
+            return true;
+        }
+        if (hit.a == 99) {
+            state.picker = PickerKind::scale;
+            state.picker_page = 0;
+            return false;
+        }
+        if (hit.a == 97) {
+            state.picker = PickerKind::plaits_model;
+            state.picker_page = 0;
+            return false;
+        }
+        if (hit.a == 98) {
+            state.picker = PickerKind::output;
+            state.picker_page = 0;
+            return false;
+        }
+        state.actor_section = static_cast<ActorSection>(hit.a);
+        return false;
+    }
     case Action::scene_picker: state.picker = PickerKind::scene; state.picker_page = 0; return false;
     case Action::engine_picker: state.picker = PickerKind::engine; state.picker_page = 0; return false;
     case Action::actor_trigger: state.pending_trigger = hit.a; return false;
+    case Action::actor_root_step: {
+        auto& root = session.slots[static_cast<std::size_t>(state.actor)].tuning.root_midi;
+        root = std::clamp(root + hit.a, 0, 127);
+        session.scene_modified = true;
+        return true;
+    }
     case Action::actor_fx_select: state.actor_fx = hit.a; return false;
     case Action::actor_fx_picker:
         state.picker = PickerKind::effect; state.picker_master = false;
         state.picker_effect = state.actor_fx; state.picker_page = 0; return false;
+    case Action::actor_fx_toggle: {
+        state.actor_fx = std::clamp(hit.a, 0, 3);
+        auto& effect = session.slots[static_cast<std::size_t>(state.actor)]
+            .effects[static_cast<std::size_t>(state.actor_fx)];
+        if (effect.kind == cd::EffectKind::bypass) return false;
+        effect.enabled = !effect.enabled;
+        session.scene_modified = true;
+        return true;
+    }
     case Action::master_fx_select: state.master_fx = hit.a; return false;
     case Action::master_fx_picker:
         state.picker = PickerKind::effect; state.picker_master = true;
         state.picker_effect = state.master_fx; state.picker_page = 0; return false;
+    case Action::master_fx_toggle: {
+        state.master_fx = std::clamp(hit.a, 0, 3);
+        auto& effect = session.master_effects[static_cast<std::size_t>(state.master_fx)];
+        if (effect.kind == cd::EffectKind::bypass) return false;
+        effect.enabled = !effect.enabled;
+        session.scene_modified = true;
+        return true;
+    }
     case Action::euclidean_toggle: {
         auto& enabled = session.slots[static_cast<std::size_t>(state.actor)].euclidean.enabled;
-        enabled = !enabled; return true;
+        enabled = !enabled;
+        session.scene_modified = true;
+        return true;
     }
     case Action::mod_select: state.modulator = hit.a; return false;
     case Action::mod_toggle: {
         auto& enabled = session.slots[static_cast<std::size_t>(state.actor)]
             .modulators[static_cast<std::size_t>(state.modulator)].enabled;
-        enabled = !enabled; return true;
+        enabled = !enabled;
+        session.scene_modified = true;
+        return true;
     }
     case Action::mod_source_cycle: {
         auto& source = session.slots[static_cast<std::size_t>(state.actor)]
             .modulators[static_cast<std::size_t>(state.modulator)].rate_mod_source;
-        source = source >= 3 ? -1 : source + 1; return true;
+        source = cd::mapping::next_rate_mod_source(source, state.modulator);
+        session.scene_modified = true;
+        return true;
     }
     case Action::memory_select: state.memory_slot = hit.a; return false;
     case Action::memory_load: {
@@ -679,8 +754,13 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
         session.locale = session.locale == cd::Locale::ru ? cd::Locale::en : cd::Locale::ru;
         return true;
     case Action::picker_item: apply_picker_item(session, state, hit.a); return true;
-    case Action::picker_previous: state.picker_page = std::max(0, state.picker_page - 1); return false;
-    case Action::picker_next: state.picker_page += 1; return false;
+    case Action::picker_previous:
+        state.picker_page = cd::mapping::picker_previous_page(state.picker_page);
+        return false;
+    case Action::picker_next:
+        state.picker_page = cd::mapping::picker_next_page(
+            state.picker_page, picker_count(state.picker), 8);
+        return false;
     case Action::picker_close: state.picker = PickerKind::none; state.picker_page = 0; return false;
     case Action::slider:
     case Action::none: return false;
@@ -1145,18 +1225,20 @@ void draw_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
         Action::locale_toggle, 0, 0, scale, kPurple);
     slider(renderer, state, {area.x + pad + setting_w + gap, settings_y, setting_w, settings_h},
         ru(session) ? "ФЕЙД ВХОДА" : "FADE IN", decimal(session.fade_in_seconds, "S"),
-        (session.fade_in_seconds - 0.2F) / 19.8F, SliderKind::fade_in, 0, 0, scale, kGreen);
+        cd::mapping::normalized_fade_seconds(session.fade_in_seconds), SliderKind::fade_in, 0, 0, scale, kGreen);
     slider(renderer, state, {area.x + pad + 2 * (setting_w + gap), settings_y, setting_w, settings_h},
         ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT", decimal(session.fade_out_seconds, "S"),
-        (session.fade_out_seconds - 0.2F) / 19.8F, SliderKind::fade_out, 0, 0, scale, kGreen);
+        cd::mapping::normalized_fade_seconds(session.fade_out_seconds), SliderKind::fade_out, 0, 0, scale, kGreen);
 }
 
 void draw_picker(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     int width, int height, int scale) {
     fill(renderer, {0, 0, width, height}, {8, 7, 12, 248});
     const int pad = std::max(16, height / 45);
+    const int safe = std::clamp(g_ui_safe_side, 0, width / 4);
+    const int usable_width = width - 2 * safe;
     const int title_h = std::max(70, height / 10);
-    SDL_Rect title{pad, pad, width - 2 * pad, title_h};
+    SDL_Rect title{safe + pad, pad, usable_width - 2 * pad, title_h};
     fill(renderer, title, kPanelActive); outline(renderer, title, kPurple);
     std::string title_text;
     switch (state.picker) {
@@ -1185,7 +1267,7 @@ void draw_picker(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const int footer_h = std::max(62, height / 11);
     const int grid_h = height - grid_y - footer_h - 2 * pad;
     const int gap = pad;
-    const int item_w = (width - 2 * pad - gap * (columns - 1)) / columns;
+    const int item_w = (usable_width - 2 * pad - gap * (columns - 1)) / columns;
     const int item_h = (grid_h - gap * (rows - 1)) / rows;
     const int selected = current_picker_index(state, session);
     const int first = state.picker_page * page_size;
@@ -1194,17 +1276,17 @@ void draw_picker(SDL_Renderer* renderer, cd::Session& session, UiState& state,
         if (index >= count) break;
         const int col = local % columns;
         const int row = local / columns;
-        SDL_Rect rect{pad + col * (item_w + gap), grid_y + row * (item_h + gap), item_w, item_h};
+        SDL_Rect rect{safe + pad + col * (item_w + gap), grid_y + row * (item_h + gap), item_w, item_h};
         button(renderer, state, rect, picker_label(state.picker, index, session),
             index == selected, Action::picker_item, index, 0, scale,
             index == selected ? kGreen : kPurple);
     }
     const int footer_y = height - footer_h - pad;
-    const int nav_w = (width - 3 * pad) / 2;
-    button(renderer, state, {pad, footer_y, nav_w, footer_h},
+    const int nav_w = (usable_width - 3 * pad) / 2;
+    button(renderer, state, {safe + pad, footer_y, nav_w, footer_h},
         ru(session) ? "◀ ПРЕДЫДУЩИЕ" : "◀ PREVIOUS", state.picker_page > 0,
         Action::picker_previous, 0, 0, scale, kPurple);
-    button(renderer, state, {2 * pad + nav_w, footer_y, nav_w, footer_h},
+    button(renderer, state, {safe + 2 * pad + nav_w, footer_y, nav_w, footer_h},
         ru(session) ? "СЛЕДУЮЩИЕ ▶" : "NEXT ▶", state.picker_page < max_page,
         Action::picker_next, 0, 0, scale, kPurple);
 }

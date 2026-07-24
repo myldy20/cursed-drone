@@ -496,6 +496,7 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
     for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
         const auto& effect = session.master_effects[effect_index];
         output << master_effect_key(effect_index, "kind") << '=' << to_string(effect.kind) << '\n';
+        output << master_effect_key(effect_index, "enabled") << '=' << (effect.enabled ? 1 : 0) << '\n';
         output << master_effect_key(effect_index, "amount") << '=' << effect.amount << '\n';
         output << master_effect_key(effect_index, "tone") << '=' << effect.tone << '\n';
         output << master_effect_key(effect_index, "feedback") << '=' << effect.feedback << '\n';
@@ -531,6 +532,7 @@ bool save_session(const Session& session, const std::filesystem::path& path, std
         for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
             const auto& effect = slot.effects[effect_index];
             output << effect_key(slot_index, effect_index, "kind") << '=' << to_string(effect.kind) << '\n';
+            output << effect_key(slot_index, effect_index, "enabled") << '=' << (effect.enabled ? 1 : 0) << '\n';
             output << effect_key(slot_index, effect_index, "amount") << '=' << effect.amount << '\n';
             output << effect_key(slot_index, effect_index, "tone") << '=' << effect.tone << '\n';
             output << effect_key(slot_index, effect_index, "feedback") << '=' << effect.feedback << '\n';
@@ -630,7 +632,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         (schema->second != "1" && schema->second != "2" && schema->second != "3" &&
             schema->second != "4" && schema->second != "5" && schema->second != "6" &&
             schema->second != "7" && schema->second != "8" && schema->second != "9" &&
-            schema->second != "10" && schema->second != "11")) {
+            schema->second != "10" && schema->second != "11" && schema->second != "12")) {
         error = "unsupported or missing session schema";
         return false;
     }
@@ -668,6 +670,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
         auto& effect = loaded.master_effects[effect_index];
         if (!parse_enum_value(values, master_effect_key(effect_index, "kind"), effect.kind, kEffects) ||
+            !parse_bool(values, master_effect_key(effect_index, "enabled"), effect.enabled) ||
             !parse_float(values, master_effect_key(effect_index, "amount"), effect.amount) ||
             !parse_float(values, master_effect_key(effect_index, "tone"), effect.tone) ||
             !parse_float(values, master_effect_key(effect_index, "feedback"), effect.feedback)) {
@@ -713,6 +716,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
             auto& effect = slot.effects[effect_index];
             if (!parse_enum_value(values, effect_key(slot_index, effect_index, "kind"), effect.kind, kEffects) ||
+                !parse_bool(values, effect_key(slot_index, effect_index, "enabled"), effect.enabled) ||
                 !parse_float(values, effect_key(slot_index, effect_index, "amount"), effect.amount) ||
                 !parse_float(values, effect_key(slot_index, effect_index, "tone"), effect.tone) ||
                 !parse_float(values, effect_key(slot_index, effect_index, "feedback"), effect.feedback)) {
@@ -770,10 +774,10 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     }
     if (schema->second != "4" && schema->second != "5" && schema->second != "6" &&
         schema->second != "7" && schema->second != "8" && schema->second != "9" &&
-        schema->second != "10" && schema->second != "11") {
+        schema->second != "10" && schema->second != "11" && schema->second != "12") {
         apply_scene_recipe(loaded, SceneKind::derelict);
     }
-    loaded.schema_version = 11;
+    loaded.schema_version = 12;
     session = loaded;
     return true;
 }

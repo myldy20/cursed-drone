@@ -396,6 +396,7 @@ void test_session_roundtrip() {
     cd::apply_scene_recipe(original, cd::SceneKind::nursery);
     original.slots[2].effects[1].kind = cd::EffectKind::ringmod;
     original.slots[2].effects[1].amount = 0.731F;
+    original.slots[2].effects[1].enabled = false;
     original.performance.texture = 0.812F;
     original.performance.pulse = 0.643F;
     original.performance.chaos = 0.522F;
@@ -424,9 +425,10 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 11, "session should upgrade to schema 11");
+    expect(loaded.schema_version == 12, "session should upgrade to schema 12");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
+    expect(!loaded.slots[2].effects[1].enabled, "effect enabled state should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
         "new effect kinds should roundtrip");
     expect(std::abs(loaded.performance.texture - 0.812F) < 0.0001F, "texture macro should roundtrip");

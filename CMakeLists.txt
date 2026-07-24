@@ -101,7 +101,7 @@ if(ANDROID)
     FetchContent_MakeAvailable(SDL2)
 
     add_library(main SHARED
-        android/app/src/main/cpp/android_touch_main.cpp
+        android/app/src/main/cpp/android_approved_main.cpp
         src/bitmap_text.cpp
     )
     target_include_directories(main PRIVATE src include)
@@ -133,6 +133,13 @@ else()
         add_executable(cursed-drone-tests tests/test_main.cpp)
         target_link_libraries(cursed-drone-tests PRIVATE cursed_drone_core)
         add_test(NAME cursed-drone-tests COMMAND cursed-drone-tests)
+
+        add_executable(cursed-drone-parameter-mapping-tests
+            tests/parameter_mapping_tests.cpp)
+        target_link_libraries(cursed-drone-parameter-mapping-tests
+            PRIVATE cursed_drone_core)
+        add_test(NAME cursed-drone-parameter-mapping-tests
+            COMMAND cursed-drone-parameter-mapping-tests)
     endif()
 
     if(CURSED_DRONE_BUILD_SDL)
@@ -160,6 +167,42 @@ else()
             target_link_libraries(cursed-drone-probe PRIVATE cursed_drone_core ${CURSED_DRONE_SDL_TARGET})
             if(TARGET SDL2::SDL2main)
                 target_link_libraries(cursed-drone-probe PRIVATE SDL2::SDL2main)
+            endif()
+
+            if(CURSED_DRONE_BUILD_TOOLS)
+                add_executable(cursed-drone-android-ui-snapshots
+                    tools/android_ui_snapshots.cpp
+                    src/bitmap_text.cpp)
+                target_include_directories(cursed-drone-android-ui-snapshots
+                    PRIVATE src include)
+                target_compile_features(cursed-drone-android-ui-snapshots
+                    PRIVATE cxx_std_20)
+                target_compile_definitions(cursed-drone-android-ui-snapshots
+                    PRIVATE CURSED_DRONE_VERSION="${PROJECT_VERSION}")
+                target_compile_options(cursed-drone-android-ui-snapshots
+                    PRIVATE -Wall -Wextra -Wpedantic)
+                target_link_libraries(cursed-drone-android-ui-snapshots
+                    PRIVATE cursed_drone_core ${CURSED_DRONE_SDL_TARGET})
+
+                add_executable(cursed-drone-android-ui-interaction-tests
+                    tools/android_ui_interaction_tests.cpp
+                    src/bitmap_text.cpp)
+                target_include_directories(cursed-drone-android-ui-interaction-tests
+                    PRIVATE src include)
+                target_compile_features(cursed-drone-android-ui-interaction-tests
+                    PRIVATE cxx_std_20)
+                target_compile_definitions(cursed-drone-android-ui-interaction-tests
+                    PRIVATE CURSED_DRONE_VERSION="${PROJECT_VERSION}")
+                target_compile_options(cursed-drone-android-ui-interaction-tests
+                    PRIVATE -Wall -Wextra -Wpedantic)
+                target_link_libraries(cursed-drone-android-ui-interaction-tests
+                    PRIVATE cursed_drone_core ${CURSED_DRONE_SDL_TARGET})
+                if(CURSED_DRONE_BUILD_TESTS)
+                    add_test(NAME cursed-drone-android-ui-interaction-tests
+                        COMMAND cursed-drone-android-ui-interaction-tests)
+                    set_tests_properties(cursed-drone-android-ui-interaction-tests
+                        PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+                endif()
             endif()
         else()
             message(WARNING "SDL2 was not found; cursed-drone-sdl and cursed-drone-probe will not be built")

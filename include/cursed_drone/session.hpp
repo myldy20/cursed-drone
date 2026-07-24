@@ -139,6 +139,9 @@ struct EffectSettings {
     float amount{0.0F};
     float tone{0.5F};
     float feedback{0.0F};
+    // Bypass is an empty slot. enabled independently bypasses a configured
+    // effect without destroying its kind or parameter values.
+    bool enabled{true};
 };
 
 struct ModSettings {
@@ -184,7 +187,7 @@ struct PerformanceSettings {
 };
 
 struct Session {
-    unsigned schema_version{11};
+    unsigned schema_version{12};
     Locale locale{Locale::en};
     SceneKind scene{SceneKind::derelict};
     bool scene_modified{false};
