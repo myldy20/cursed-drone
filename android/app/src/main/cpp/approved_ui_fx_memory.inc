@@ -1,3 +1,5 @@
+#include "approved_ui_memory_exact.inc"
+
 void a_fx_card(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     SDL_Rect rect, int index, int scale, bool master) {
     auto& effect = master ? session.master_effects[static_cast<std::size_t>(index)] :
@@ -60,87 +62,7 @@ void a_master(SDL_Renderer* renderer, cd::Session& session, UiState& state,
 
 void a_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     SDL_Rect area, int scale) {
-    const int gap = 12;
-    const int left_w = static_cast<int>(area.w * 0.66F);
-    SDL_Rect left{area.x, area.y, left_w - gap, area.h};
-    SDL_Rect right{area.x + left_w, area.y, area.w - left_w, area.h};
-    a_panel(renderer, left); a_panel(renderer, right);
-    text(renderer, left.x + 16, left.y + 14,
-        ru(session) ? "ПАМЯТЬ - 8 СЛОТОВ" : "MEMORY - 8 SLOTS",
-        kInk, scale);
-    const int top = left.y + 49;
-    const int sg = 9;
-    const int slot_w = (left.w - 26 - 3 * sg) / 4;
-    const int slot_h = std::max(116, left.h / 4);
-    for (int i = 0; i < 8; ++i) {
-        SDL_Rect slot{left.x + 13 + (i % 4) * (slot_w + sg),
-            top + (i / 4) * (slot_h + sg), slot_w, slot_h};
-        const bool saved = state.memory_present[static_cast<std::size_t>(i)];
-        a_panel(renderer, slot, state.memory_slot == i ? aPanel2 : aPanel,
-            state.memory_slot == i ? kPurple : kBorder);
-        centered_text(renderer, {slot.x, slot.y + 10, slot.w, 30},
-            (ru(session) ? "СЛОТ " : "SLOT ") + std::to_string(i + 1),
-            kInk, scale);
-        centered_text(renderer, {slot.x, slot.y + slot.h / 2, slot.w, 28},
-            saved ? (ru(session) ? "СОХРАНЕН" : "SAVED") :
-                (ru(session) ? "ПУСТ" : "EMPTY"),
-            saved ? aActor[static_cast<std::size_t>(i % 4)] : kDim,
-            std::max(1, scale - 1));
-        add_hit(state, slot, Action::memory_select, i);
-    }
-    const int ay = top + 2 * (slot_h + sg) + 6;
-    const int ah = std::max(70, left.h / 9);
-    const int aw = (left.w - 26 - 2 * gap) / 3;
-    a_button(renderer, state, {left.x + 13, ay, aw, ah},
-        ru(session) ? "ЗАГРУЗИТЬ" : "LOAD", Action::memory_load,
-        0, 0, scale, true, kPurple);
-    a_button(renderer, state, {left.x + 13 + aw + gap, ay, aw, ah},
-        ru(session) ? "СОХРАНИТЬ" : "SAVE", Action::memory_save,
-        0, 0, scale, true, kGreen);
-    a_button(renderer, state, {left.x + 13 + 2 * (aw + gap), ay, aw, ah},
-        ru(session) ? "ВОССТАНОВИТЬ МЕСТО" : "RESTORE PLACE",
-        Action::landscape_reset, 0, 0, scale, true, kActorColors[1]);
-    SDL_Rect autosave{left.x + 13, ay + ah + gap, left.w - 26,
-        left.y + left.h - ay - ah - 2 * gap};
-    a_panel(renderer, autosave, aPanel2, kBorder);
-    text(renderer, autosave.x + 16, autosave.y + 16,
-        ru(session) ? "АВТОСОХРАНЕНИЕ ВКЛЮЧЕНО" : "AUTOSAVE ENABLED",
-        kGreen, scale);
-    text(renderer, autosave.x + 16, autosave.y + 16 + 12 * scale,
-        ru(session) ? "ПОСЛЕДНЕЕ СОСТОЯНИЕ ВОССТАНАВЛИВАЕТСЯ ПРИ ЗАПУСКЕ" :
-            "LAST STATE RESUMES ON START", kDim, std::max(1, scale - 1));
-
-    text(renderer, right.x + 16, right.y + 14,
-        ru(session) ? "НАСТРОЙКИ" : "SETTINGS", kInk, scale);
-    const int bh = std::max(78, right.h / 9);
-    a_button(renderer, state, {right.x + 12, right.y + 50,
-        right.w - 24, bh}, ru(session) ? "ЯЗЫК: РУССКИЙ" :
-            "LANGUAGE: ENGLISH", Action::locale_toggle, 0, 0, scale,
-        true, kPurple);
-    a_slider(renderer, state, {right.x + 12, right.y + 50 + bh + gap,
-        right.w - 24, bh}, ru(session) ? "ФЕЙД ВХОДА" : "FADE IN",
-        decimal(session.fade_in_seconds, "S"),
-        cd::mapping::normalized_fade_seconds(session.fade_in_seconds),
-        SliderKind::fade_in, 0, 0, scale, kGreen);
-    a_slider(renderer, state, {right.x + 12,
-        right.y + 50 + 2 * (bh + gap), right.w - 24, bh},
-        ru(session) ? "ФЕЙД ВЫХОДА" : "FADE OUT",
-        decimal(session.fade_out_seconds, "S"),
-        cd::mapping::normalized_fade_seconds(session.fade_out_seconds),
-        SliderKind::fade_out, 0, 0, scale, kActorColors[1]);
-    SDL_Rect about{right.x + 12, right.y + 50 + 3 * (bh + gap),
-        right.w - 24, right.y + right.h -
-            (right.y + 50 + 3 * (bh + gap)) - 12};
-    a_panel(renderer, about, aPanel2, kBorder);
-    text(renderer, about.x + 16, about.y + 16,
-        ru(session) ? "О ПРИЛОЖЕНИИ" : "ABOUT", kDim,
-        std::max(1, scale - 1));
-    text(renderer, about.x + 16, about.y + 49,
-        "CURSED DRONE", kInk, scale + 1);
-    text(renderer, about.x + 16, about.y + 49 + 13 * scale,
-        std::string{"V"} + CURSED_DRONE_VERSION, kPurple, scale);
-    text(renderer, about.x + 16, about.y + 49 + 25 * scale,
-        "MYLDY DESIGN  @MYLDY20", kDim, std::max(1, scale - 1));
+    a_memory_exact(renderer, session, state, area, scale);
 }
 
 void approved_draw(SDL_Renderer* renderer, cd::Session& session,
