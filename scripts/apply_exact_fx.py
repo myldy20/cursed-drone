@@ -12,15 +12,18 @@ source = source.replace(
 )
 exact.write_text(source, encoding="utf-8")
 
-main = CPP / "android_approved_main.cpp"
-source = main.read_text(encoding="utf-8")
-needle = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_memory.inc"'
-replacement = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_exact.inc"\n#include "approved_ui_fx_memory.inc"'
-if needle in source:
-    source = source.replace(needle, replacement, 1)
-elif '#include "approved_ui_fx_exact.inc"' not in source:
-    raise SystemExit("Android approved include order fragment not found")
-main.write_text(source, encoding="utf-8")
+include_needle = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_memory.inc"'
+include_replacement = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_exact.inc"\n#include "approved_ui_fx_memory.inc"'
+
+for relative in ("android/app/src/main/cpp/android_approved_main.cpp",
+                 "tools/android_ui_snapshots.cpp"):
+    path = ROOT / relative
+    source = path.read_text(encoding="utf-8")
+    if include_needle in source:
+        source = source.replace(include_needle, include_replacement, 1)
+    elif '#include "approved_ui_fx_exact.inc"' not in source:
+        raise SystemExit(f"approved include order fragment not found in {relative}")
+    path.write_text(source, encoding="utf-8")
 
 fx_memory = CPP / "approved_ui_fx_memory.inc"
 source = fx_memory.read_text(encoding="utf-8")
