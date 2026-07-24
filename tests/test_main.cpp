@@ -458,6 +458,34 @@ void test_session_roundtrip() {
     expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
     expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
 
+    const auto legacy_path = std::filesystem::temp_directory_path() /
+        "cursed-drone-test-schema11.cdrone";
+    {
+        std::ifstream input(path);
+        std::ofstream output(legacy_path, std::ios::trunc);
+        std::string line;
+        while (std::getline(input, line)) {
+            if (line.rfind("cursed_drone_session=", 0U) == 0U) {
+                output << "cursed_drone_session=11\n";
+            } else if (line.find(".effect.") != std::string::npos &&
+                line.find(".enabled=") != std::string::npos) {
+                continue;
+            } else {
+                output << line << '\n';
+            }
+        }
+    }
+    cd::Session legacy{};
+    expect(cd::load_session(legacy_path, legacy, error),
+        "schema 11 session without effect enabled fields should migrate");
+    expect(legacy.schema_version == 12,
+        "schema 11 session should upgrade to schema 12");
+    expect(legacy.slots[2].effects[1].enabled,
+        "legacy Actor FX should default to enabled");
+    expect(legacy.master_effects[0].enabled,
+        "legacy Master FX should default to enabled");
+    std::filesystem::remove(legacy_path);
+
     auto updated = original;
     updated.master_level = 0.123F;
     expect(cd::save_session(updated, path, error), "second session save should replace atomically");

@@ -637,6 +637,7 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         return false;
     }
 
+    const bool has_effect_enabled = schema->second == "12";
     Session loaded = make_default_session();
     const auto locale = values.find("locale");
     if (locale != values.end() && !parse_locale(locale->second, loaded.locale)) {
@@ -670,7 +671,8 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
     for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
         auto& effect = loaded.master_effects[effect_index];
         if (!parse_enum_value(values, master_effect_key(effect_index, "kind"), effect.kind, kEffects) ||
-            !parse_bool(values, master_effect_key(effect_index, "enabled"), effect.enabled) ||
+            (has_effect_enabled && !parse_bool(values,
+                master_effect_key(effect_index, "enabled"), effect.enabled)) ||
             !parse_float(values, master_effect_key(effect_index, "amount"), effect.amount) ||
             !parse_float(values, master_effect_key(effect_index, "tone"), effect.tone) ||
             !parse_float(values, master_effect_key(effect_index, "feedback"), effect.feedback)) {
@@ -716,7 +718,8 @@ bool load_session(const std::filesystem::path& path, Session& session, std::stri
         for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
             auto& effect = slot.effects[effect_index];
             if (!parse_enum_value(values, effect_key(slot_index, effect_index, "kind"), effect.kind, kEffects) ||
-                !parse_bool(values, effect_key(slot_index, effect_index, "enabled"), effect.enabled) ||
+                (has_effect_enabled && !parse_bool(values,
+                    effect_key(slot_index, effect_index, "enabled"), effect.enabled)) ||
                 !parse_float(values, effect_key(slot_index, effect_index, "amount"), effect.amount) ||
                 !parse_float(values, effect_key(slot_index, effect_index, "tone"), effect.tone) ||
                 !parse_float(values, effect_key(slot_index, effect_index, "feedback"), effect.feedback)) {
