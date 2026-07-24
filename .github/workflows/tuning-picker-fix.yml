@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir -p dist/tuning-picker
           SDL_VIDEODRIVER=dummy build-tuning/cursed-drone-android-ui-snapshots dist/tuning-picker
-          test -s dist/tuning-picker/android-actor-sound.bmp
+          test -s dist/tuning-picker/android-actor.bmp
       - name: Commit validated product files
         run: |
           git config user.name "github-actions[bot]"
