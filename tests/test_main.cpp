@@ -386,6 +386,14 @@ void test_scala() {
     const float quantized = cd::quantize_frequency(61.0F, tuning);
     expect(std::isfinite(quantized) && quantized > 0.0F, "Scala quantisation should produce a valid frequency");
     expect(std::abs(quantized - 61.0F) > 0.001F, "Scala quantisation should move an off-scale frequency");
+    const auto builtins = cd::load_scala_scales({});
+    expect(builtins.size() >= 5U, "useful built-in scales should always be available");
+    for (std::size_t left = 0; left < builtins.size(); ++left) {
+        for (std::size_t right = left + 1U; right < builtins.size(); ++right) {
+            expect(builtins[left].name != builtins[right].name,
+                "built-in scale names should not be duplicated");
+        }
+    }
     std::filesystem::remove(path);
 }
 

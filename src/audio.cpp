@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Myldy Design
 // Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/audio.hpp"
+#include "cursed_drone/scala.hpp"
 #include "plaits_actor.hpp"
 #include "soundscape.hpp"
 
@@ -1449,6 +1450,10 @@ public:
                 parameters.event_density = clamp01(parameters.event_density);
                 parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
+                // Quantise after pitch modulation and global drift so an enabled
+                // tuning acts as an audible pitch grid rather than passive metadata.
+                parameters.frequency = quantize_frequency(
+                    parameters.frequency, settings.tuning);
 
                 const StereoFrame actor_frame = runtime.engine.next(
                     settings,

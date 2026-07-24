@@ -117,6 +117,16 @@ bool parse_scala_file(const std::filesystem::path& path, ParsedScale& scale, std
 std::vector<ParsedScale> load_scala_scales(const std::vector<std::filesystem::path>& directories) {
     std::vector<ParsedScale> scales;
     scales.push_back(equal_temperament_scale());
+    scales.push_back({"MINOR PENTATONIC",
+        {300.0F, 500.0F, 700.0F, 1000.0F, 1200.0F}, 1200.0F});
+    scales.push_back({"PHRYGIAN",
+        {100.0F, 300.0F, 500.0F, 700.0F, 800.0F, 1000.0F, 1200.0F},
+        1200.0F});
+    scales.push_back({"HARMONIC MINOR",
+        {200.0F, 300.0F, 500.0F, 700.0F, 800.0F, 1100.0F, 1200.0F},
+        1200.0F});
+    scales.push_back({"WHOLE TONE",
+        {200.0F, 400.0F, 600.0F, 800.0F, 1000.0F, 1200.0F}, 1200.0F});
     for (const auto& directory : directories) {
         std::error_code error;
         if (!std::filesystem::is_directory(directory, error)) continue;
@@ -167,6 +177,9 @@ float quantize_frequency(float frequency_hz, const ScalaTuning& tuning) noexcept
     float best_distance = std::abs(local);
     for (int index = 0; index < tuning.degree_count; ++index) {
         const float candidate = tuning.cents[static_cast<std::size_t>(index)];
+        // Degree count and period are editable. Ignore zero-filled or out-of-period
+        // degrees rather than allowing them to create duplicate roots.
+        if (candidate <= 0.0F || candidate >= period) continue;
         const float distance = std::abs(candidate - local);
         if (distance < best_distance) {
             best = candidate;

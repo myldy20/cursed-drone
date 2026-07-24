@@ -9,6 +9,13 @@ std::string x_actor_midi_note(int midi) {
         std::to_string(midi / 12 - 1);
 }
 
+std::string x_actor_frequency_note(float frequency) {
+    frequency = std::clamp(frequency, 4.0F, 20'000.0F);
+    const int midi = static_cast<int>(std::lround(
+        69.0F + 12.0F * std::log2(frequency / 440.0F)));
+    return x_actor_midi_note(midi);
+}
+
 
 void x_actor_sidebar_card_exact(SDL_Renderer* renderer, cd::Session& session,
     UiState& state, const cd::AudioTelemetry& telemetry, SDL_Rect rect,
@@ -147,45 +154,78 @@ void x_actor_sound_exact(SDL_Renderer* renderer, cd::Session& session,
     }
 
     const int pad = 12;
-    const int tuning_h = static_cast<int>(right.h * 0.58F);
-    SDL_Rect tuning{right.x + pad, right.y + pad, right.w - 2 * pad, tuning_h - pad};
-    SDL_Rect root{right.x + pad, right.y + tuning_h + 2,
-        right.w - 2 * pad, right.h - tuning_h - pad - 2};
-    a_text(renderer, tuning.x, tuning.y,
-        ru(session) ? "СТРОЙ" : "TUNING", aCream, scale + 1);
-    SDL_Rect scale_pick{tuning.x, tuning.y + 28, tuning.w * 3 / 5, 43};
-    x_button(renderer, state, scale_pick, std::string{slot.tuning.name.data()},
-        Action::actor_section, 99, 0, scale + 1, false, aPurple);
-    SDL_Rect editor{scale_pick.x + scale_pick.w + 8, scale_pick.y,
-        tuning.x + tuning.w - (scale_pick.x + scale_pick.w + 8), 43};
-    x_button(renderer, state, editor,
-        ru(session) ? "РЕДАКТОР СТРОЯ" : "TUNING EDITOR",
-        Action::actor_section, 99, 0, scale, false, aPurple);
-    x_actor_scale_preview(renderer,
-        {tuning.x + 8, tuning.y + 105, tuning.w - 16, 31},
-        slot.tuning.root_midi, aActor[static_cast<std::size_t>(state.actor)]);
+    SDL_Rect tuning{right.x + pad, right.y + pad,
+        right.w - 2 * pad, right.h - 2 * pad};
+    const SDL_Color accent = aActor[static_cast<std::size_t>(state.actor)];
+    a_text(renderer, tuning.x, tuning.y + 5,
+        ru(session) ? "КВАНТОВАНИЕ ВЫСОТЫ" : "PITCH QUANTISER",
+        aCream, scale + 1);
+    SDL_Rect enabled{tuning.x + tuning.w - 116, tuning.y, 116, 32};
+    x_button(renderer, state, enabled,
+        slot.tuning.enabled ? (ru(session) ? "ВКЛ" : "ON") :
+            (ru(session) ? "ВЫКЛ" : "OFF"),
+        Action::tuning_toggle, 0, 0, scale, slot.tuning.enabled,
+        slot.tuning.enabled ? aGreen : aRed);
 
-    a_text(renderer, root.x, root.y,
-        ru(session) ? "КОРЕНЬ" : "ROOT", aCream, scale + 1);
-    const int controls_y = root.y + 28;
-    SDL_Rect previous{root.x, controls_y, 48, 45};
-    SDL_Rect next{root.x + root.w - 48, controls_y, 48, 45};
+    SDL_Rect scale_pick{tuning.x, tuning.y + 42, tuning.w, 42};
+    x_button(renderer, state, scale_pick,
+        std::string{slot.tuning.name.data()} + "  ▼",
+        Action::actor_section, 99, 0, scale + 1, slot.tuning.enabled,
+        aPurple);
+
+    const float snapped_frequency = cd::quantize_frequency(
+        slot.frequency_hz, slot.tuning);
+    SDL_Rect result{tuning.x, tuning.y + 94, tuning.w, 48};
+    a_card(renderer, result, aPanel2,
+        slot.tuning.enabled ? accent : aBorderSoft, 7, false);
+    a_text(renderer, result.x + 12, result.y + 7,
+        ru(session) ? "ИСХОДНАЯ" : "RAW", aMutedCream, scale);
+    a_text(renderer, result.x + 12, result.y + 24,
+        decimal(slot.frequency_hz, "HZ"), aCream, scale + 1);
+    a_text(renderer, result.x + result.w / 2 - 22, result.y + 18,
+        ">", aMutedCream, scale + 1);
+    a_text(renderer, result.x + result.w / 2 + 8, result.y + 7,
+        ru(session) ? "ПО СТРОЮ" : "SNAPPED", aMutedCream, scale);
+    const std::string snapped = decimal(snapped_frequency, "HZ") + "  " +
+        x_actor_frequency_note(snapped_frequency);
+    a_text(renderer, result.x + result.w / 2 + 8, result.y + 24,
+        snapped, slot.tuning.enabled ? aGreen : aMutedCream, scale + 1);
+
+    a_text(renderer, tuning.x, tuning.y + 153,
+        ru(session) ? "КОРЕНЬ" : "ROOT", aCream, scale);
+    const int controls_y = tuning.y + 171;
+    SDL_Rect previous{tuning.x, controls_y, 46, 40};
+    SDL_Rect next{tuning.x + tuning.w - 46, controls_y, 46, 40};
     SDL_Rect note{previous.x + previous.w + 7, controls_y,
-        root.w - previous.w - next.w - 14, 45};
+        tuning.w - previous.w - next.w - 14, 40};
     x_button(renderer, state, previous, "<", Action::actor_root_step,
         -1, 0, scale + 1, false, aPurple);
     a_card(renderer, note, aPanel2, aBorderSoft, 7, false);
     a_centered_text(renderer, note,
-        x_actor_midi_note(slot.tuning.root_midi) + "   " +
+        x_actor_midi_note(slot.tuning.root_midi) + "   MIDI " +
             std::to_string(slot.tuning.root_midi),
-        aGreen, scale + 2);
+        aGreen, scale + 1);
     add_hit(state, note, Action::slider, 0, 0, SliderKind::tuning_root);
     x_button(renderer, state, next, ">", Action::actor_root_step,
         1, 0, scale + 1, false, aPurple);
-    SDL_Rect snap{root.x, controls_y + 54, root.w, 40};
-    x_button(renderer, state, snap,
-        ru(session) ? "ПРИВЯЗКА К ЛАДУ" : "SNAP TO SCALE",
-        Action::actor_section, 99, 0, scale, false, aPurple);
+
+    const float degree_norm = static_cast<float>(slot.tuning.degree_count - 1) /
+        static_cast<float>(std::max<std::size_t>(1U, cd::kScaleDegreeCount - 1U));
+    x_slider(renderer, state,
+        {tuning.x, tuning.y + 221, tuning.w, 54},
+        ru(session) ? "СТУПЕНИ" : "DEGREES",
+        std::to_string(slot.tuning.degree_count), degree_norm,
+        SliderKind::tuning_degrees, 0, 0, scale, aBlue, "1",
+        std::to_string(cd::kScaleDegreeCount));
+    const float period_norm = std::clamp(
+        (slot.tuning.period_cents - 50.0F) / 4750.0F, 0.0F, 1.0F);
+    x_slider(renderer, state,
+        {tuning.x, tuning.y + 281, tuning.w, 54},
+        ru(session) ? "ПЕРИОД" : "PERIOD",
+        std::to_string(static_cast<int>(std::lround(
+            slot.tuning.period_cents))) + " CENT",
+        period_norm, SliderKind::tuning_period, 0, 0, scale,
+        aPurple, "50", "4800");
 }
 
 

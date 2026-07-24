@@ -122,6 +122,16 @@ void test_audio_wiring() {
     base.slots[0].frequency_hz = 73.0F;
     base.slots[0].level = 0.55F;
 
+    auto tuning_off = base;
+    tuning_off.slots[0].frequency_hz = 61.0F;
+    tuning_off.slots[0].tuning.enabled = false;
+    auto tuning_on = tuning_off;
+    cd::apply_scale(tuning_on.slots[0].tuning,
+        {"TEST PENTATONIC", {300.0F, 500.0F, 700.0F, 1000.0F, 1200.0F},
+            1200.0F});
+    expect(render_difference(tuning_off, tuning_on) > 1.0,
+        "enabled tuning must materially change DSP output");
+
     auto fx_off = base;
     auto fx_on = base;
     fx_off.slots[0].effects[0] = {
@@ -145,6 +155,9 @@ void test_audio_wiring() {
 void test_ui_wiring(SDL_Renderer* renderer) {
     cd::Session session = cd::make_default_session();
     session.locale = cd::Locale::ru;
+    g_scales = cd::load_scala_scales({});
+    expect(g_scales.size() >= 5U,
+        "Android should provide useful built-in tunings without external files");
     UiState state{};
     state.actor = 0;
     state.actor_fx = 0;
@@ -167,6 +180,40 @@ void test_ui_wiring(SDL_Renderer* renderer) {
             "no Place control may enter the left cutout safe area");
         expect(right_safe,
             "no Place control may enter the right cutout safe area");
+    }
+
+    draw(renderer, session, state, Page::actor, ActorSection::sound);
+    const HitTarget* tuning_toggle = find_action(state, Action::tuning_toggle);
+    expect(tuning_toggle != nullptr,
+        "Tuning should expose a real enable toggle");
+    if (tuning_toggle != nullptr) {
+        const bool before = session.slots[0].tuning.enabled;
+        tap(session, state, *tuning_toggle);
+        expect(session.slots[0].tuning.enabled != before,
+            "Tuning toggle should mutate Session");
+    }
+    int tuning_picker_count = 0;
+    for (const auto& hit : state.hits) {
+        if (hit.action == Action::actor_section && hit.a == 99)
+            ++tuning_picker_count;
+    }
+    expect(tuning_picker_count == 1,
+        "Tuning should have one unambiguous scale picker");
+    const HitTarget* degrees = find_slider(state, SliderKind::tuning_degrees);
+    expect(degrees != nullptr, "Tuning degree count should be editable");
+    if (degrees != nullptr) {
+        set_slider(session, state, *degrees, 0.15F);
+        expect(session.slots[0].tuning.degree_count >= 2 &&
+            session.slots[0].tuning.degree_count <= 8,
+            "Tuning degree gesture should reach Session");
+    }
+    const HitTarget* period = find_slider(state, SliderKind::tuning_period);
+    expect(period != nullptr, "Tuning period should be editable");
+    if (period != nullptr) {
+        set_slider(session, state, *period, 0.24F);
+        expect(session.slots[0].tuning.period_cents > 1'000.0F &&
+            session.slots[0].tuning.period_cents < 1'300.0F,
+            "Tuning period gesture should reach Session");
     }
 
     draw(renderer, session, state, Page::actor, ActorSection::modulation);
@@ -232,6 +279,37 @@ void test_ui_wiring(SDL_Renderer* renderer) {
         expect(session.master_effects[0].amount > 0.70F,
             "Master FX amount gesture should reach Session");
     }
+
+    const auto verify_compact_picker = [&](PickerKind picker, int expected) {
+        state.picker = picker;
+        state.picker_page = 0;
+        draw(renderer, session, state, Page::fx);
+        int items = 0;
+        bool has_navigation = false;
+        int tallest = 0;
+        for (const auto& hit : state.hits) {
+            if (hit.action == Action::picker_item) {
+                ++items;
+                tallest = std::max(tallest, hit.rect.h);
+            }
+            if (hit.action == Action::picker_previous ||
+                hit.action == Action::picker_next) has_navigation = true;
+        }
+        expect(items == expected,
+            "all built-in picker items should fit on one screen");
+        expect(!has_navigation,
+            "single-page built-in pickers should not show pagination");
+        expect(tallest <= 68,
+            "picker buttons should stay compact for short labels");
+    };
+    verify_compact_picker(PickerKind::scene,
+        static_cast<int>(cd::catalog::scenes.size()));
+    verify_compact_picker(PickerKind::effect,
+        static_cast<int>(cd::catalog::effects.size()));
+    verify_compact_picker(PickerKind::engine,
+        static_cast<int>(cd::catalog::engines.size()));
+    verify_compact_picker(PickerKind::scale,
+        static_cast<int>(g_scales.size()));
 
     state.picker = PickerKind::effect;
     state.picker_master = false;

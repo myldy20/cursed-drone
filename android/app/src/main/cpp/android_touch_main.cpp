@@ -40,6 +40,9 @@ constexpr SDL_Color kBorder{84, 72, 96, 255};
 constexpr SDL_Color kPurple{117, 67, 171, 255};
 constexpr SDL_Color kGreen{91, 218, 179, 255};
 constexpr SDL_Color kRed{225, 77, 96, 255};
+constexpr int kPickerColumns = 7;
+constexpr int kPickerRows = 5;
+constexpr int kPickerPageSize = kPickerColumns * kPickerRows;
 constexpr std::array<SDL_Color, 4> kActorColors{{
     {216, 88, 88, 255}, {224, 154, 63, 255}, {80, 169, 154, 255}, {91, 122, 187, 255},
 }};
@@ -51,7 +54,7 @@ enum class PickerKind {
 };
 enum class Action {
     none, page, fade, actor_select, actor_toggle, actor_section,
-    scene_picker, engine_picker, actor_trigger, actor_root_step,
+    scene_picker, engine_picker, actor_trigger, tuning_toggle, actor_root_step,
     actor_fx_select, actor_fx_picker, actor_fx_toggle,
     master_fx_select, master_fx_picker, master_fx_toggle, euclidean_toggle,
     mod_select, mod_toggle, mod_source_cycle,
@@ -62,7 +65,8 @@ enum class SliderKind {
     none,
     place_texture, place_pulse, place_chaos, place_space, place_events,
     actor_frequency, actor_timbre, actor_color, actor_motion, actor_texture,
-    actor_level, actor_pan, actor_event_density, tuning_root, euclidean_steps, euclidean_pulses,
+    actor_level, actor_pan, actor_event_density, tuning_root, tuning_degrees,
+    tuning_period, euclidean_steps, euclidean_pulses,
     euclidean_rotation, euclidean_probability, mod_rate, mod_depth,
     mod_offset, mod_cross, actor_fx_amount, actor_fx_tone, actor_fx_feedback,
     master_level, tempo, master_fx_amount, master_fx_tone, master_fx_feedback,
@@ -426,7 +430,6 @@ void prepare_storage() {
         g_memory_paths[i] = g_data_root / ("memory-" + std::to_string(i + 1U) + ".cdrone");
     }
     g_scales = cd::load_scala_scales({g_data_root / "scales"});
-    g_scales.insert(g_scales.begin(), cd::equal_temperament_scale());
 }
 
 void show_splash(SDL_Renderer* renderer, int width, int height) {
@@ -488,7 +491,16 @@ void set_slider_value(cd::Session& session, const UiState& state,
     case SliderKind::actor_level: slot.level = normalized; break;
     case SliderKind::actor_pan: slot.pan = normalized * 2.0F - 1.0F; break;
     case SliderKind::actor_event_density: slot.event_density = normalized; break;
-    case SliderKind::tuning_root: slot.tuning.root_midi = cd::mapping::tuning_root_from_normalized(normalized); break;
+    case SliderKind::tuning_root:
+        slot.tuning.root_midi = cd::mapping::tuning_root_from_normalized(normalized);
+        break;
+    case SliderKind::tuning_degrees:
+        slot.tuning.degree_count = 1 + static_cast<int>(std::lround(
+            normalized * static_cast<float>(cd::kScaleDegreeCount - 1U)));
+        break;
+    case SliderKind::tuning_period:
+        slot.tuning.period_cents = 50.0F + normalized * 4750.0F;
+        break;
     case SliderKind::euclidean_steps:
         slot.euclidean.steps = 1 + static_cast<int>(std::lround(normalized * 31.0F));
         slot.euclidean.pulses = std::min(slot.euclidean.pulses, slot.euclidean.steps);
@@ -671,6 +683,12 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
     case Action::scene_picker: state.picker = PickerKind::scene; state.picker_page = 0; return false;
     case Action::engine_picker: state.picker = PickerKind::engine; state.picker_page = 0; return false;
     case Action::actor_trigger: state.pending_trigger = hit.a; return false;
+    case Action::tuning_toggle: {
+        auto& tuning = session.slots[static_cast<std::size_t>(state.actor)].tuning;
+        tuning.enabled = !tuning.enabled;
+        session.scene_modified = true;
+        return true;
+    }
     case Action::actor_root_step: {
         auto& root = session.slots[static_cast<std::size_t>(state.actor)].tuning.root_midi;
         root = std::clamp(root + hit.a, 0, 127);
@@ -759,7 +777,7 @@ bool execute_action(cd::Session& session, UiState& state, const HitTarget& hit) 
         return false;
     case Action::picker_next:
         state.picker_page = cd::mapping::picker_next_page(
-            state.picker_page, picker_count(state.picker), 8);
+            state.picker_page, picker_count(state.picker), kPickerPageSize);
         return false;
     case Action::picker_close: state.picker = PickerKind::none; state.picker_page = 0; return false;
     case Action::slider:
@@ -1234,10 +1252,10 @@ void draw_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
 void draw_picker(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     int width, int height, int scale) {
     fill(renderer, {0, 0, width, height}, {8, 7, 12, 248});
-    const int pad = std::max(16, height / 45);
+    const int pad = std::max(12, height / 56);
     const int safe = std::clamp(g_ui_safe_side, 0, width / 4);
     const int usable_width = width - 2 * safe;
-    const int title_h = std::max(70, height / 10);
+    const int title_h = std::max(52, height / 13);
     SDL_Rect title{safe + pad, pad, usable_width - 2 * pad, title_h};
     fill(renderer, title, kPanelActive); outline(renderer, title, kPurple);
     std::string title_text;
@@ -1257,38 +1275,43 @@ void draw_picker(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     fill(renderer, close_rect, kRed); centered_text(renderer, close_rect, "X", kInk, scale + 1);
     add_hit(state, close_rect, Action::picker_close);
 
-    constexpr int columns = 3;
-    constexpr int rows = 4;
-    constexpr int page_size = columns * rows;
     const int count = picker_count(state.picker);
-    const int max_page = std::max(0, (count - 1) / page_size);
+    const int max_page = std::max(0, (count - 1) / kPickerPageSize);
     state.picker_page = std::clamp(state.picker_page, 0, max_page);
-    const int grid_y = title.y + title.h + pad;
-    const int footer_h = std::max(62, height / 11);
-    const int grid_h = height - grid_y - footer_h - 2 * pad;
-    const int gap = pad;
-    const int item_w = (usable_width - 2 * pad - gap * (columns - 1)) / columns;
-    const int item_h = (grid_h - gap * (rows - 1)) / rows;
+    const int grid_y = title.y + title.h + 10;
+    const int footer_h = max_page > 0 ? std::max(48, height / 14) : 0;
+    const int grid_bottom = max_page > 0 ? height - footer_h - 2 * pad : height - pad;
+    const int grid_h = std::max(1, grid_bottom - grid_y);
+    constexpr int gap = 8;
+    const int item_w = (usable_width - 2 * pad - gap * (kPickerColumns - 1)) /
+        kPickerColumns;
+    const int available_item_h = (grid_h - gap * (kPickerRows - 1)) /
+        kPickerRows;
+    const int item_h = std::clamp(available_item_h, 48, 68);
     const int selected = current_picker_index(state, session);
-    const int first = state.picker_page * page_size;
-    for (int local = 0; local < page_size; ++local) {
+    const int first = state.picker_page * kPickerPageSize;
+    for (int local = 0; local < kPickerPageSize; ++local) {
         const int index = first + local;
         if (index >= count) break;
-        const int col = local % columns;
-        const int row = local / columns;
-        SDL_Rect rect{safe + pad + col * (item_w + gap), grid_y + row * (item_h + gap), item_w, item_h};
+        const int col = local % kPickerColumns;
+        const int row = local / kPickerColumns;
+        SDL_Rect rect{safe + pad + col * (item_w + gap),
+            grid_y + row * (item_h + gap), item_w, item_h};
         button(renderer, state, rect, picker_label(state.picker, index, session),
-            index == selected, Action::picker_item, index, 0, scale,
-            index == selected ? kGreen : kPurple);
+            index == selected, Action::picker_item, index, 0,
+            std::max(1, scale - 1), index == selected ? kGreen : kPurple);
     }
-    const int footer_y = height - footer_h - pad;
-    const int nav_w = (usable_width - 3 * pad) / 2;
-    button(renderer, state, {safe + pad, footer_y, nav_w, footer_h},
-        ru(session) ? "◀ ПРЕДЫДУЩИЕ" : "◀ PREVIOUS", state.picker_page > 0,
-        Action::picker_previous, 0, 0, scale, kPurple);
-    button(renderer, state, {safe + 2 * pad + nav_w, footer_y, nav_w, footer_h},
-        ru(session) ? "СЛЕДУЮЩИЕ ▶" : "NEXT ▶", state.picker_page < max_page,
-        Action::picker_next, 0, 0, scale, kPurple);
+    if (max_page > 0) {
+        const int footer_y = height - footer_h - pad;
+        const int nav_w = (usable_width - 3 * pad) / 2;
+        button(renderer, state, {safe + pad, footer_y, nav_w, footer_h},
+            ru(session) ? "◀ ПРЕДЫДУЩИЕ" : "◀ PREVIOUS", state.picker_page > 0,
+            Action::picker_previous, 0, 0, scale, kPurple);
+        button(renderer, state,
+            {safe + 2 * pad + nav_w, footer_y, nav_w, footer_h},
+            ru(session) ? "СЛЕДУЮЩИЕ ▶" : "NEXT ▶", state.picker_page < max_page,
+            Action::picker_next, 0, 0, scale, kPurple);
+    }
 }
 
 void draw(SDL_Renderer* renderer, cd::Session& session, UiState& state,
