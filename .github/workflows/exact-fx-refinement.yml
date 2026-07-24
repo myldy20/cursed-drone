@@ -19,23 +19,40 @@ jobs:
           submodules: recursive
       - name: Apply exact FX screen
         run: python3 scripts/apply_exact_fx.py
-      - name: Validate exact FX product code
+      - name: Configure exact FX
         run: |
           git diff --check
-          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -qq
-            apt-get install -y -qq --no-install-recommends build-essential cmake pkg-config libsdl2-dev
-            cmake -S . -B build-exact-fx -DCMAKE_BUILD_TYPE=Release > /tmp/fx-config.log 2>&1 || { cat /tmp/fx-config.log; exit 1; }
-            cmake --build build-exact-fx --parallel 4 --target \
-              cursed-drone-tests \
-              cursed-drone-parameter-mapping-tests \
-              cursed-drone-android-ui-snapshots > /tmp/fx-build.log 2>&1 || { tail -n 220 /tmp/fx-build.log; exit 1; }
-            ctest --test-dir build-exact-fx --output-on-failure
-            mkdir -p dist/exact-fx
-            SDL_VIDEODRIVER=dummy build-exact-fx/cursed-drone-android-ui-snapshots dist/exact-fx
-            test -s dist/exact-fx/android-fx.bmp
-          '
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsdl2-dev
+          cmake -S . -B build-exact-fx -DCMAKE_BUILD_TYPE=Release > exact-fx-config.log 2>&1
+      - name: Compile exact FX
+        id: compile
+        continue-on-error: true
+        run: |
+          cmake --build build-exact-fx --parallel 2 --target \
+            cursed-drone-tests \
+            cursed-drone-parameter-mapping-tests \
+            cursed-drone-android-ui-snapshots > exact-fx-build.log 2>&1
+      - name: Upload exact FX diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-fx-compiler-diagnostics
+          path: |
+            exact-fx-config.log
+            exact-fx-build.log
+            android/app/src/main/cpp/approved_ui_fx_exact.inc
+            android/app/src/main/cpp/approved_ui_fx_memory.inc
+            android/app/src/main/cpp/android_approved_main.cpp
+      - name: Stop after compile failure
+        if: steps.compile.outcome == 'failure'
+        run: exit 1
+      - name: Test and render exact FX
+        run: |
+          ctest --test-dir build-exact-fx --output-on-failure
+          mkdir -p dist/exact-fx
+          SDL_VIDEODRIVER=dummy build-exact-fx/cursed-drone-android-ui-snapshots dist/exact-fx
+          test -s dist/exact-fx/android-fx.bmp
       - name: Commit validated exact FX files
         run: |
           git config user.name "github-actions[bot]"
