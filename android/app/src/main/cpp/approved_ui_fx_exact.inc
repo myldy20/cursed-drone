@@ -28,7 +28,7 @@ void x_fx_parameter_exact(SDL_Renderer* renderer, UiState& state, SDL_Rect rect,
     SDL_Rect track{rect.x + 218, rect.y + 12, rect.w - 226, 9};
     a_round_fill(renderer, track, 4, aTrack);
     a_text(renderer, track.x, rect.y + 28,
-        ru_dummy ? "НЕ ИСПОЛЬЗУЕТСЯ" : "NOT USED", aMutedCream, scale);
+        "NOT USED", aMutedCream, scale);
     a_hline(renderer, rect.x, rect.y + rect.h - 1, rect.w);
 }
 

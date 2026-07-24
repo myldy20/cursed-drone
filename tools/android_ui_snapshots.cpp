@@ -23,6 +23,7 @@ constexpr int kAndroidUiHeight = 672;
 #include "../android/app/src/main/cpp/approved_ui_actor.inc"
 #undef a_actor
 #include "../android/app/src/main/cpp/approved_ui_actor_exact.inc"
+#include "../android/app/src/main/cpp/approved_ui_fx_exact.inc"
 #include "../android/app/src/main/cpp/approved_ui_fx_memory.inc"
 } // namespace
 

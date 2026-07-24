@@ -50,30 +50,7 @@ void a_fx_card(SDL_Renderer* renderer, cd::Session& session, UiState& state,
 
 void a_fx(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const cd::AudioTelemetry& telemetry, SDL_Rect area, int scale) {
-    const int gap = 12;
-    const int side_w = area.w < 1'450 ? std::clamp(area.w / 5, 220, 270) : std::max(310, area.w / 6);
-    SDL_Rect side{area.x, area.y, side_w, area.h};
-    SDL_Rect main{area.x + side_w + gap, area.y,
-        area.w - side_w - gap, area.h};
-    a_actor_sidebar(renderer, session, state, telemetry, side, scale);
-    a_panel(renderer, main);
-    text(renderer, main.x + 18, main.y + 14,
-        (ru(session) ? "FX АКТЕРА " : "ACTOR FX ") +
-        std::to_string(state.actor + 1) + " - " +
-        engine_name(session.slots[static_cast<std::size_t>(state.actor)].engine,
-            ru(session)), kInk, scale);
-    const std::string chain = ru(session) ?
-        "СЕРИЙНАЯ ЦЕПЬ СВЕРХУ ВНИЗ" : "SERIAL CHAIN TOP TO BOTTOM";
-    text(renderer, main.x + main.w - 18 - cd::ui::text_width(chain,
-        std::max(1, scale - 1)), main.y + 16, chain, kDim,
-        std::max(1, scale - 1));
-    const int top = main.y + 50;
-    const int card_gap = 9;
-    const int card_h = (main.y + main.h - top - 12 - 3 * card_gap) / 4;
-    for (int i = 0; i < 4; ++i)
-        a_fx_card(renderer, session, state, {main.x + 12,
-            top + i * (card_h + card_gap), main.w - 24, card_h},
-            i, scale, false);
+    a_fx_exact(renderer, session, state, telemetry, area, scale);
 }
 
 void a_master(SDL_Renderer* renderer, cd::Session& session, UiState& state,

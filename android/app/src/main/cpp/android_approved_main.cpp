@@ -29,6 +29,7 @@ std::atomic<std::uint32_t> g_audio_deadline_misses{0U};
 #include "approved_ui_actor.inc"
 #undef a_actor
 #include "approved_ui_actor_exact.inc"
+#include "approved_ui_fx_exact.inc"
 #include "approved_ui_fx_memory.inc"
 
 void monitored_audio_callback(void* userdata, Uint8* bytes, int byte_count) {
