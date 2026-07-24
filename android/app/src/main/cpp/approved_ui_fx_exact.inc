@@ -37,7 +37,8 @@ void x_fx_compact_card_exact(SDL_Renderer* renderer, cd::Session& session,
     const auto& effect = session.slots[static_cast<std::size_t>(state.actor)]
         .effects[static_cast<std::size_t>(index)];
     const SDL_Color color = aActor[static_cast<std::size_t>(index)];
-    const bool active = effect.kind != cd::EffectKind::bypass;
+    const bool configured = effect.kind != cd::EffectKind::bypass;
+    const bool active = configured && effect.enabled;
     a_card(renderer, rect, aTop, active ? color : aBorderSoft, 8, false);
 
     a_text(renderer, rect.x + 13, rect.y + 13,
@@ -54,15 +55,18 @@ void x_fx_compact_card_exact(SDL_Renderer* renderer, cd::Session& session,
         active ? color : aBorderSoft, 7, false);
     a_centered_text(renderer, state_pill,
         active ? (ru(session) ? "АКТИВЕН" : "ACTIVE") :
-            (ru(session) ? "ПУСТО" : "EMPTY"),
+            (configured ? (ru(session) ? "ВЫКЛ" : "OFF") :
+                (ru(session) ? "ПУСТО" : "EMPTY")),
         active ? color : aMutedCream, scale);
+
+    add_hit(state, rect, Action::actor_fx_select, index);
+    if (configured) add_hit(state, state_pill, Action::actor_fx_toggle, index);
 
     const int meter_x = rect.x + rect.w - 310;
     a_text(renderer, meter_x, rect.y + 12,
         ru(session) ? "СМЕСЬ" : "MIX", aMutedCream, scale);
     a_meter(renderer, {meter_x + 72, rect.y + 17, 88, 7},
         active ? effect.amount : 0.0F, active ? color : aMutedCream);
-    add_hit(state, rect, Action::actor_fx_select, index);
 }
 
 void x_fx_expanded_card_exact(SDL_Renderer* renderer, cd::Session& session,
@@ -70,7 +74,8 @@ void x_fx_expanded_card_exact(SDL_Renderer* renderer, cd::Session& session,
     auto& effect = session.slots[static_cast<std::size_t>(state.actor)]
         .effects[static_cast<std::size_t>(index)];
     const SDL_Color color = aActor[static_cast<std::size_t>(index)];
-    const bool active = effect.kind != cd::EffectKind::bypass;
+    const bool configured = effect.kind != cd::EffectKind::bypass;
+    const bool active = configured && effect.enabled;
     const int parameter_count = effect_parameter_count(effect.kind);
     a_card(renderer, rect, aPanel2, color, 9, true);
 
@@ -88,8 +93,10 @@ void x_fx_expanded_card_exact(SDL_Renderer* renderer, cd::Session& session,
         active ? color : aBorderSoft, 7, false);
     a_centered_text(renderer, state_pill,
         active ? (ru(session) ? "АКТИВЕН" : "ACTIVE") :
-            (ru(session) ? "ОБХОД" : "BYPASS"),
+            (configured ? (ru(session) ? "ВЫКЛ" : "OFF") :
+                (ru(session) ? "ПУСТО" : "EMPTY")),
         active ? color : aMutedCream, scale);
+    if (configured) add_hit(state, state_pill, Action::actor_fx_toggle, index);
 
     SDL_Rect type_panel{rect.x + 14, rect.y + header_h,
         278, rect.h - header_h - 14};

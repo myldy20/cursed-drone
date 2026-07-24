@@ -44,9 +44,11 @@ void expect(bool condition, const char* message) {
     }
 }
 
-const HitTarget* find_action(const UiState& state, Action action) {
+const HitTarget* find_action(const UiState& state, Action action,
+    int argument = -9'999) {
     for (auto it = state.hits.rbegin(); it != state.hits.rend(); ++it) {
-        if (it->action == action) return &*it;
+        if (it->action == action &&
+            (argument == -9'999 || it->a == argument)) return &*it;
     }
     return nullptr;
 }
@@ -153,9 +155,17 @@ void test_ui_wiring(SDL_Renderer* renderer) {
     expect(g_ui_safe_side == 48,
         "Pixel landscape UI should reserve a symmetric safe side inset");
     for (const auto& hit : state.hits) {
-        expect(hit.rect.x >= g_ui_safe_side,
+        const bool left_safe = hit.rect.x >= g_ui_safe_side;
+        const bool right_safe = hit.rect.x + hit.rect.w <=
+            kAndroidUiWidth - g_ui_safe_side;
+        if (!left_safe || !right_safe) {
+            std::cerr << "unsafe Place hit action=" << static_cast<int>(hit.action)
+                      << " rect=" << hit.rect.x << ',' << hit.rect.y << ','
+                      << hit.rect.w << ',' << hit.rect.h << '\n';
+        }
+        expect(left_safe,
             "no Place control may enter the left cutout safe area");
-        expect(hit.rect.x + hit.rect.w <= kAndroidUiWidth - g_ui_safe_side,
+        expect(right_safe,
             "no Place control may enter the right cutout safe area");
     }
 
@@ -186,7 +196,8 @@ void test_ui_wiring(SDL_Renderer* renderer) {
     session.slots[0].effects[0] = {
         cd::EffectKind::delay, 0.25F, 0.45F, 0.30F, true};
     draw(renderer, session, state, Page::fx);
-    const HitTarget* actor_toggle = find_action(state, Action::actor_fx_toggle);
+    const HitTarget* actor_toggle = find_action(
+        state, Action::actor_fx_toggle, 0);
     expect(actor_toggle != nullptr, "Actor FX should expose a real enable toggle");
     if (actor_toggle != nullptr) {
         tap(session, state, *actor_toggle);
@@ -206,7 +217,8 @@ void test_ui_wiring(SDL_Renderer* renderer) {
     session.master_effects[0] = {
         cd::EffectKind::chorus, 0.30F, 0.50F, 0.20F, true};
     draw(renderer, session, state, Page::master);
-    const HitTarget* master_toggle = find_action(state, Action::master_fx_toggle);
+    const HitTarget* master_toggle = find_action(
+        state, Action::master_fx_toggle, 0);
     expect(master_toggle != nullptr, "Master FX should expose a real enable toggle");
     if (master_toggle != nullptr) {
         tap(session, state, *master_toggle);
@@ -226,9 +238,17 @@ void test_ui_wiring(SDL_Renderer* renderer) {
     state.picker_effect = 0;
     draw(renderer, session, state, Page::fx);
     for (const auto& hit : state.hits) {
-        expect(hit.rect.x >= g_ui_safe_side,
+        const bool left_safe = hit.rect.x >= g_ui_safe_side;
+        const bool right_safe = hit.rect.x + hit.rect.w <=
+            kAndroidUiWidth - g_ui_safe_side;
+        if (!left_safe || !right_safe) {
+            std::cerr << "unsafe picker hit action=" << static_cast<int>(hit.action)
+                      << " rect=" << hit.rect.x << ',' << hit.rect.y << ','
+                      << hit.rect.w << ',' << hit.rect.h << '\n';
+        }
+        expect(left_safe,
             "picker controls must respect the left cutout safe area");
-        expect(hit.rect.x + hit.rect.w <= kAndroidUiWidth - g_ui_safe_side,
+        expect(right_safe,
             "picker controls must respect the right cutout safe area");
     }
 }

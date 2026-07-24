@@ -179,13 +179,15 @@ void a_header(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const cd::AudioTelemetry& telemetry, float cpu, int width, int height,
     int scale, int& content_y) {
     (void)height;
+    const int safe = std::clamp(g_ui_safe_side, 0, width / 4);
+    const int usable_width = width - 2 * safe;
     fill(renderer, {0, 0, width, 118}, aTop);
-    text(renderer, 28, 18, "CURSED DRONE", aCream, scale + 1);
-    text(renderer, 230, 26,
+    text(renderer, safe + 28, 18, "CURSED DRONE", aCream, scale + 1);
+    text(renderer, safe + 230, 26,
         std::string{"V"} + CURSED_DRONE_VERSION + "  •  ANDROID CONCEPT",
         aMutedCream, std::max(1, scale - 1));
 
-    SDL_Rect fade{width - 406, 13, 165, 35};
+    SDL_Rect fade{safe + usable_width - 406, 13, 165, 35};
     a_card(renderer, fade, a_mix(aPanel2, kPurple, 0.15F),
         kPurple, 7, false);
     text(renderer, fade.x + 13, fade.y + 10,
@@ -195,7 +197,7 @@ void a_header(SDL_Renderer* renderer, cd::Session& session, UiState& state,
         fade.y + 10, fade_value, aGreen, scale);
     add_hit(state, fade, Action::fade);
 
-    const int dsp_x = width - 215;
+    const int dsp_x = safe + usable_width - 215;
     text(renderer, dsp_x, 18, "DSP", aMutedCream,
         std::max(1, scale - 1));
     const std::string cpu_text = std::to_string(
@@ -218,9 +220,9 @@ void a_header(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     const int gap = 7;
     const int nav_y = 66;
     const int nav_h = 42;
-    const int tab_w = (width - 2 * margin - 4 * gap) / 5;
+    const int tab_w = (usable_width - 2 * margin - 4 * gap) / 5;
     for (int i = 0; i < 5; ++i) {
-        SDL_Rect tab{margin + i * (tab_w + gap), nav_y, tab_w, nav_h};
+        SDL_Rect tab{safe + margin + i * (tab_w + gap), nav_y, tab_w, nav_h};
         const bool active = pages[static_cast<std::size_t>(i)] == state.page;
         a_card(renderer, tab, active ? aActive : aPanel,
             active ? aCream : aBorderSoft, 7, false);

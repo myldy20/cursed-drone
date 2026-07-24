@@ -44,7 +44,8 @@ void x_master_chain_card(SDL_Renderer* renderer, cd::Session& session,
     UiState& state, SDL_Rect rect, int index, int scale) {
     const auto& effect = session.master_effects[static_cast<std::size_t>(index)];
     const bool selected = state.master_fx == index;
-    const bool active = effect.kind != cd::EffectKind::bypass;
+    const bool configured = effect.kind != cd::EffectKind::bypass;
+    const bool active = configured && effect.enabled;
     const SDL_Color color = aActor[static_cast<std::size_t>(index)];
     a_card(renderer, rect, selected ? aPanel2 : aTop,
         selected ? color : (active ? color : aBorderSoft),
@@ -62,9 +63,11 @@ void x_master_chain_card(SDL_Renderer* renderer, cd::Session& session,
         active ? color : aBorderSoft, 7, false);
     a_centered_text(renderer, pill,
         active ? (ru(session) ? "АКТИВЕН" : "ACTIVE") :
-            (ru(session) ? "ПУСТО" : "EMPTY"),
+            (configured ? (ru(session) ? "ВЫКЛ" : "OFF") :
+                (ru(session) ? "ПУСТО" : "EMPTY")),
         active ? color : aMutedCream, scale);
     add_hit(state, rect, Action::master_fx_select, index);
+    if (configured) add_hit(state, pill, Action::master_fx_toggle, index);
 }
 
 void x_master_editor_exact(SDL_Renderer* renderer, cd::Session& session,
@@ -72,7 +75,8 @@ void x_master_editor_exact(SDL_Renderer* renderer, cd::Session& session,
     const int index = std::clamp(state.master_fx, 0, 3);
     auto& effect = session.master_effects[static_cast<std::size_t>(index)];
     const SDL_Color color = aActor[static_cast<std::size_t>(index)];
-    const bool active = effect.kind != cd::EffectKind::bypass;
+    const bool configured = effect.kind != cd::EffectKind::bypass;
+    const bool active = configured && effect.enabled;
     const int parameter_count = effect_parameter_count(effect.kind);
     a_card(renderer, rect, aPanel2, color, 9, true);
 
@@ -89,8 +93,10 @@ void x_master_editor_exact(SDL_Renderer* renderer, cd::Session& session,
         active ? color : aBorderSoft, 7, false);
     a_centered_text(renderer, state_pill,
         active ? (ru(session) ? "АКТИВЕН" : "ACTIVE") :
-            (ru(session) ? "ОБХОД" : "BYPASS"),
+            (configured ? (ru(session) ? "ВЫКЛ" : "OFF") :
+                (ru(session) ? "ПУСТО" : "EMPTY")),
         active ? color : aMutedCream, scale);
+    if (configured) add_hit(state, state_pill, Action::master_fx_toggle, index);
 
     const int header_h = 52;
     SDL_Rect type_panel{rect.x + 14, rect.y + header_h,

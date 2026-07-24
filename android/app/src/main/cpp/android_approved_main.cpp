@@ -145,6 +145,7 @@ extern "C" int SDL_main(int argc, char** argv) {
     refresh_memory_cache(state);
     bool running = true;
     bool changed = false;
+    bool audio_session_pending = false;
     bool save_pending = false;
     Uint32 changed_at = 0;
     Uint32 previous = SDL_GetTicks();
@@ -211,10 +212,16 @@ extern "C" int SDL_main(int argc, char** argv) {
             g_panic_requested = false;
         }
         if (changed) {
-            static_cast<void>(audio.graph.submit_session(session));
+            // Keep the newest state pending until the audio mailbox accepts it.
+            // This prevents the final value of a fast gesture or a later toggle
+            // from being silently lost when the bounded queue is temporarily full.
+            audio_session_pending = true;
             save_pending = true;
             changed_at = now;
             changed = false;
+        }
+        if (audio_session_pending && audio.graph.submit_session(session)) {
+            audio_session_pending = false;
         }
         if (save_pending && !g_autosave_path.empty() &&
             now - changed_at >= 750U) {

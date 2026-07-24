@@ -70,12 +70,16 @@ void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     int width, int height) {
     state.hits.clear();
     fill(renderer, {0, 0, width, height}, kBackground);
+    // Pixel 8 Pro landscape cutout: reserve the same space on both sides so
+    // rotation never moves controls underneath the camera.
+    g_ui_safe_side = width >= 1'200 && width > height ? 48 : 0;
     const int scale = font_scale_for(height);
     int content_y = 0;
     a_header(renderer, session, state, telemetry, cpu, width, height,
         scale, content_y);
     const int outer = a_compact_layout(width, height) ? 16 : 28;
-    SDL_Rect content{outer, content_y, width - 2 * outer,
+    const int side = g_ui_safe_side + outer;
+    SDL_Rect content{side, content_y, width - 2 * side,
         height - content_y - outer};
     switch (state.page) {
     case Page::place: a_place(renderer, session, state, telemetry, content, scale); break;
