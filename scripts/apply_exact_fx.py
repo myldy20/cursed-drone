@@ -12,18 +12,32 @@ source = source.replace(
 )
 exact.write_text(source, encoding="utf-8")
 
-include_needle = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_memory.inc"'
-include_replacement = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_exact.inc"\n#include "approved_ui_fx_memory.inc"'
+main = CPP / "android_approved_main.cpp"
+source = main.read_text(encoding="utf-8")
+main_needle = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_memory.inc"'
+main_replacement = '#include "approved_ui_actor_exact.inc"\n#include "approved_ui_fx_exact.inc"\n#include "approved_ui_fx_memory.inc"'
+if main_needle in source:
+    source = source.replace(main_needle, main_replacement, 1)
+elif '#include "approved_ui_fx_exact.inc"' not in source:
+    raise SystemExit("approved include order fragment not found in Android entry point")
+main.write_text(source, encoding="utf-8")
 
-for relative in ("android/app/src/main/cpp/android_approved_main.cpp",
-                 "tools/android_ui_snapshots.cpp"):
-    path = ROOT / relative
-    source = path.read_text(encoding="utf-8")
-    if include_needle in source:
-        source = source.replace(include_needle, include_replacement, 1)
-    elif '#include "approved_ui_fx_exact.inc"' not in source:
-        raise SystemExit(f"approved include order fragment not found in {relative}")
-    path.write_text(source, encoding="utf-8")
+snapshots = ROOT / "tools/android_ui_snapshots.cpp"
+source = snapshots.read_text(encoding="utf-8")
+snapshot_needle = (
+    '#include "../android/app/src/main/cpp/approved_ui_actor_exact.inc"\n'
+    '#include "../android/app/src/main/cpp/approved_ui_fx_memory.inc"'
+)
+snapshot_replacement = (
+    '#include "../android/app/src/main/cpp/approved_ui_actor_exact.inc"\n'
+    '#include "../android/app/src/main/cpp/approved_ui_fx_exact.inc"\n'
+    '#include "../android/app/src/main/cpp/approved_ui_fx_memory.inc"'
+)
+if snapshot_needle in source:
+    source = source.replace(snapshot_needle, snapshot_replacement, 1)
+elif 'approved_ui_fx_exact.inc' not in source:
+    raise SystemExit("approved include order fragment not found in snapshot runner")
+snapshots.write_text(source, encoding="utf-8")
 
 fx_memory = CPP / "approved_ui_fx_memory.inc"
 source = fx_memory.read_text(encoding="utf-8")
