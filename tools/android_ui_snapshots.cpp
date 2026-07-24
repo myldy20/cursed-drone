@@ -46,7 +46,9 @@ const char* page_filename(Page page) noexcept {
     return "android-unknown.bmp";
 }
 
-bool render_page(const std::filesystem::path& output_directory, Page page) {
+bool render_page(const std::filesystem::path& output_directory, Page page,
+    ActorSection actor_section = ActorSection::sound,
+    const char* filename_override = nullptr) {
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
         0, kPixel8ProLandscapeWidth, kPixel8ProLandscapeHeight, 32,
         SDL_PIXELFORMAT_ARGB8888);
@@ -78,6 +80,7 @@ bool render_page(const std::filesystem::path& output_directory, Page page) {
 
     UiState state{};
     state.page = page;
+    state.actor_section = actor_section;
     state.actor = 1;
     state.actor_fx = 0;
     state.master_fx = 0;
@@ -93,7 +96,8 @@ bool render_page(const std::filesystem::path& output_directory, Page page) {
     approved_draw(renderer, session, state, telemetry, 0.31F,
         kAndroidUiWidth, kAndroidUiHeight);
 
-    const std::filesystem::path output = output_directory / page_filename(page);
+    const std::filesystem::path output = output_directory /
+        (filename_override != nullptr ? filename_override : page_filename(page));
     const bool saved = SDL_SaveBMP(surface, output.string().c_str()) == 0;
     if (!saved) {
         std::cerr << "SDL_SaveBMP " << output << ": " << SDL_GetError() << '\n';
@@ -127,6 +131,10 @@ int main(int argc, char** argv) {
     for (Page page : pages) {
         success = render_page(output_directory, page) && success;
     }
+    success = render_page(output_directory, Page::actor,
+        ActorSection::events, "android-actor-events.bmp") && success;
+    success = render_page(output_directory, Page::actor,
+        ActorSection::modulation, "android-actor-modulation.bmp") && success;
     SDL_Quit();
     return success ? 0 : 1;
 }
