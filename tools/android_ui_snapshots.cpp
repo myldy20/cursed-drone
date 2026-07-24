@@ -79,13 +79,23 @@ bool render_page(const std::filesystem::path& output_directory, Page page,
     session.slots[2].level = 0.28F;
     session.slots[3].level = 0.37F;
     session.slots[3].enabled = false;
+    if (page == Page::master) {
+        session.master_effects[0] = {cd::EffectKind::lowpass,
+            0.32F, 0.61F, 0.0F};
+        session.master_effects[1] = {cd::EffectKind::delay,
+            0.38F, 0.47F, 0.24F};
+        session.master_effects[2] = {cd::EffectKind::black_hole,
+            0.18F, 0.55F, 0.31F};
+        session.master_effects[3] = {cd::EffectKind::bypass,
+            0.0F, 0.5F, 0.0F};
+    }
 
     UiState state{};
     state.page = page;
     state.actor_section = actor_section;
     state.actor = 1;
     state.actor_fx = 0;
-    state.master_fx = 0;
+    state.master_fx = page == Page::master ? 1 : 0;
     state.modulator = 0;
     for (std::size_t i = 0; i < state.memory_present.size(); ++i) {
         state.memory_present[i] = i == 0 || i == 3 || i == 6;
