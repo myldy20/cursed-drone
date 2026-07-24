@@ -44,6 +44,7 @@ jobs:
             android/app/src/main/cpp/approved_ui_fx_exact.inc
             android/app/src/main/cpp/approved_ui_fx_memory.inc
             android/app/src/main/cpp/android_approved_main.cpp
+            tools/android_ui_snapshots.cpp
       - name: Stop after compile failure
         if: steps.compile.outcome == 'failure'
         run: exit 1
@@ -60,7 +61,8 @@ jobs:
           git add \
             android/app/src/main/cpp/android_approved_main.cpp \
             android/app/src/main/cpp/approved_ui_fx_exact.inc \
-            android/app/src/main/cpp/approved_ui_fx_memory.inc
+            android/app/src/main/cpp/approved_ui_fx_memory.inc \
+            tools/android_ui_snapshots.cpp
           git commit -m "Implement approved Android FX screen"
           git push origin HEAD:agent/android-audio-ui-rebuild
       - uses: actions/upload-artifact@v4
