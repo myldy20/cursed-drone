@@ -20,19 +20,47 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
       - name: Apply tuning and picker fix
         run: python3 scripts/apply_tuning_and_picker_fix.py
-      - name: Validate tuning DSP and compact pickers
+      - name: Validate patch
+        run: git diff --check
+      - name: Configure
+        id: configure
+        continue-on-error: true
+        run: cmake -S . -B build-tuning -DCMAKE_BUILD_TYPE=Release > tuning-config.log 2>&1
+      - name: Build tuning targets
+        id: build
+        if: steps.configure.outcome == 'success'
+        continue-on-error: true
         run: |
-          git diff --check
-          cmake -S . -B build-tuning -DCMAKE_BUILD_TYPE=Release
           cmake --build build-tuning --parallel 2 --target \
             cursed-drone-tests \
             cursed-drone-parameter-mapping-tests \
             cursed-drone-android-ui-interaction-tests \
-            cursed-drone-android-ui-snapshots
-          ctest --test-dir build-tuning --output-on-failure
+            cursed-drone-android-ui-snapshots > tuning-build.log 2>&1
+      - name: Run tuning tests
+        id: tests
+        if: steps.configure.outcome == 'success' && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: ctest --test-dir build-tuning --output-on-failure > tuning-test.log 2>&1
+      - name: Render tuning snapshot
+        id: snapshots
+        if: steps.configure.outcome == 'success' && steps.build.outcome == 'success' && steps.tests.outcome == 'success'
+        continue-on-error: true
+        run: |
           mkdir -p dist/tuning-picker
-          SDL_VIDEODRIVER=dummy build-tuning/cursed-drone-android-ui-snapshots dist/tuning-picker
+          SDL_VIDEODRIVER=dummy build-tuning/cursed-drone-android-ui-snapshots dist/tuning-picker > tuning-snapshot.log 2>&1
           test -s dist/tuning-picker/android-actor-sound.bmp
+      - name: Show diagnostics
+        if: always()
+        run: |
+          for log in tuning-config.log tuning-build.log tuning-test.log tuning-snapshot.log; do
+            if test -f "$log"; then
+              echo "===== $log ====="
+              tail -n 220 "$log"
+            fi
+          done
+      - name: Stop after validation failure
+        if: steps.configure.outcome != 'success' || steps.build.outcome != 'success' || steps.tests.outcome != 'success' || steps.snapshots.outcome != 'success'
+        run: exit 1
       - name: Commit validated product files
         run: |
           git config user.name "github-actions[bot]"
