@@ -24,13 +24,13 @@ jobs:
           git diff --check
           docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
             export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev
-            cmake -S . -B build-exact-fx -DCMAKE_BUILD_TYPE=Release
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends build-essential cmake pkg-config libsdl2-dev
+            cmake -S . -B build-exact-fx -DCMAKE_BUILD_TYPE=Release > /tmp/fx-config.log 2>&1 || { cat /tmp/fx-config.log; exit 1; }
             cmake --build build-exact-fx --parallel 4 --target \
               cursed-drone-tests \
               cursed-drone-parameter-mapping-tests \
-              cursed-drone-android-ui-snapshots
+              cursed-drone-android-ui-snapshots > /tmp/fx-build.log 2>&1 || { tail -n 220 /tmp/fx-build.log; exit 1; }
             ctest --test-dir build-exact-fx --output-on-failure
             mkdir -p dist/exact-fx
             SDL_VIDEODRIVER=dummy build-exact-fx/cursed-drone-android-ui-snapshots dist/exact-fx
