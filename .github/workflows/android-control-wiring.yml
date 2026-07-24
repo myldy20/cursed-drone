@@ -1,0 +1,62 @@
+name: android-control-wiring
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  controls:
+    if: github.head_ref == 'agent/android-audio-ui-rebuild'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/android-audio-ui-rebuild
+          fetch-depth: 0
+          submodules: recursive
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
+      - name: Apply safe area and control wiring fixes
+        run: |
+          python3 scripts/apply_android_control_fixes.py
+          python3 scripts/finalize_android_control_tests.py
+      - name: Validate controls, persistence and DSP
+        run: |
+          git diff --check
+          cmake -S . -B build-controls -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-controls --parallel 2 --target \
+            cursed-drone-tests \
+            cursed-drone-parameter-mapping-tests \
+            cursed-drone-android-ui-interaction-tests \
+            cursed-drone-android-ui-snapshots
+          ctest --test-dir build-controls --output-on-failure
+          mkdir -p dist/android-controls
+          SDL_VIDEODRIVER=dummy build-controls/cursed-drone-android-ui-snapshots dist/android-controls
+          test -s dist/android-controls/android-place.bmp
+          test -s dist/android-controls/android-actor-modulation.bmp
+          test -s dist/android-controls/android-fx.bmp
+          test -s dist/android-controls/android-master.bmp
+      - name: Commit validated product files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            CMakeLists.txt \
+            include/cursed_drone/session.hpp \
+            src/session.cpp \
+            src/audio.cpp \
+            tests/test_main.cpp \
+            android/app/src/main/cpp/android_touch_main.cpp \
+            android/app/src/main/cpp/android_approved_main.cpp \
+            android/app/src/main/cpp/approved_ui_primitives.inc \
+            android/app/src/main/cpp/approved_ui_fx_memory.inc \
+            android/app/src/main/cpp/approved_ui_fx_exact.inc \
+            android/app/src/main/cpp/approved_ui_master_exact.inc
+          git commit -m "Fix Android safe area and wire modulation and FX controls"
+          git push origin HEAD:agent/android-audio-ui-rebuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-control-wiring-snapshots
+          path: dist/android-controls
