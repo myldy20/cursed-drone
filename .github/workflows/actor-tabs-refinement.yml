@@ -44,8 +44,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             android/app/src/main/cpp/approved_ui_actor_exact.inc \
-            tools/android_ui_snapshots.cpp \
-            .github/workflows/build.yml
+            tools/android_ui_snapshots.cpp
           git commit -m "Refine Actor layout and redesign Events and Modulation"
           git push origin HEAD:agent/android-audio-ui-rebuild
       - uses: actions/upload-artifact@v4
