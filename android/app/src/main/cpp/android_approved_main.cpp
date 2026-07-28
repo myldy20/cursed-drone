@@ -79,10 +79,15 @@ extern "C" int SDL_main(int argc, char** argv) {
         return 1;
     }
     prepare_storage();
+    Uint32 window_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
+#ifdef CURSED_DRONE_WEB
+    window_flags |= SDL_WINDOW_RESIZABLE;
+#else
+    window_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+#endif
     SDL_Window* window = SDL_CreateWindow("Cursed Drone",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1280, 720,
-        SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP |
-        SDL_WINDOW_ALLOW_HIGHDPI);
+        window_flags);
     SDL_Renderer* renderer = window != nullptr ? SDL_CreateRenderer(window, -1,
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC) : nullptr;
     if (renderer == nullptr && window != nullptr)
@@ -107,8 +112,17 @@ extern "C" int SDL_main(int argc, char** argv) {
 
     const int native_rate = parse_argument(argc, argv,
         "--android-audio-rate=", 48'000);
+#ifdef CURSED_DRONE_WEB
+    const int burst = parse_argument(argc, argv,
+        "--android-audio-burst=", 1'024);
+    constexpr int minimum_callback_frames = 2'048;
+    constexpr int maximum_callback_frames = 4'096;
+#else
     const int burst = parse_argument(argc, argv,
         "--android-audio-burst=", 256);
+    constexpr int minimum_callback_frames = 512;
+    constexpr int maximum_callback_frames = 2'048;
+#endif
     AudioBridge audio{};
     SDL_AudioSpec desired{};
     SDL_AudioSpec obtained{};
@@ -116,7 +130,8 @@ extern "C" int SDL_main(int argc, char** argv) {
     desired.format = AUDIO_F32SYS;
     desired.channels = 2;
     desired.samples = static_cast<Uint16>(std::clamp(
-        next_power_of_two(std::max(512, burst * 3)), 512, 2048));
+        next_power_of_two(std::max(minimum_callback_frames, burst * 3)),
+        minimum_callback_frames, maximum_callback_frames));
     desired.callback = monitored_audio_callback;
     desired.userdata = &audio;
     const SDL_AudioDeviceID device = SDL_OpenAudioDevice(nullptr, 0,
@@ -230,6 +245,7 @@ extern "C" int SDL_main(int argc, char** argv) {
                 save_pending = false;
             else changed_at = now;
         }
+#ifndef CURSED_DRONE_WEB
         if (now - last_audio_report >= 2'000U) {
             const auto misses = g_audio_deadline_misses.load(
                 std::memory_order_relaxed);
@@ -242,10 +258,18 @@ extern "C" int SDL_main(int argc, char** argv) {
             previous_deadline_misses = misses;
             last_audio_report = now;
         }
+#else
+        static_cast<void>(last_audio_report);
+        static_cast<void>(previous_deadline_misses);
+#endif
         approved_draw(renderer, session, state, audio.graph.telemetry(),
             audio.cpu_load.load(std::memory_order_relaxed),
             kAndroidUiWidth, kAndroidUiHeight);
+#ifdef CURSED_DRONE_WEB
+        SDL_Delay(16);
+#else
         SDL_Delay(1);
+#endif
     }
     if (save_pending && !g_autosave_path.empty()) {
         std::string error;
