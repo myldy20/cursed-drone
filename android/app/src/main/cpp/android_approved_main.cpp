@@ -54,21 +54,16 @@ void monitored_audio_callback(void* userdata, Uint8* bytes, int byte_count) {
     }
 }
 
-void logical_touch_position(SDL_Renderer* renderer, SDL_Window* window,
+void logical_touch_position(SDL_Renderer*, SDL_Window*,
     float normalized_x, float normalized_y, int& x, int& y) {
-    int window_width = 1;
-    int window_height = 1;
-    SDL_GetWindowSize(window, &window_width, &window_height);
-    const int window_x = static_cast<int>(std::lround(
-        normalized_x * static_cast<float>(window_width)));
-    const int window_y = static_cast<int>(std::lround(
-        normalized_y * static_cast<float>(window_height)));
-    float logical_x = 0.0F;
-    float logical_y = 0.0F;
-    SDL_RenderWindowToLogical(renderer, window_x, window_y,
-        &logical_x, &logical_y);
-    x = static_cast<int>(std::lround(logical_x));
-    y = static_cast<int>(std::lround(logical_y));
+    // SDL_RenderSetLogicalSize installs an event watcher that has already
+    // remapped SDL_FINGER* coordinates from the window/letterbox into the
+    // logical viewport. Applying SDL_RenderWindowToLogical here again shifts
+    // desktop mouse clicks vertically whenever the canvas is letterboxed.
+    x = static_cast<int>(std::lround(std::clamp(normalized_x, 0.0F, 1.0F) *
+        static_cast<float>(kAndroidUiWidth)));
+    y = static_cast<int>(std::lround(std::clamp(normalized_y, 0.0F, 1.0F) *
+        static_cast<float>(kAndroidUiHeight)));
 }
 
 } // namespace
