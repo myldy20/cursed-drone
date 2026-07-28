@@ -234,6 +234,26 @@ else()
                     set_tests_properties(cursed-drone-android-ui-interaction-tests
                         PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
                 endif()
+
+                add_executable(cursed-drone-android-ui-hit-tests
+                    tools/android_ui_hit_tests.cpp
+                    src/bitmap_text.cpp)
+                target_include_directories(cursed-drone-android-ui-hit-tests
+                    PRIVATE src include)
+                target_compile_features(cursed-drone-android-ui-hit-tests
+                    PRIVATE cxx_std_20)
+                target_compile_definitions(cursed-drone-android-ui-hit-tests
+                    PRIVATE CURSED_DRONE_VERSION="${PROJECT_VERSION}")
+                target_compile_options(cursed-drone-android-ui-hit-tests
+                    PRIVATE -Wall -Wextra -Wpedantic)
+                target_link_libraries(cursed-drone-android-ui-hit-tests
+                    PRIVATE cursed_drone_core ${CURSED_DRONE_SDL_TARGET})
+                if(CURSED_DRONE_BUILD_TESTS)
+                    add_test(NAME cursed-drone-android-ui-hit-tests
+                        COMMAND cursed-drone-android-ui-hit-tests)
+                    set_tests_properties(cursed-drone-android-ui-hit-tests
+                        PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+                endif()
             endif()
         else()
             message(WARNING "SDL2 was not found; cursed-drone-sdl and cursed-drone-probe will not be built")
