@@ -148,10 +148,19 @@ void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     SDL_RenderPresent(renderer);
 }
 
+bool actor_card_level_hit(const HitTarget& hit) noexcept {
+    // Sidebar and Place actor cards are intentionally compact. The wide LEVEL
+    // row in the Actor editor edits the already selected actor and must never
+    // reinterpret its default argument as actor 1.
+    constexpr int kActorCardLevelMaximumWidth = 400;
+    return hit.action == Action::slider &&
+        hit.slider == SliderKind::actor_level && hit.a >= 0 && hit.a < 4 &&
+        hit.rect.w <= kActorCardLevelMaximumWidth;
+}
+
 bool approved_press(cd::Session& session, UiState& state, HitTarget hit,
     int x) {
-    if (hit.action == Action::slider && hit.slider == SliderKind::actor_level &&
-        hit.a >= 0 && hit.a < 4) state.actor = hit.a;
+    if (actor_card_level_hit(hit)) state.actor = hit.a;
     return handle_press(session, state, hit, x);
 }
 
