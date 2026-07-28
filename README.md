@@ -2,7 +2,7 @@
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml/badge.svg" alt="web build"></a>
-<img src="https://img.shields.io/badge/version-0.13.1-eee2c5" alt="version 0.13.1">
+<img src="https://img.shields.io/badge/version-0.14.0-eee2c5" alt="version 0.14.0">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
 <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
@@ -10,27 +10,27 @@
 
 # Cursed Drone
 
-**Cursed Drone is a handheld live soundscape instrument.** It does not merely generate a pure drone: it creates the atmosphere of a place, populated by four procedural actors and evolving events.
+**Cursed Drone is a handheld and browser-based live soundscape instrument.** It does not merely generate a pure drone: it creates the atmosphere of a place, populated by four procedural actors and evolving events.
 
-> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**. Packages are firmware-specific and not interchangeable. The Android build is a public sideload preview.
+> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**, and on **Pixel 8 Pro** for Android. Packages are platform-specific and not interchangeable. The Android APK remains a public sideload preview.
 
-## Download and install
+## Launch, download and install
 
-**[Launch the WebAssembly version](https://myldy20.github.io/cursed-drone/)** · **[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.13.1 release notes](docs/releases/v0.13.1.md)
+**[Launch the WebAssembly version](https://myldy20.github.io/cursed-drone/)** · **[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.14.0 release notes](docs/releases/v0.14.0.md)
 
-- Web: open the link above in a modern WebAssembly/Web Audio browser and press the launch button;
-- Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
-- NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
-- Android ARM64 public preview: [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
+- **Web:** open the link above in a modern WebAssembly/Web Audio browser and press the launch button. Mouse, drag gestures and touch are supported;
+- **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
+- **NextUI:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
+- **Android ARM64 public preview:** [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
 
-The browser build stores autosave and the eight memory slots locally in IndexedDB. Audio starts only after an explicit press because browsers block automatic Web Audio playback.
+The browser build stores autosave and the eight memory slots locally in IndexedDB. Audio starts only after an explicit press because browsers block automatic Web Audio playback. Android and Web share the same adaptive fullscreen interface; the controller-first 512×384 UI remains dedicated to TrimUI and desktop SDL builds.
 
-## Guided Workflow
+## Guided workflow
 
 `PLACE → ACTOR → FX → MASTER → MEMORY`
 
 - **Place:** ten landscape recipes, five performance macros and four actor levels/mutes.
-- **Actor:** landscape engines or the **Musical** source with 16 curated upstream macro models, MAIN/AUX/MIX/STEREO routing and Scala tuning. Event actors can be triggered immediately and have their own Event Rate.
+- **Actor:** landscape engines or the **Musical** source with 16 curated macro models, MAIN/AUX/MIX/STEREO routing and Scala tuning. Event actors can be triggered immediately and have their own Event Rate.
 - **FX:** four serial effects per actor, edited in one unified slot view.
 - **Master:** level, tempo and four post-mix effects for long tails and transitions.
 - **Memory:** autosave plus eight explicit user slots and landscape restore.
@@ -40,21 +40,21 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 ## Features
 
 - four procedural actors and ten places;
-- 34 engines, including Sub Drone, Tape Drone, Bowed Metal, Earth Rumble and the neutral **Musical** actor;
+- 34 engines, including Sub Drone, Tape Drone, Bowed Metal, Earth Rumble and the **Musical** macro-oscillator source;
 - four modulation rows per actor, bipolar depth and bounded rate cross-modulation;
 - manual triggering and visible activity flashes for event actors;
 - per-actor Event Rate plus the global Events macro;
 - Euclidean event generation;
 - built-in and user Scala `.scl` tuning;
 - 21 effects including Reverse Grains and five compound drone/ambient processors;
-- four actor FX plus four Master FX;
-- eight memories, autosave, English/Russian UI;
+- four Actor FX plus four Master FX;
+- eight memories, autosave and English/Russian UI;
 - controller-first SDL UI at 512×384 for handheld and desktop builds;
-- one adaptive fullscreen touch UI shared by Android and the WebAssembly browser build;
+- one adaptive fullscreen interface shared by Android and WebAssembly;
 - one version file, root CMake graph and CI pipeline for every supported platform;
 - no recorded samples.
 
-## Controls
+## Controls on TrimUI / desktop SDL
 
 | Button | Meaning |
 | --- | --- |
@@ -70,8 +70,9 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 
 ## Runtime data
 
-Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: browser IndexedDB.
-They contain `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl` where the platform supports importing files.
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: browser IndexedDB · Android: private app storage.
+
+Runtime data includes `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl` where the platform supports importing files.
 
 ## Build
 
@@ -89,17 +90,19 @@ emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-web --target cursed-drone-web --parallel 2
 ```
 
-CI tests Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI, an installable Android preview APK and the static browser bundle from the same core sources. A successful versioned merge to `main` publishes consistent release packages and checksums.
+CI tests Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI, an installable Android preview APK and the static browser bundle from the same core sources. A successful merge with a new `VERSION` publishes consistent release packages and checksums; every push to `main` republishes GitHub Pages.
 
-## Performance release
+## 0.14 release and performance baseline
 
-Version 0.13.1 moves slowly changing event, modal and effect coefficients to control rate, uses interpolated equal-power pan tables and completely suspends muted actors. On the reproducible x86 benchmark used during development, the default Derelict scene rendered about 20% faster and the 20× Black Hole stress case about 70% faster than 0.12.3. These figures are comparative desktop measurements; real TrimUI Brick load still depends on firmware, clock and selected scene.
+Version 0.14.0 adds the public WebAssembly target, browser persistence, fullscreen/localisation handling, restored Musical controls and verified mouse/touch alignment across Retina and letterboxed desktop layouts.
+
+The 0.13.1 realtime optimisation baseline remains intact: slowly changing event, modal and effect coefficients run at control rate, equal-power pan uses interpolated tables and muted actors are suspended completely. On the reproducible x86 benchmark used during development, the default Derelict scene rendered about 20% faster and the 20× Black Hole stress case about 70% faster than 0.12.3. These figures are comparative desktop measurements; real TrimUI Brick load depends on firmware, clock and selected scene.
 
 Run the benchmark locally with `make benchmark` or `build/cursed-drone-benchmark 5`.
 
 ## Documentation
 
-- [Release notes](docs/releases/v0.13.1.md)
+- [Changelog](CHANGELOG.md) · [0.14.0 release notes](docs/releases/v0.14.0.md)
 - [Workflow](docs/workflow.en.md) · [Сквозная логика](docs/workflow.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
@@ -109,33 +112,35 @@ Run the benchmark locally with `make benchmark` or `build/cursed-drone-benchmark
 
 ## Credits and licence
 
-Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-party code is GPL-3.0-or-later with the narrowly scoped attribution, origin-marking and trademark terms in [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md). Modified distributions must preserve [NOTICE.md](NOTICE.md) and identify themselves as based on Cursed Drone and unofficial. Bundled third-party code retains its own licences; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-party code is GPL-3.0-or-later with the narrowly scoped attribution, origin-marking and trademark terms in [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md). Modified distributions must preserve [NOTICE.md](NOTICE.md) and identify themselves as based on Cursed Drone and unofficial.
+
+The Musical source compiles selected MIT-licensed DSP from Mutable Instruments Plaits. Copyright and permission notices are retained in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `third_party/PLAITS_LICENSE.txt`. Cursed Drone is an independent product and is not affiliated with or endorsed by Mutable Instruments or Emilie Gillet.
 
 ---
 
 # Русский
 
-**Проклятый гудёж — карманный инструмент живых звуковых пространств.** Он не просто выдаёт чистый дрон, а создаёт атмосферу места, населённого четырьмя процедурными актёрами и развивающимися событиями.
+**Проклятый гудёж — карманный и браузерный инструмент живых звуковых пространств.** Он не просто выдаёт чистый дрон, а создаёт атмосферу места, населённого четырьмя процедурными актёрами и развивающимися событиями.
 
-> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**. Пакеты для разных прошивок не взаимозаменяемы. Android-сборка пока распространяется как публичная preview-версия для ручной установки.
+> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**, а Android-версия — на **Pixel 8 Pro**. Пакеты для разных платформ не взаимозаменяемы. Android-сборка распространяется как публичная preview-версия для ручной установки.
 
-## Скачать и установить
+## Запустить, скачать и установить
 
-**[Запустить веб-версию](https://myldy20.github.io/cursed-drone/)** · **[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.13.1](docs/releases/v0.13.1.md)
+**[Запустить веб-версию](https://myldy20.github.io/cursed-drone/)** · **[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.14.0](docs/releases/v0.14.0.md)
 
-- Web: открыть ссылку выше в современном браузере с WebAssembly/Web Audio и нажать кнопку запуска;
-- Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
-- NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
-- Android ARM64 preview: [русская инструкция](docs/install.android.ru.md) · [English](docs/install.android.en.md)
+- **Web:** открыть ссылку выше в современном браузере с WebAssembly/Web Audio и нажать кнопку запуска. Работают мышь, drag-жесты и тач;
+- **Knulli / PortMaster:** [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
+- **NextUI:** [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
+- **Android ARM64 preview:** [русская инструкция](docs/install.android.ru.md) · [English](docs/install.android.en.md)
 
-Веб-версия хранит autosave и восемь слотов памяти локально в IndexedDB браузера. Звук запускается только после явного нажатия: браузеры запрещают автоматический запуск Web Audio.
+Веб-версия хранит autosave и восемь слотов памяти локально в IndexedDB браузера. Звук запускается только после явного нажатия: браузеры запрещают автоматический запуск Web Audio. Android и Web используют один адаптивный полноэкранный интерфейс; для TrimUI и desktop SDL остаётся отдельный кнопочный UI 512×384.
 
 ## Сквозная логика
 
 `МЕСТО → АКТЁР → FX → МАСТЕР → ПАМЯТЬ`
 
 - **Место:** десять ландшафтов, пять исполнительских макросов, уровни и mute четырёх актёров.
-- **Актёр:** движки ландшафта или **Музыкальный** источник с 16 моделями, MAIN/AUX/MIX/STEREO и Scala-строями. Событийного актёра можно запустить сразу и отдельно настроить частоту событий.
+- **Актёр:** движки ландшафта или источник **Музыкальный** с 16 макромоделями, MAIN/AUX/MIX/STEREO и Scala-строями. Событийного актёра можно запустить сразу и отдельно настроить частоту событий.
 - **FX:** четыре последовательных эффекта актёра в едином редакторе.
 - **Мастер:** уровень, темп и четыре эффекта после сведения.
 - **Память:** autosave, восемь явных слотов и восстановление рецепта ландшафта.
@@ -145,37 +150,28 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 ## Возможности
 
 - четыре процедурных актёра и десять мест;
-- 34 движка, включая саб-дрон, ленточный дрон, смычковый металл, гул земли и нейтрально названный **Музыкальный** источник;
+- 34 движка, включая саб-дрон, ленточный дрон, смычковый металл, гул земли и источник **Музыкальный**;
 - четыре строки модуляции на актёра, биполярная глубина и ограниченная cross-modulation скорости;
 - ручной запуск и видимая вспышка событийных актёров;
 - отдельная частота событий актёра плюс глобальный макрос «События»;
 - Euclidean-события;
 - встроенные и пользовательские Scala-файлы `.scl`;
 - 21 эффект, включая Reverse Grains и пять составных процессоров;
-- четыре actor FX и четыре Master FX;
+- четыре Actor FX и четыре Master FX;
 - восемь слотов памяти, autosave, русский и английский интерфейс;
-- отдельный кнопочный SDL-интерфейс 512×384 для приставки и desktop;
-- единый адаптивный полноэкранный touch-интерфейс для Android и браузерной WebAssembly-версии;
+- кнопочный SDL-интерфейс 512×384 для приставки и desktop;
+- единый адаптивный полноэкранный интерфейс для Android и браузерной WebAssembly-версии;
 - единая версия, корневой CMake и CI для всех платформ;
 - никаких записанных семплов.
 
-## Управление
-
-| Кнопка | Значение |
-| --- | --- |
-| D-pad | навигация и изменение значения; удержание ускоряет шаг |
-| A | открыть, подтвердить, выполнить действие или заглушить актёра |
-| B | назад/отмена; удержание — аварийный Kill |
-| X | следующий раздел текущей страницы |
-| Y | контекстная помощь |
-| L / R | предыдущая / следующая страница |
-| Select | fade итогового выхода |
-| Start | быстрое меню |
-| Start + Select | сохранить состояние и выйти |
-
 ## Данные
 
-Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: IndexedDB браузера.
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: IndexedDB браузера · Android: приватные данные приложения.
+
 Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`, если платформа поддерживает импорт файлов.
 
-Разработано **Myldy design — [@myldy20](https://github.com/myldy20)**. Собственный код проекта распространяется по GPL-3.0-or-later с узкими дополнительными условиями об атрибуции, обозначении происхождения и брендинге в [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md). Производные версии должны сохранять [NOTICE.md](NOTICE.md), указывать основу Cursed Drone и явно обозначаться как неофициальные. Лицензии сторонних компонентов перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Лицензия и Plaits
+
+Разработано **Myldy design — [@myldy20](https://github.com/myldy20)**. Собственный код проекта распространяется по GPL-3.0-or-later с узкими дополнительными условиями об атрибуции, обозначении происхождения и брендинге в [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md). Производные версии должны сохранять [NOTICE.md](NOTICE.md), указывать основу Cursed Drone и явно обозначаться как неофициальные.
+
+Источник «Музыкальный» использует выбранные части DSP Mutable Instruments Plaits по лицензии MIT. Авторские уведомления и текст лицензии сохранены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) и `third_party/PLAITS_LICENSE.txt`. Cursed Drone — самостоятельный продукт, не связанный с Mutable Instruments и не одобренный Mutable Instruments или Эмили Жилле.
