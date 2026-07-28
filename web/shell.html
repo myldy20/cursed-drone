@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#08070c">
+  <meta name="description" content="Cursed Drone — procedural dark ambient instrument by Myldy Design">
+  <title>Cursed Drone</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #08070c; color: #eee2c5; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; background: #08070c; }
+    body { display: grid; place-items: center; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #canvas { display: block; width: 100%; height: 100%; border: 0; outline: 0; image-rendering: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    #gate { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 35%, rgba(117, 67, 171, .23), transparent 42%), #08070c; transition: opacity 180ms ease; }
+    #gate.hidden { pointer-events: none; opacity: 0; }
+    .gate-card { width: min(520px, 100%); padding: 28px; border: 1px solid #544860; background: rgba(24, 20, 32, .96); box-shadow: 0 24px 80px rgba(0, 0, 0, .45); text-align: center; }
+    .mark { margin: 0 0 10px; font-size: clamp(26px, 7vw, 52px); letter-spacing: .09em; line-height: 1; }
+    .tagline { margin: 0 0 24px; color: #978f9e; line-height: 1.45; }
+    #start { width: 100%; min-height: 58px; border: 1px solid #75dab3; background: #432b5b; color: #eee2c5; font: inherit; font-weight: 700; letter-spacing: .06em; cursor: pointer; }
+    #start:disabled { border-color: #544860; color: #978f9e; cursor: wait; }
+    #status { min-height: 1.4em; margin: 14px 0 0; color: #978f9e; font-size: 12px; }
+    #fatal { position: fixed; inset: auto 12px 12px; z-index: 20; display: none; padding: 12px 14px; border: 1px solid #e14d60; background: #181420; color: #eee2c5; white-space: pre-wrap; }
+    @media (orientation: portrait) and (max-width: 720px) {
+      .gate-card { padding: 22px; }
+      .tagline::after { content: " Поверни телефон горизонтально — так интерфейсу просторнее."; color: #75dab3; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  <div id="gate"><div class="gate-card">
+    <h1 class="mark">CURSED DRONE</h1>
+    <p class="tagline">Тот же движок и touch-интерфейс, теперь прямо в браузере.</p>
+    <button id="start" type="button" disabled>ЗАГРУЗКА...</button>
+    <p id="status">Подготавливаю WebAssembly и память инструмента</p>
+  </div></div>
+  <pre id="fatal"></pre>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const gate = document.getElementById('gate');
+    const startButton = document.getElementById('start');
+    const statusNode = document.getElementById('status');
+    const fatalNode = document.getElementById('fatal');
+    const storageRoot = '/home/web_user/.local/share/myldy20/cursed-drone';
+    let runtimeReady = false;
+    let storageReady = false;
+    let started = false;
+    let syncTimer = 0;
+
+    function setStatus(message) { statusNode.textContent = message || ''; }
+    function showFatal(message) {
+      fatalNode.style.display = 'block';
+      fatalNode.textContent = String(message || 'Неизвестная ошибка запуска');
+      gate.classList.remove('hidden');
+      startButton.disabled = true;
+      startButton.textContent = 'ОШИБКА ЗАПУСКА';
+    }
+    function resizeCanvas() {
+      const viewport = window.visualViewport;
+      const cssWidth = Math.max(320, Math.floor(viewport ? viewport.width : window.innerWidth));
+      const cssHeight = Math.max(240, Math.floor(viewport ? viewport.height : window.innerHeight));
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelWidth = Math.floor(cssWidth * pixelRatio);
+      const pixelHeight = Math.floor(cssHeight * pixelRatio);
+      canvas.style.width = cssWidth + 'px';
+      canvas.style.height = cssHeight + 'px';
+      if (typeof Module !== 'undefined' && typeof Module.setCanvasSize === 'function') Module.setCanvasSize(pixelWidth, pixelHeight, false);
+      else { canvas.width = pixelWidth; canvas.height = pixelHeight; }
+    }
+    function enableStart() {
+      if (!runtimeReady || !storageReady || started) return;
+      startButton.disabled = false;
+      startButton.textContent = 'ЗАПУСТИТЬ ГУДЕЖ';
+      setStatus('Звук включится после нажатия');
+    }
+    function syncStorage(populate, done) {
+      try {
+        FS.syncfs(populate, (error) => {
+          if (error) console.warn('Cursed Drone storage sync:', error);
+          if (done) done(error);
+        });
+      } catch (error) {
+        console.warn('Cursed Drone storage unavailable:', error);
+        if (done) done(error);
+      }
+    }
+    function mountStorage() {
+      try {
+        FS.mkdirTree(storageRoot);
+        FS.mount(IDBFS, {}, storageRoot);
+        syncStorage(true, () => { storageReady = true; enableStart(); });
+      } catch (error) {
+        console.warn('IndexedDB mount failed; using temporary memory:', error);
+        storageReady = true;
+        enableStart();
+      }
+    }
+    function beginPersistentSync() {
+      syncTimer = window.setInterval(() => syncStorage(false), 2500);
+      window.addEventListener('pagehide', () => syncStorage(false), { capture: true });
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') syncStorage(false);
+      });
+    }
+    startButton.addEventListener('click', () => {
+      if (!runtimeReady || !storageReady || started) return;
+      started = true;
+      startButton.disabled = true;
+      setStatus('Запускаю аудиодвижок...');
+      resizeCanvas();
+      beginPersistentSync();
+      gate.classList.add('hidden');
+      try {
+        Module.callMain([]);
+        window.setTimeout(resizeCanvas, 0);
+      } catch (error) {
+        window.clearInterval(syncTimer);
+        showFatal(error && error.stack ? error.stack : error);
+      }
+    });
+    window.addEventListener('resize', resizeCanvas, { passive: true });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas, { passive: true });
+    resizeCanvas();
+
+    var Module = {
+      canvas,
+      noInitialRun: true,
+      print: (...args) => console.log(...args),
+      printErr: (...args) => console.error(...args),
+      setStatus,
+      onRuntimeInitialized() {
+        runtimeReady = true;
+        setStatus('Загружаю сохранённые настройки...');
+        mountStorage();
+      },
+      onAbort(reason) { showFatal(reason); }
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

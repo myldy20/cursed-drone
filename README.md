@@ -1,6 +1,7 @@
 <p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
+<a href="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml/badge.svg" alt="web build"></a>
 <img src="https://img.shields.io/badge/version-0.13.1-eee2c5" alt="version 0.13.1">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
@@ -15,11 +16,14 @@
 
 ## Download and install
 
-**[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.13.1 release notes](docs/releases/v0.13.1.md)
+**[Launch the WebAssembly version](https://myldy20.github.io/cursed-drone/)** · **[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.13.1 release notes](docs/releases/v0.13.1.md)
 
+- Web: open the link above in a modern WebAssembly/Web Audio browser and press the launch button;
 - Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
 - Android ARM64 public preview: [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
+
+The browser build stores autosave and the eight memory slots locally in IndexedDB. Audio starts only after an explicit press because browsers block automatic Web Audio playback.
 
 ## Guided Workflow
 
@@ -46,7 +50,7 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 - four actor FX plus four Master FX;
 - eight memories, autosave, English/Russian UI;
 - controller-first SDL UI at 512×384 for handheld and desktop builds;
-- separate fullscreen touch-first Android frontend using the same DSP and session format;
+- one adaptive fullscreen touch UI shared by Android and the WebAssembly browser build;
 - one version file, root CMake graph and CI pipeline for every supported platform;
 - no recorded samples.
 
@@ -66,8 +70,8 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 
 ## Runtime data
 
-Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/`.
-Both contain `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl`.
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: browser IndexedDB.
+They contain `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl` where the platform supports importing files.
 
 ## Build
 
@@ -78,7 +82,14 @@ cmake --build build -j2
 ctest --test-dir build --output-on-failure
 ```
 
-CI tests Linux, macOS, Android ARM64 and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI and an installable Android preview APK from the same core sources. A successful versioned merge to `main` publishes consistent release packages and checksums.
+WebAssembly:
+
+```bash
+emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-web --target cursed-drone-web --parallel 2
+```
+
+CI tests Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI, an installable Android preview APK and the static browser bundle from the same core sources. A successful versioned merge to `main` publishes consistent release packages and checksums.
 
 ## Performance release
 
@@ -110,11 +121,14 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 
 ## Скачать и установить
 
-**[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.13.1](docs/releases/v0.13.1.md)
+**[Запустить веб-версию](https://myldy20.github.io/cursed-drone/)** · **[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.13.1](docs/releases/v0.13.1.md)
 
+- Web: открыть ссылку выше в современном браузере с WebAssembly/Web Audio и нажать кнопку запуска;
 - Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
 - NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
 - Android ARM64 preview: [русская инструкция](docs/install.android.ru.md) · [English](docs/install.android.en.md)
+
+Веб-версия хранит autosave и восемь слотов памяти локально в IndexedDB браузера. Звук запускается только после явного нажатия: браузеры запрещают автоматический запуск Web Audio.
 
 ## Сквозная логика
 
@@ -141,7 +155,7 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 - четыре actor FX и четыре Master FX;
 - восемь слотов памяти, autosave, русский и английский интерфейс;
 - отдельный кнопочный SDL-интерфейс 512×384 для приставки и desktop;
-- полноэкранный touch-first интерфейс Android на том же DSP и формате сессии;
+- единый адаптивный полноэкранный touch-интерфейс для Android и браузерной WebAssembly-версии;
 - единая версия, корневой CMake и CI для всех платформ;
 - никаких записанных семплов.
 
@@ -161,7 +175,7 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 
 ## Данные
 
-Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/`.
-Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`.
+Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: IndexedDB браузера.
+Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`, если платформа поддерживает импорт файлов.
 
 Разработано **Myldy design — [@myldy20](https://github.com/myldy20)**. Собственный код проекта распространяется по GPL-3.0-or-later с узкими дополнительными условиями об атрибуции, обозначении происхождения и брендинге в [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md). Производные версии должны сохранять [NOTICE.md](NOTICE.md), указывать основу Cursed Drone и явно обозначаться как неофициальные. Лицензии сторонних компонентов перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

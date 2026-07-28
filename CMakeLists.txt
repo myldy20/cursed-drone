@@ -11,7 +11,7 @@ project(cursed_drone VERSION ${CURSED_DRONE_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(ANDROID)
+if(ANDROID OR EMSCRIPTEN)
     set(CURSED_DRONE_DESKTOP_DEFAULT OFF)
 else()
     set(CURSED_DRONE_DESKTOP_DEFAULT ON)
@@ -116,6 +116,37 @@ if(ANDROID)
     elseif(TARGET SDL2main)
         target_link_libraries(main PRIVATE SDL2main)
     endif()
+elseif(EMSCRIPTEN)
+    add_executable(cursed-drone-web
+        web/web_entry.cpp
+        android/app/src/main/cpp/android_approved_main.cpp
+        src/bitmap_text.cpp
+    )
+    target_include_directories(cursed-drone-web PRIVATE src include)
+    target_compile_features(cursed-drone-web PRIVATE cxx_std_20)
+    target_compile_definitions(cursed-drone-web PRIVATE
+        CURSED_DRONE_WEB=1
+        CURSED_DRONE_VERSION="${PROJECT_VERSION}")
+    target_compile_options(cursed-drone-web PRIVATE
+        -Wall -Wextra -Wpedantic
+        -sUSE_SDL=2)
+    target_link_libraries(cursed-drone-web PRIVATE cursed_drone_core)
+    target_link_options(cursed-drone-web PRIVATE
+        -sUSE_SDL=2
+        -sASYNCIFY=1
+        -sALLOW_MEMORY_GROWTH=1
+        -sFORCE_FILESYSTEM=1
+        -sEXIT_RUNTIME=0
+        -sSTACK_SIZE=5242880
+        -sINITIAL_MEMORY=134217728
+        "-sEXPORTED_RUNTIME_METHODS=['callMain','setCanvasSize']"
+        "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+        "--preload-file=${CMAKE_CURRENT_SOURCE_DIR}/assets/branding@/branding"
+        "--preload-file=${CMAKE_CURRENT_SOURCE_DIR}/assets/scales@/scales"
+    )
+    set_target_properties(cursed-drone-web PROPERTIES
+        OUTPUT_NAME index
+        SUFFIX ".html")
 else()
     if(CURSED_DRONE_BUILD_TOOLS)
         add_executable(cursed-drone src/main.cpp)
