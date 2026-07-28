@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Myldy Design
 // Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "cursed_drone/audio.hpp"
+#include "cursed_drone/scala.hpp"
 #include "plaits_actor.hpp"
 #include "soundscape.hpp"
 
@@ -1404,7 +1405,8 @@ public:
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
                     const auto effect_kind = settings.effects[effect_index].kind;
-                    if (effect_kind == EffectKind::bypass) continue;
+                    if (!settings.effects[effect_index].enabled ||
+                        effect_kind == EffectKind::bypass) continue;
                     switch (effect_kind) {
                     case EffectKind::drive:
                     case EffectKind::crusher:
@@ -1448,6 +1450,10 @@ public:
                 parameters.event_density = clamp01(parameters.event_density);
                 parameters.level = std::clamp(parameters.level, 0.0F, 1.5F);
                 parameters.pan = std::clamp(parameters.pan, -1.0F, 1.0F);
+                // Quantise after pitch modulation and global drift so an enabled
+                // tuning acts as an audible pitch grid rather than passive metadata.
+                parameters.frequency = quantize_frequency(
+                    parameters.frequency, settings.tuning);
 
                 const StereoFrame actor_frame = runtime.engine.next(
                     settings,
@@ -1473,7 +1479,8 @@ public:
 
                 for (std::size_t effect_index = 0; effect_index < kEffectsPerSlot; ++effect_index) {
                     const auto kind = settings.effects[effect_index].kind;
-                    if (kind == EffectKind::bypass) continue;
+                    if (!settings.effects[effect_index].enabled ||
+                        kind == EffectKind::bypass) continue;
                     slot_frame = runtime.effects[effect_index].process(
                         slot_frame,
                         kind,
@@ -1494,7 +1501,7 @@ public:
 
             for (std::size_t effect_index = 0; effect_index < kMasterEffects; ++effect_index) {
                 const auto& settings = session_.master_effects[effect_index];
-                if (settings.kind == EffectKind::bypass) continue;
+                if (!settings.enabled || settings.kind == EffectKind::bypass) continue;
                 mix = master_effects_[effect_index].process(
                     mix, settings.kind, settings.amount, settings.tone, settings.feedback);
             }

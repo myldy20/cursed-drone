@@ -9,6 +9,7 @@ if (versionParts.size() != 3) {
     throw new GradleException("VERSION must contain major.minor.patch")
 }
 final int projectVersionCode = versionParts[0] * 1000000 + versionParts[1] * 1000 + versionParts[2]
+final boolean previewSigning = System.getenv("CURSED_DRONE_PREVIEW_SIGNING") == "1"
 
 final String sdlTag = "release-2.32.10"
 final List<String> sdlJavaFiles = [
@@ -69,10 +70,27 @@ android {
     }
 
     buildTypes {
-        debug { debuggable true }
+        debug {
+            debuggable true
+        }
         release {
+            debuggable false
             minifyEnabled false
             shrinkResources false
+            ndk {
+                debugSymbolLevel "SYMBOL_TABLE"
+            }
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-O3 -DNDEBUG"
+                    arguments "-DCMAKE_BUILD_TYPE=Release"
+                }
+            }
+            if (previewSigning) {
+                // CI preview only. Production releases must use the permanent
+                // Myldy upload/release key, never the Android debug key.
+                signingConfig signingConfigs.debug
+            }
         }
     }
 

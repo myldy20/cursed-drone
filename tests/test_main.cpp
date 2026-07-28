@@ -386,6 +386,14 @@ void test_scala() {
     const float quantized = cd::quantize_frequency(61.0F, tuning);
     expect(std::isfinite(quantized) && quantized > 0.0F, "Scala quantisation should produce a valid frequency");
     expect(std::abs(quantized - 61.0F) > 0.001F, "Scala quantisation should move an off-scale frequency");
+    const auto builtins = cd::load_scala_scales({});
+    expect(builtins.size() >= 5U, "useful built-in scales should always be available");
+    for (std::size_t left = 0; left < builtins.size(); ++left) {
+        for (std::size_t right = left + 1U; right < builtins.size(); ++right) {
+            expect(builtins[left].name != builtins[right].name,
+                "built-in scale names should not be duplicated");
+        }
+    }
     std::filesystem::remove(path);
 }
 
@@ -396,6 +404,7 @@ void test_session_roundtrip() {
     cd::apply_scene_recipe(original, cd::SceneKind::nursery);
     original.slots[2].effects[1].kind = cd::EffectKind::ringmod;
     original.slots[2].effects[1].amount = 0.731F;
+    original.slots[2].effects[1].enabled = false;
     original.performance.texture = 0.812F;
     original.performance.pulse = 0.643F;
     original.performance.chaos = 0.522F;
@@ -424,9 +433,10 @@ void test_session_roundtrip() {
     expect(cd::load_session(path, loaded, error), "session should load");
     expect(loaded.locale == cd::Locale::en, "locale should roundtrip");
     expect(loaded.scene == cd::SceneKind::nursery, "scene should roundtrip");
-    expect(loaded.schema_version == 11, "session should upgrade to schema 11");
+    expect(loaded.schema_version == 12, "session should upgrade to schema 12");
     expect(loaded.scene_modified, "scene modification state should roundtrip");
     expect(std::abs(loaded.slots[2].effects[1].amount - 0.731F) < 0.0001F, "effect should roundtrip");
+    expect(!loaded.slots[2].effects[1].enabled, "effect enabled state should roundtrip");
     expect(loaded.slots[2].effects[1].kind == cd::EffectKind::ringmod,
         "new effect kinds should roundtrip");
     expect(std::abs(loaded.performance.texture - 0.812F) < 0.0001F, "texture macro should roundtrip");
@@ -455,6 +465,34 @@ void test_session_roundtrip() {
         "modulator rate source should roundtrip");
     expect(std::abs(loaded.fade_in_seconds - 2.75F) < 0.0001F, "fade-in time should roundtrip");
     expect(std::abs(loaded.fade_out_seconds - 8.25F) < 0.0001F, "fade-out time should roundtrip");
+
+    const auto legacy_path = std::filesystem::temp_directory_path() /
+        "cursed-drone-test-schema11.cdrone";
+    {
+        std::ifstream input(path);
+        std::ofstream output(legacy_path, std::ios::trunc);
+        std::string line;
+        while (std::getline(input, line)) {
+            if (line.rfind("cursed_drone_session=", 0U) == 0U) {
+                output << "cursed_drone_session=11\n";
+            } else if (line.find(".effect.") != std::string::npos &&
+                line.find(".enabled=") != std::string::npos) {
+                continue;
+            } else {
+                output << line << '\n';
+            }
+        }
+    }
+    cd::Session legacy{};
+    expect(cd::load_session(legacy_path, legacy, error),
+        "schema 11 session without effect enabled fields should migrate");
+    expect(legacy.schema_version == 12,
+        "schema 11 session should upgrade to schema 12");
+    expect(legacy.slots[2].effects[1].enabled,
+        "legacy Actor FX should default to enabled");
+    expect(legacy.master_effects[0].enabled,
+        "legacy Master FX should default to enabled");
+    std::filesystem::remove(legacy_path);
 
     auto updated = original;
     updated.master_level = 0.123F;
