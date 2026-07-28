@@ -1,0 +1,106 @@
+name: Web / GitHub Pages
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/web-pages.yml"
+      - "CMakeLists.txt"
+      - "VERSION"
+      - "android/app/src/main/cpp/**"
+      - "assets/**"
+      - "include/**"
+      - "src/**"
+      - "third_party/**"
+      - "web/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/web-pages.yml"
+      - "CMakeLists.txt"
+      - "VERSION"
+      - "android/app/src/main/cpp/**"
+      - "assets/**"
+      - "include/**"
+      - "src/**"
+      - "third_party/**"
+      - "web/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.10
+          actions-cache-folder: emsdk-cache
+
+      - name: Configure WebAssembly build
+        run: >-
+          emcmake cmake -S . -B build-web -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCURSED_DRONE_BUILD_SDL=OFF
+          -DCURSED_DRONE_BUILD_TESTS=OFF
+          -DCURSED_DRONE_BUILD_TOOLS=OFF
+          -DCURSED_DRONE_ENABLE_PLAITS=ON
+
+      - name: Build web app
+        run: cmake --build build-web --target cursed-drone-web --parallel 2
+
+      - name: Assemble static site
+        run: |
+          mkdir -p dist
+          cp build-web/index.html dist/
+          cp build-web/index.js dist/
+          cp build-web/index.wasm dist/
+          test ! -f build-web/index.data || cp build-web/index.data dist/
+          touch dist/.nojekyll
+          printf '%s\n' "$(cat VERSION)" > dist/version.txt
+          test -s dist/index.html
+          test -s dist/index.js
+          test -s dist/index.wasm
+
+      - name: Upload preview artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-web-preview
+          path: dist
+          if-no-files-found: error
+
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
