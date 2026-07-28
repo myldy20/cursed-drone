@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Myldy Design
 
 #include <SDL.h>
+#include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
 #include <algorithm>
@@ -88,6 +89,15 @@ void install_mouse_bridge() {
 }
 
 } // namespace
+
+extern "C" EMSCRIPTEN_KEEPALIVE void cursed_drone_web_resize(
+    int pixel_width, int pixel_height) {
+    if (SDL_WasInit(SDL_INIT_VIDEO) == 0U) return;
+    SDL_Window* window = SDL_GetWindowFromID(1U);
+    if (window == nullptr) return;
+    SDL_SetWindowSize(window, std::max(320, pixel_width),
+        std::max(240, pixel_height));
+}
 
 int main(int argc, char** argv) {
     install_mouse_bridge();

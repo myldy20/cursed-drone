@@ -14,7 +14,7 @@
     #canvas { display: block; width: 100%; height: 100%; border: 0; outline: 0; image-rendering: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
     #gate { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 35%, rgba(117, 67, 171, .23), transparent 42%), #08070c; transition: opacity 180ms ease; }
     #gate.hidden { pointer-events: none; opacity: 0; }
-    .gate-card { width: min(520px, 100%); padding: 28px; border: 1px solid #544860; background: rgba(24, 20, 32, .96); box-shadow: 0 24px 80px rgba(0, 0, 0, .45); text-align: center; }
+    .gate-card { width: min(560px, 100%); padding: 28px; border: 1px solid #544860; background: rgba(24, 20, 32, .96); box-shadow: 0 24px 80px rgba(0, 0, 0, .45); text-align: center; }
     .mark { margin: 0 0 10px; font-size: clamp(26px, 7vw, 52px); letter-spacing: .09em; line-height: 1; }
     .tagline { margin: 0 0 24px; color: #978f9e; line-height: 1.45; }
     #start { width: 100%; min-height: 58px; border: 1px solid #75dab3; background: #432b5b; color: #eee2c5; font: inherit; font-weight: 700; letter-spacing: .06em; cursor: pointer; }
@@ -31,7 +31,7 @@
   <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
   <div id="gate"><div class="gate-card">
     <h1 class="mark">CURSED DRONE</h1>
-    <p class="tagline">Тот же движок и touch-интерфейс, теперь прямо в браузере.</p>
+    <p class="tagline">Процедурный dark ambient-инструмент: четыре звуковых актёра, меняющиеся пространства, модуляция и эффекты — без семплов.</p>
     <button id="start" type="button" disabled>ЗАГРУЗКА...</button>
     <p id="status">Подготавливаю WebAssembly и память инструмента</p>
   </div></div>
@@ -48,6 +48,7 @@
     let storageReady = false;
     let started = false;
     let syncTimer = 0;
+    let resizeGeneration = 0;
 
     function setStatus(message) { statusNode.textContent = message || ''; }
     function showFatal(message) {
@@ -58,16 +59,31 @@
       startButton.textContent = 'ОШИБКА ЗАПУСКА';
     }
     function resizeCanvas() {
-      const viewport = window.visualViewport;
-      const cssWidth = Math.max(320, Math.floor(viewport ? viewport.width : window.innerWidth));
-      const cssHeight = Math.max(240, Math.floor(viewport ? viewport.height : window.innerHeight));
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const cssWidth = Math.max(320, Math.floor(window.innerWidth || (window.visualViewport && window.visualViewport.width) || 320));
+      const cssHeight = Math.max(240, Math.floor(window.innerHeight || (window.visualViewport && window.visualViewport.height) || 240));
+      const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.35 : 2);
       const pixelWidth = Math.floor(cssWidth * pixelRatio);
       const pixelHeight = Math.floor(cssHeight * pixelRatio);
       canvas.style.width = cssWidth + 'px';
       canvas.style.height = cssHeight + 'px';
-      if (typeof Module !== 'undefined' && typeof Module.setCanvasSize === 'function') Module.setCanvasSize(pixelWidth, pixelHeight, false);
-      else { canvas.width = pixelWidth; canvas.height = pixelHeight; }
+      if (started && typeof Module !== 'undefined' && typeof Module._cursed_drone_web_resize === 'function') {
+        Module._cursed_drone_web_resize(pixelWidth, pixelHeight);
+      } else if (typeof Module !== 'undefined' && typeof Module.setCanvasSize === 'function') {
+        Module.setCanvasSize(pixelWidth, pixelHeight, false);
+      } else {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+    }
+    function scheduleResize() {
+      const generation = ++resizeGeneration;
+      const apply = () => {
+        if (generation !== resizeGeneration) return;
+        resizeCanvas();
+      };
+      window.requestAnimationFrame(() => window.requestAnimationFrame(apply));
+      [80, 220, 500, 900].forEach((delay) => window.setTimeout(apply, delay));
     }
     function enableStart() {
       if (!runtimeReady || !storageReady || started) return;
@@ -98,7 +114,7 @@
       }
     }
     function beginPersistentSync() {
-      syncTimer = window.setInterval(() => syncStorage(false), 2500);
+      syncTimer = window.setInterval(() => syncStorage(false), 20000);
       window.addEventListener('pagehide', () => syncStorage(false), { capture: true });
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') syncStorage(false);
@@ -113,15 +129,18 @@
       beginPersistentSync();
       gate.classList.add('hidden');
       try {
-        Module.callMain([]);
-        window.setTimeout(resizeCanvas, 0);
+        Module.callMain(['--android-audio-burst=1024']);
+        scheduleResize();
       } catch (error) {
         window.clearInterval(syncTimer);
         showFatal(error && error.stack ? error.stack : error);
       }
     });
-    window.addEventListener('resize', resizeCanvas, { passive: true });
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas, { passive: true });
+    window.addEventListener('resize', scheduleResize, { passive: true });
+    window.addEventListener('orientationchange', scheduleResize, { passive: true });
+    window.addEventListener('pageshow', scheduleResize, { passive: true });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleResize, { passive: true });
+    if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', scheduleResize);
     resizeCanvas();
 
     var Module = {
