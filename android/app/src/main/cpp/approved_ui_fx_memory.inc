@@ -76,6 +76,17 @@ void a_header_kill(SDL_Renderer* renderer, UiState& state,
     add_hit(state, kill, Action::actor_section, kActionPanic);
 }
 
+void a_header_platform_label(SDL_Renderer* renderer, int scale) {
+    const int safe = std::clamp(g_ui_safe_side, 0, kAndroidUiWidth / 4);
+    // Cover the old Android-only prototype stamp and redraw a real runtime
+    // label. This keeps the shared header honest in both native and web builds.
+    fill(renderer, {safe + 220, 9, 260, 42}, aTop);
+    a_text(renderer, safe + 232, 27,
+        std::string{CURSED_DRONE_VERSION} + "  •  " +
+            std::string{kPlatformLabel},
+        aMutedCream, scale);
+}
+
 void a_actor_event_marker(SDL_Renderer* renderer,
     const cd::Session& session, const UiState& state,
     SDL_Rect content) {
@@ -125,6 +136,7 @@ void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     int content_y = 0;
     a_header(renderer, session, state, telemetry, cpu, width, height,
         scale, content_y);
+    a_header_platform_label(renderer, scale);
     a_header_kill(renderer, state, width, scale);
     const int outer = a_compact_layout(width, height) ? 16 : 28;
     const int side = g_ui_safe_side + outer;
@@ -167,6 +179,52 @@ SDL_Rect expanded_touch_rect(SDL_Rect rect, int horizontal,
     return rect;
 }
 
+bool master_global_slider(SliderKind kind) noexcept {
+    return kind == SliderKind::master_level || kind == SliderKind::tempo;
+}
+
+bool compact_fx_slider(SliderKind kind) noexcept {
+    switch (kind) {
+    case SliderKind::actor_fx_amount:
+    case SliderKind::actor_fx_tone:
+    case SliderKind::actor_fx_feedback:
+    case SliderKind::master_fx_amount:
+    case SliderKind::master_fx_tone:
+    case SliderKind::master_fx_feedback:
+        return true;
+    default:
+        return false;
+    }
+}
+
+HitTarget slider_value_target(HitTarget hit) noexcept {
+    if (hit.action != Action::slider) return hit;
+
+    if (actor_card_level_hit(hit)) {
+        hit.rect.x += 4;
+        hit.rect.w = std::max(1, hit.rect.w - 8);
+        return hit;
+    }
+    if (master_global_slider(hit.slider)) {
+        hit.rect.x += 14;
+        hit.rect.w = std::max(1, hit.rect.w - 28);
+        return hit;
+    }
+    if (compact_fx_slider(hit.slider) && hit.rect.w < 400) {
+        hit.rect.x += 5;
+        hit.rect.w = std::max(1, hit.rect.w - 10);
+        return hit;
+    }
+    // x_slider() draws a fixed 192 px label/value column, a 26 px gap, then
+    // the actual track. Keep the whole row vertically forgiving, but calculate
+    // values only from that drawn track so the knob sits under the finger.
+    if (hit.rect.w > 400) {
+        hit.rect.x += 218;
+        hit.rect.w = std::max(1, hit.rect.w - 226);
+    }
+    return hit;
+}
+
 HitTarget approved_hit_at(const UiState& state, int x, int y) {
     const HitTarget exact = hit_at(state, x, y);
 
@@ -181,6 +239,10 @@ HitTarget approved_hit_at(const UiState& state, int x, int y) {
         HitTarget result = *it;
         result.rect = expanded_touch_rect(it->rect, 10, 16, 8);
         return result;
+    }
+    if (exact.action == Action::slider) {
+        const HitTarget aligned = slider_value_target(exact);
+        return contains(aligned.rect, x, y) ? aligned : HitTarget{};
     }
     if (exact.action != Action::none) return exact;
 
