@@ -1,6 +1,8 @@
 name: build
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
 
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
@@ -81,7 +83,7 @@ jobs:
             "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: "8.10.2"}
-      - name: Build release-optimised touch preview APK
+      - name: Build release-optimised Android preview APK
         id: android_build
         continue-on-error: true
         run: |
@@ -108,11 +110,11 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee android-apk-badging.txt
           grep -q "versionName='$(cat VERSION)'" android-apk-badging.txt
           mkdir -p dist
-          cp "$APK" "dist/cursed-drone-v$(cat VERSION)-android-arm64-release-preview.apk"
+          cp "$APK" "dist/cursed-drone-v$(cat VERSION)-android-arm64-preview.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: cursed-drone-android-arm64-release-preview
-          path: dist/cursed-drone-v*-android-arm64-release-preview.apk
+          name: cursed-drone-android-arm64-preview
+          path: dist/cursed-drone-v*-android-arm64-preview.apk
 
   aarch64-packages:
     runs-on: ubuntu-24.04-arm
@@ -154,3 +156,76 @@ jobs:
         with: {name: cursed-drone-portmaster-aarch64, path: dist/curseddrone-aarch64-test.zip}
       - uses: actions/upload-artifact@v4
         with: {name: cursed-drone-nextui-tg5040, path: dist/cursed-drone-nextui-tg5040-test.zip}
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [linux, macos, android, aarch64-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read version
+        id: version
+        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Check whether release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download macOS bundle
+        if: steps.existing.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with: {name: cursed-drone-macos-arm64, path: release-input/macos}
+      - name: Download Android APK
+        if: steps.existing.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with: {name: cursed-drone-android-arm64-preview, path: release-input/android}
+      - name: Download PortMaster package
+        if: steps.existing.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with: {name: cursed-drone-portmaster-aarch64, path: release-input/portmaster}
+      - name: Download NextUI package
+        if: steps.existing.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with: {name: cursed-drone-nextui-tg5040, path: release-input/nextui}
+      - name: Assemble release assets
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          cp "release-input/android/cursed-drone-v$VERSION-android-arm64-preview.apk" dist/release/
+          cp "$(find release-input/portmaster -name '*.zip' -print -quit)" \
+            "dist/release/cursed-drone-v$VERSION-portmaster-aarch64.zip"
+          cp "$(find release-input/nextui -name '*.zip' -print -quit)" \
+            "dist/release/cursed-drone-v$VERSION-nextui-tg5040.zip"
+          (cd release-input/macos && zip -qr \
+            "$GITHUB_WORKSPACE/dist/release/cursed-drone-v$VERSION-macos-arm64.zip" .)
+          (cd dist/release && sha256sum * > SHA256SUMS.txt)
+          ls -lh dist/release
+      - name: Publish GitHub release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          NOTES="docs/releases/v$VERSION.md"
+          if test -f "$NOTES"; then
+            gh release create "v$VERSION" dist/release/* \
+              --target "$GITHUB_SHA" \
+              --title "Cursed Drone v$VERSION" \
+              --notes-file "$NOTES"
+          else
+            gh release create "v$VERSION" dist/release/* \
+              --target "$GITHUB_SHA" \
+              --title "Cursed Drone v$VERSION" \
+              --generate-notes
+          fi
