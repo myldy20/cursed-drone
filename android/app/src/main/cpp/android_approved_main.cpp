@@ -21,6 +21,11 @@ namespace {
 
 constexpr int kAndroidUiWidth = 1496;
 constexpr int kAndroidUiHeight = 672;
+#ifdef CURSED_DRONE_WEB
+constexpr std::string_view kPlatformLabel{"WEB"};
+#else
+constexpr std::string_view kPlatformLabel{"ANDROID"};
+#endif
 std::atomic<std::uint32_t> g_audio_deadline_misses{0U};
 
 #include "approved_ui_compat.inc"
@@ -28,7 +33,7 @@ std::atomic<std::uint32_t> g_audio_deadline_misses{0U};
 #define a_actor a_actor_legacy
 #include "approved_ui_actor.inc"
 #undef a_actor
-#include "approved_ui_actor_exact.inc"
+#include "approved_ui_actor_bundle.inc"
 #include "approved_ui_fx_exact.inc"
 #include "approved_ui_master_exact.inc"
 #include "approved_ui_fx_memory.inc"
@@ -153,10 +158,11 @@ extern "C" int SDL_main(int argc, char** argv) {
         return 1;
     }
     std::fprintf(stderr,
-        "android audio requested rate=%d burst=%d callback=%u; "
+        "%s audio requested rate=%d burst=%d callback=%u; "
         "obtained rate=%d callback=%u channels=%u format=0x%x\n",
-        native_rate, burst, static_cast<unsigned>(desired.samples),
-        obtained.freq, static_cast<unsigned>(obtained.samples),
+        kPlatformLabel.data(), native_rate, burst,
+        static_cast<unsigned>(desired.samples), obtained.freq,
+        static_cast<unsigned>(obtained.samples),
         static_cast<unsigned>(obtained.channels),
         static_cast<unsigned>(obtained.format));
     audio.graph.prepare({static_cast<float>(obtained.freq), obtained.samples},
@@ -172,6 +178,7 @@ extern "C" int SDL_main(int argc, char** argv) {
     bool save_pending = false;
     Uint32 changed_at = 0;
     Uint32 previous = SDL_GetTicks();
+    Uint32 last_interaction_at = previous;
     Uint32 last_audio_report = previous;
     std::uint32_t previous_deadline_misses = 0U;
     while (running) {
@@ -189,6 +196,7 @@ extern "C" int SDL_main(int argc, char** argv) {
             } else if (event.type == SDL_FINGERDOWN && !state.finger_down) {
                 state.finger_down = true;
                 state.finger_id = event.tfinger.fingerId;
+                last_interaction_at = SDL_GetTicks();
                 int x = 0;
                 int y = 0;
                 logical_touch_position(renderer, window, event.tfinger.x,
@@ -198,6 +206,7 @@ extern "C" int SDL_main(int argc, char** argv) {
             } else if (event.type == SDL_FINGERMOTION && state.finger_down &&
                 event.tfinger.fingerId == state.finger_id &&
                 state.slider_active) {
+                last_interaction_at = SDL_GetTicks();
                 int x = 0;
                 int y = 0;
                 logical_touch_position(renderer, window, event.tfinger.x,
@@ -209,6 +218,7 @@ extern "C" int SDL_main(int argc, char** argv) {
                 changed = true;
             } else if (event.type == SDL_FINGERUP && state.finger_down &&
                 event.tfinger.fingerId == state.finger_id) {
+                last_interaction_at = SDL_GetTicks();
                 int x = 0;
                 int y = 0;
                 logical_touch_position(renderer, window, event.tfinger.x,
@@ -258,7 +268,8 @@ extern "C" int SDL_main(int argc, char** argv) {
             const auto misses = g_audio_deadline_misses.load(
                 std::memory_order_relaxed);
             std::fprintf(stderr,
-                "android audio dsp=%.1f%% deadline_misses=%u (+%u)\n",
+                "%s audio dsp=%.1f%% deadline_misses=%u (+%u)\n",
+                kPlatformLabel.data(),
                 static_cast<double>(audio.cpu_load.load(
                     std::memory_order_relaxed) * 100.0F),
                 static_cast<unsigned>(misses),
@@ -274,7 +285,11 @@ extern "C" int SDL_main(int argc, char** argv) {
             audio.cpu_load.load(std::memory_order_relaxed),
             kAndroidUiWidth, kAndroidUiHeight);
 #ifdef CURSED_DRONE_WEB
-        SDL_Delay(static_cast<Uint32>(web_frame_ms));
+        // Keep gestures and animated controls fluid, then fall back to a lower
+        // idle cadence so Web Audio has more main-thread headroom.
+        const bool interactive = state.finger_down ||
+            now - last_interaction_at < 900U;
+        SDL_Delay(interactive ? 16U : static_cast<Uint32>(web_frame_ms));
 #else
         SDL_Delay(1);
 #endif

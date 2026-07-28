@@ -19,12 +19,13 @@
 namespace {
 constexpr int kAndroidUiWidth = 1496;
 constexpr int kAndroidUiHeight = 672;
+constexpr std::string_view kPlatformLabel{"TEST"};
 #include "../android/app/src/main/cpp/approved_ui_compat.inc"
 #include "../android/app/src/main/cpp/approved_ui_primitives.inc"
 #define a_actor a_actor_legacy
 #include "../android/app/src/main/cpp/approved_ui_actor.inc"
 #undef a_actor
-#include "../android/app/src/main/cpp/approved_ui_actor_exact.inc"
+#include "../android/app/src/main/cpp/approved_ui_actor_bundle.inc"
 #include "../android/app/src/main/cpp/approved_ui_fx_exact.inc"
 #include "../android/app/src/main/cpp/approved_ui_master_exact.inc"
 #include "../android/app/src/main/cpp/approved_ui_fx_memory.inc"
@@ -69,9 +70,10 @@ void tap(cd::Session& session, UiState& state, const HitTarget& hit) {
 
 void set_slider(cd::Session& session, UiState& state,
     const HitTarget& hit, float normalized) {
-    const int x = hit.rect.x + static_cast<int>(std::lround(
-        normalized * static_cast<float>(hit.rect.w)));
-    static_cast<void>(approved_press(session, state, hit, x));
+    const HitTarget mapped = slider_value_target(hit);
+    const int x = mapped.rect.x + static_cast<int>(std::lround(
+        normalized * static_cast<float>(mapped.rect.w)));
+    static_cast<void>(approved_press(session, state, mapped, x));
     state.slider_active = false;
     state.pressed = {};
 }
@@ -199,21 +201,25 @@ void test_ui_wiring(SDL_Renderer* renderer) {
     }
     expect(tuning_picker_count == 1,
         "Tuning should have one unambiguous scale picker");
-    const HitTarget* degrees = find_slider(state, SliderKind::tuning_degrees);
-    expect(degrees != nullptr, "Tuning degree count should be editable");
-    if (degrees != nullptr) {
-        set_slider(session, state, *degrees, 0.15F);
-        expect(session.slots[0].tuning.degree_count >= 2 &&
-            session.slots[0].tuning.degree_count <= 8,
-            "Tuning degree gesture should reach Session");
-    }
-    const HitTarget* period = find_slider(state, SliderKind::tuning_period);
-    expect(period != nullptr, "Tuning period should be editable");
-    if (period != nullptr) {
-        set_slider(session, state, *period, 0.24F);
-        expect(session.slots[0].tuning.period_cents > 1'000.0F &&
-            session.slots[0].tuning.period_cents < 1'300.0F,
-            "Tuning period gesture should reach Session");
+    expect(find_slider(state, SliderKind::tuning_degrees) == nullptr,
+        "fine tuning degrees should stay off the compact surface");
+    expect(find_slider(state, SliderKind::tuning_period) == nullptr,
+        "fine tuning period should stay off the compact surface");
+    expect(find_action(state, Action::actor_root_step, -1) != nullptr &&
+        find_action(state, Action::actor_root_step, 1) != nullptr,
+        "compact tuning should retain root step controls");
+
+    session.slots[0].engine = cd::EngineKind::plaits;
+    draw(renderer, session, state, Page::actor, ActorSection::sound);
+    expect(find_action(state, Action::actor_section, 97) != nullptr,
+        "Plaits should expose model selection");
+    expect(find_action(state, Action::actor_section, 98) != nullptr,
+        "Plaits should expose output routing");
+    for (const SliderKind kind : {SliderKind::actor_timbre,
+            SliderKind::actor_color, SliderKind::actor_motion,
+            SliderKind::actor_texture}) {
+        expect(find_slider(state, kind) != nullptr,
+            "Plaits should expose every sound-shaping control");
     }
 
     draw(renderer, session, state, Page::actor, ActorSection::modulation);

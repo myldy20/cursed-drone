@@ -72,7 +72,8 @@ void a_header(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     fill(renderer, {0, 0, width, 118}, aTop);
     a_text(renderer, safe + 27, 20, "CURSED DRONE", aCream, scale + 2);
     a_text(renderer, safe + 232, 27,
-        std::string{CURSED_DRONE_VERSION} + "  •  ANDROID",
+        std::string{CURSED_DRONE_VERSION} + "  •  " +
+            std::string{kPlatformLabel},
         aMutedCream, scale);
 
     SDL_Rect fade{safe + usable_width - 406, 13, 165, 35};
