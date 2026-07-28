@@ -5,6 +5,7 @@
 #include <emscripten/emscripten.h>
 
 #include <algorithm>
+#include <cmath>
 
 extern "C" int SDL_main(int argc, char** argv);
 
@@ -12,6 +13,8 @@ namespace {
 
 constexpr SDL_TouchID kWebMouseTouchId = 1;
 constexpr SDL_FingerID kWebMouseFingerId = 1;
+constexpr double kLogicalWidth = 1496.0;
+constexpr double kLogicalHeight = 672.0;
 bool g_mouse_down = false;
 float g_previous_x = 0.0F;
 float g_previous_y = 0.0F;
@@ -34,15 +37,61 @@ void push_finger_event(Uint32 type, float x, float y) {
     g_previous_y = y;
 }
 
+bool normalized_logical_position(double target_x, double target_y,
+    double canvas_width, double canvas_height, bool clamp_to_view,
+    float& normalized_x, float& normalized_y) {
+    if (canvas_width <= 0.0 || canvas_height <= 0.0) return false;
+
+    // The canvas fills the browser viewport, while SDL preserves the fixed
+    // 1496x672 logical aspect ratio inside it. Map CSS coordinates into that
+    // actual rendered viewport before converting them back to SDL window
+    // coordinates. This keeps mouse hit testing aligned on Retina/HiDPI Macs.
+    const double scale = std::min(canvas_width / kLogicalWidth,
+        canvas_height / kLogicalHeight);
+    if (scale <= 0.0) return false;
+    const double content_width = kLogicalWidth * scale;
+    const double content_height = kLogicalHeight * scale;
+    const double offset_x = (canvas_width - content_width) * 0.5;
+    const double offset_y = (canvas_height - content_height) * 0.5;
+    double logical_x = (target_x - offset_x) / scale;
+    double logical_y = (target_y - offset_y) / scale;
+
+    const bool inside = logical_x >= 0.0 && logical_x <= kLogicalWidth &&
+        logical_y >= 0.0 && logical_y <= kLogicalHeight;
+    if (!inside && !clamp_to_view) return false;
+    logical_x = std::clamp(logical_x, 0.0, kLogicalWidth);
+    logical_y = std::clamp(logical_y, 0.0, kLogicalHeight);
+
+    SDL_Window* window = SDL_GetWindowFromID(1U);
+    SDL_Renderer* renderer = window != nullptr ? SDL_GetRenderer(window) : nullptr;
+    if (window == nullptr || renderer == nullptr) return false;
+
+    int window_x = 0;
+    int window_y = 0;
+    SDL_RenderLogicalToWindow(renderer, static_cast<float>(logical_x),
+        static_cast<float>(logical_y), &window_x, &window_y);
+    int window_width = 1;
+    int window_height = 1;
+    SDL_GetWindowSize(window, &window_width, &window_height);
+    normalized_x = std::clamp(static_cast<float>(window_x) /
+        static_cast<float>(std::max(1, window_width)), 0.0F, 1.0F);
+    normalized_y = std::clamp(static_cast<float>(window_y) /
+        static_cast<float>(std::max(1, window_height)), 0.0F, 1.0F);
+    return true;
+}
+
 } // namespace
 
 extern "C" EMSCRIPTEN_KEEPALIVE void cursed_drone_web_mouse_event(
     int event_type, double target_x, double target_y,
     double canvas_width, double canvas_height) {
-    const float x = std::clamp(static_cast<float>(
-        target_x / std::max(1.0, canvas_width)), 0.0F, 1.0F);
-    const float y = std::clamp(static_cast<float>(
-        target_y / std::max(1.0, canvas_height)), 0.0F, 1.0F);
+    float x = 0.0F;
+    float y = 0.0F;
+    const bool clamp_to_view = event_type != 0;
+    if (!normalized_logical_position(target_x, target_y, canvas_width,
+            canvas_height, clamp_to_view, x, y)) {
+        return;
+    }
 
     switch (event_type) {
     case 0: // mouse down
