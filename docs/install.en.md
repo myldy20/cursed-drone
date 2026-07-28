@@ -1,12 +1,13 @@
-# Install Cursed Drone 0.13.0 on Knulli / PortMaster
+# Install Cursed Drone 0.14.0 on Knulli / PortMaster
 
 > Verified on a real TrimUI Brick running Knulli. Other AArch64 PortMaster handhelds remain unverified.
 
-1. Download the `cursed-drone-portmaster-aarch64` artifact from a successful build.
-2. Open GitHub's outer ZIP and locate `curseddrone-aarch64-test.zip`.
-3. Extract the inner ZIP into `/userdata/roms/ports/`.
-4. Confirm `/userdata/roms/ports/Cursed Drone.sh` and `/userdata/roms/ports/curseddrone/cursed-drone-sdl.aarch64` exist.
-5. Reboot or refresh Ports, then open **Ports → Cursed Drone**. Press Start after the first hardware probe.
+1. Download `cursed-drone-v0.14.0-portmaster-aarch64.zip` from the GitHub release.
+2. Extract the ZIP into `/userdata/roms/ports/`.
+3. Confirm `/userdata/roms/ports/Cursed Drone.sh` and `/userdata/roms/ports/curseddrone/cursed-drone-sdl.aarch64` exist.
+4. Reboot or refresh Ports, then open **Ports → Cursed Drone**. Press Start after the first hardware probe.
+
+CI artifacts use development-oriented names and may contain an additional outer archive. Normal users should install the versioned ZIP from GitHub Releases.
 
 ## Update without losing work
 
@@ -40,4 +41,4 @@ Built-in scales are packaged under `curseddrone/assets/scales/`. Copy additional
 
 The Knulli and NextUI archives are not interchangeable.
 
-The package also includes `NOTICE.md` and `ADDITIONAL_TERMS.md` under `curseddrone/licenses/`.
+The package includes the project licence, third-party notices, the Musical-engine MIT licence, `NOTICE.md` and `ADDITIONAL_TERMS.md` under `curseddrone/licenses/`.
