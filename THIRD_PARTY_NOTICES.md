@@ -10,16 +10,18 @@ Cursed Drone first-party code is GPL-3.0-or-later and, for files that point to i
 - License: MIT, full text stored locally
 - Use: procedural engines, resonators, filters and the Drip water model
 
-## Original musical-engine source
+## Mutable Instruments Plaits DSP source
 
 - Upstream: `pichenettes/eurorack`
 - Pinned commit: `08460a69a7e1f7a81c5a2abcc7189c9a6b7208d4`
 - Local form: git submodule at `third_party/eurorack`
 - Compiled files: selected `plaits/dsp`, `plaits/resources.cc` and required `stmlib` DSP/utilities; tests excluded
-- License: MIT for the compiled source set; bundled text in `third_party/PLAITS_LICENSE.txt`
-- Product use: sixteen curated models exposed under the neutral UI label **Musical / Музыкальный**
+- License: MIT for the compiled STM32 source set; bundled text in `third_party/PLAITS_LICENSE.txt`
+- Product use: sixteen curated macro-oscillator models exposed as the **Musical / Музыкальный** source
 
-The project is not affiliated with or endorsed by Mutable Instruments and does not market the product using the original module name.
+The MIT licence permits use, modification and redistribution provided its copyright and permission notice are retained. Internal source names and some technical labels may retain the upstream word **Plaits** for traceability and attribution. The product itself is named **Cursed Drone**; it is not sold or presented as a Mutable Instruments or Plaits product.
+
+**Mutable Instruments** is a registered trademark. Cursed Drone is an independent project and is not affiliated with, endorsed by or supported by Mutable Instruments or Emilie Gillet. The upstream recommendation not to reuse original module names for derivative products is respected by the Cursed Drone product name and Musical source branding.
 
 ## font512
 
