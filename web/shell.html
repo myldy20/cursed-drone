@@ -124,7 +124,10 @@
       canvas.style.width = cssWidth + 'px';
       canvas.style.height = cssHeight + 'px';
       if (started && typeof Module !== 'undefined' && typeof Module._cursed_drone_web_resize === 'function') {
-        Module._cursed_drone_web_resize(pixelWidth, pixelHeight);
+        // SDL's Emscripten backend applies devicePixelRatio itself when the
+        // window uses SDL_WINDOW_ALLOW_HIGHDPI. Passing backing-buffer pixels
+        // here would multiply Retina scaling twice and misalign hit testing.
+        Module._cursed_drone_web_resize(cssWidth, cssHeight);
       } else if (typeof Module !== 'undefined' && typeof Module.setCanvasSize === 'function') {
         Module.setCanvasSize(pixelWidth, pixelHeight, false);
       } else {
