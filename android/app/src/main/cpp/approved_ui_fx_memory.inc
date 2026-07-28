@@ -65,6 +65,54 @@ void a_memory(SDL_Renderer* renderer, cd::Session& session, UiState& state,
     a_memory_exact(renderer, session, state, area, scale);
 }
 
+void a_header_kill(SDL_Renderer* renderer, UiState& state,
+    int width, int scale) {
+    const int safe = std::clamp(g_ui_safe_side, 0, width / 4);
+    const int usable_width = width - 2 * safe;
+    SDL_Rect kill{safe + usable_width - 500, 13, 80, 35};
+    a_card(renderer, kill, a_mix(aPanel2, aRed, 0.16F),
+        aRed, 7, false);
+    a_centered_text(renderer, kill, "KILL", aCream, scale + 1);
+    add_hit(state, kill, Action::actor_section, kActionPanic);
+}
+
+void a_actor_event_marker(SDL_Renderer* renderer,
+    const cd::Session& session, const UiState& state,
+    SDL_Rect content) {
+    if (state.page != Page::actor) return;
+    const auto& slot = session.slots[static_cast<std::size_t>(state.actor)];
+    if (!cd::supports_event_rate(slot.engine)) return;
+
+    // The original EVENT pill looked actionable. Replace it after the Actor
+    // screen is drawn with a passive waveform glyph and no touch target.
+    content.x -= 1;
+    content.w += 2;
+    content.h += 7;
+    constexpr int side_w = 300;
+    constexpr int gap = 10;
+    SDL_Rect main{content.x + side_w + gap, content.y,
+        content.w - side_w - gap, content.h};
+    const int header_control_y = main.y + 29;
+    SDL_Rect old_badge{main.x + 145, header_control_y, 96, 38};
+    fill(renderer, {old_badge.x - 2, old_badge.y - 2,
+        old_badge.w + 4, old_badge.h + 4}, aPanel2);
+
+    constexpr std::array<int, 5> heights{{10, 22, 34, 22, 10}};
+    constexpr int bar_w = 6;
+    constexpr int bar_gap = 6;
+    const int glyph_w = static_cast<int>(heights.size()) * bar_w +
+        (static_cast<int>(heights.size()) - 1) * bar_gap;
+    const int start_x = old_badge.x + (old_badge.w - glyph_w) / 2;
+    const int centre_y = old_badge.y + old_badge.h / 2;
+    for (int i = 0; i < static_cast<int>(heights.size()); ++i) {
+        const int height = heights[static_cast<std::size_t>(i)];
+        a_round_fill(renderer,
+            {start_x + i * (bar_w + bar_gap), centre_y - height / 2,
+                bar_w, height},
+            bar_w / 2, aYellow);
+    }
+}
+
 void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     UiState& state, const cd::AudioTelemetry& telemetry, float cpu,
     int width, int height) {
@@ -77,6 +125,7 @@ void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     int content_y = 0;
     a_header(renderer, session, state, telemetry, cpu, width, height,
         scale, content_y);
+    a_header_kill(renderer, state, width, scale);
     const int outer = a_compact_layout(width, height) ? 16 : 28;
     const int side = g_ui_safe_side + outer;
     SDL_Rect content{side, content_y, width - 2 * side,
@@ -88,6 +137,7 @@ void approved_draw(SDL_Renderer* renderer, cd::Session& session,
     case Page::master: a_master(renderer, session, state, content, scale); break;
     case Page::memory: a_memory(renderer, session, state, content, scale); break;
     }
+    a_actor_event_marker(renderer, session, state, content);
     if (state.picker != PickerKind::none)
         draw_picker(renderer, session, state, width, height, scale);
     if (!state.toast.empty() && SDL_GetTicks() < state.toast_until) {
