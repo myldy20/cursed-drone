@@ -10,7 +10,7 @@
     :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #08070c; color: #eee2c5; }
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; background: #08070c; }
-    body { display: grid; place-items: center; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    body { display: grid; place-items: center; }
     #canvas { display: block; width: 100%; height: 100%; border: 0; outline: 0; image-rendering: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
     #gate { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 35%, rgba(117, 67, 171, .23), transparent 42%), #08070c; transition: opacity 180ms ease; }
     #gate.hidden { pointer-events: none; opacity: 0; }
@@ -21,6 +21,8 @@
     #start { width: 100%; min-height: 58px; border: 1px solid #75dab3; background: #432b5b; color: #eee2c5; font: inherit; font-weight: 700; letter-spacing: .06em; cursor: pointer; }
     #start:disabled { border-color: #544860; color: #978f9e; cursor: wait; }
     #status { min-height: 1.4em; margin: 14px 0 0; color: #978f9e; font-size: 12px; }
+    #fullscreen { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 8; width: 50px; height: 50px; padding: 0; border: 1px solid #75dab3; border-radius: 8px; background: rgba(24, 20, 32, .92); color: #eee2c5; font: 700 25px/1 ui-monospace, monospace; cursor: pointer; touch-action: manipulation; box-shadow: 0 8px 28px rgba(0, 0, 0, .4); }
+    #fullscreen[hidden] { display: none; }
     #fatal { position: fixed; inset: auto 12px 12px; z-index: 20; display: none; padding: 12px 14px; border: 1px solid #e14d60; background: #181420; color: #eee2c5; white-space: pre-wrap; }
     @media (orientation: portrait) and (max-width: 720px) {
       .gate-card { padding: 22px; }
@@ -30,6 +32,7 @@
 </head>
 <body>
   <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  <button id="fullscreen" type="button" hidden aria-label="Enter fullscreen" title="Enter fullscreen">⛶</button>
   <div id="gate"><div class="gate-card">
     <h1 class="mark">CURSED DRONE</h1>
     <p id="tagline" class="tagline">A procedural dark ambient instrument with four sound actors, evolving spaces, modulation and effects — no samples.</p>
@@ -45,6 +48,7 @@
     const taglineNode = document.getElementById('tagline');
     const orientationHintNode = document.getElementById('orientation-hint');
     const startButton = document.getElementById('start');
+    const fullscreenButton = document.getElementById('fullscreen');
     const statusNode = document.getElementById('status');
     const fatalNode = document.getElementById('fatal');
     const storageRoot = '/home/web_user/.local/share/myldy20/cursed-drone';
@@ -59,6 +63,7 @@
         sound: 'Audio starts after you press the button',
         starting: 'Starting the audio engine...',
         saved: 'Loading saved settings...',
+        fullscreen: 'Enter fullscreen',
         unknownError: 'Unknown startup error',
         startupError: 'STARTUP ERROR'
       },
@@ -71,6 +76,7 @@
         sound: 'Звук включится после нажатия',
         starting: 'Запускаю аудиодвижок...',
         saved: 'Загружаю сохранённые настройки...',
+        fullscreen: 'Вернуться в полноэкранный режим',
         unknownError: 'Неизвестная ошибка запуска',
         startupError: 'ОШИБКА ЗАПУСКА'
       }
@@ -84,6 +90,8 @@
     orientationHintNode.textContent = copy.orientation;
     startButton.textContent = copy.loading;
     statusNode.textContent = copy.preparing;
+    fullscreenButton.setAttribute('aria-label', copy.fullscreen);
+    fullscreenButton.title = copy.fullscreen;
 
     let runtimeReady = false;
     let storageReady = false;
@@ -96,12 +104,20 @@
       fatalNode.style.display = 'block';
       fatalNode.textContent = String(message || copy.unknownError);
       gate.classList.remove('hidden');
+      fullscreenButton.hidden = true;
       startButton.disabled = true;
       startButton.textContent = copy.startupError;
     }
+    function fullscreenElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+    function updateFullscreenButton() {
+      fullscreenButton.hidden = !started || Boolean(fullscreenElement());
+    }
     function resizeCanvas() {
-      const cssWidth = Math.max(320, Math.floor(window.innerWidth || (window.visualViewport && window.visualViewport.width) || 320));
-      const cssHeight = Math.max(240, Math.floor(window.innerHeight || (window.visualViewport && window.visualViewport.height) || 240));
+      const viewport = window.visualViewport;
+      const cssWidth = Math.max(320, Math.floor(viewport ? viewport.width : window.innerWidth || 320));
+      const cssHeight = Math.max(240, Math.floor(viewport ? viewport.height : window.innerHeight || 240));
       const pixelRatio = Math.min(window.devicePixelRatio || 1, coarsePointer ? 1 : 2);
       const pixelWidth = Math.floor(cssWidth * pixelRatio);
       const pixelHeight = Math.floor(cssHeight * pixelRatio);
@@ -138,10 +154,17 @@
         if (screen.orientation && typeof screen.orientation.lock === 'function') {
           Promise.resolve(screen.orientation.lock('landscape')).catch(() => {});
         }
+        updateFullscreenButton();
         scheduleResize();
       };
-      if (result && typeof result.then === 'function') result.then(afterFullscreen).catch(() => scheduleResize());
-      else window.setTimeout(afterFullscreen, 0);
+      if (result && typeof result.then === 'function') {
+        result.then(afterFullscreen).catch(() => {
+          updateFullscreenButton();
+          scheduleResize();
+        });
+      } else {
+        window.setTimeout(afterFullscreen, 0);
+      }
     }
     function enableStart() {
       if (!runtimeReady || !storageReady || started) return;
@@ -178,6 +201,7 @@
         if (document.visibilityState === 'hidden') syncStorage(false);
       });
     }
+    fullscreenButton.addEventListener('click', requestLandscapeFullscreen);
     startButton.addEventListener('click', () => {
       if (!runtimeReady || !storageReady || started) return;
       requestLandscapeFullscreen();
@@ -187,9 +211,10 @@
       resizeCanvas();
       beginPersistentSync();
       gate.classList.add('hidden');
+      updateFullscreenButton();
       try {
         const arguments = coarsePointer
-          ? ['--android-audio-burst=2048', '--web-frame-ms=40']
+          ? ['--android-audio-burst=2048', '--web-frame-ms=33']
           : ['--android-audio-burst=1024', '--web-frame-ms=16'];
         Module.callMain(arguments);
         scheduleResize();
@@ -201,8 +226,14 @@
     window.addEventListener('resize', scheduleResize, { passive: true });
     window.addEventListener('orientationchange', scheduleResize, { passive: true });
     window.addEventListener('pageshow', scheduleResize, { passive: true });
-    document.addEventListener('fullscreenchange', scheduleResize, { passive: true });
-    document.addEventListener('webkitfullscreenchange', scheduleResize, { passive: true });
+    document.addEventListener('fullscreenchange', () => {
+      updateFullscreenButton();
+      scheduleResize();
+    }, { passive: true });
+    document.addEventListener('webkitfullscreenchange', () => {
+      updateFullscreenButton();
+      scheduleResize();
+    }, { passive: true });
     if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleResize, { passive: true });
     if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', scheduleResize);
     resizeCanvas();
