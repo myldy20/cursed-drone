@@ -1,7 +1,7 @@
 <p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-<img src="https://img.shields.io/badge/version-0.13.0-eee2c5" alt="version 0.13.0">
+<img src="https://img.shields.io/badge/version-0.13.1-eee2c5" alt="version 0.13.1">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
 <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
@@ -15,7 +15,7 @@
 
 ## Download and install
 
-**[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.13.0 release notes](docs/releases/v0.13.0.md)
+**[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.13.1 release notes](docs/releases/v0.13.1.md)
 
 - Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
@@ -82,13 +82,13 @@ CI tests Linux, macOS, Android ARM64 and Ubuntu-20.04-compatible AArch64. Every 
 
 ## Performance release
 
-Version 0.13.0 moves slowly changing event, modal and effect coefficients to control rate, uses interpolated equal-power pan tables and completely suspends muted actors. On the reproducible x86 benchmark used during development, the default Derelict scene rendered about 20% faster and the 20× Black Hole stress case about 70% faster than 0.12.3. These figures are comparative desktop measurements; real TrimUI Brick load still depends on firmware, clock and selected scene.
+Version 0.13.1 moves slowly changing event, modal and effect coefficients to control rate, uses interpolated equal-power pan tables and completely suspends muted actors. On the reproducible x86 benchmark used during development, the default Derelict scene rendered about 20% faster and the 20× Black Hole stress case about 70% faster than 0.12.3. These figures are comparative desktop measurements; real TrimUI Brick load still depends on firmware, clock and selected scene.
 
 Run the benchmark locally with `make benchmark` or `build/cursed-drone-benchmark 5`.
 
 ## Documentation
 
-- [Release notes](docs/releases/v0.13.0.md)
+- [Release notes](docs/releases/v0.13.1.md)
 - [Workflow](docs/workflow.en.md) · [Сквозная логика](docs/workflow.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
@@ -110,7 +110,7 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 
 ## Скачать и установить
 
-**[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.13.0](docs/releases/v0.13.0.md)
+**[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.13.1](docs/releases/v0.13.1.md)
 
 - Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
 - NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
