@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
@@ -16,14 +16,15 @@
     #gate.hidden { pointer-events: none; opacity: 0; }
     .gate-card { width: min(560px, 100%); padding: 28px; border: 1px solid #544860; background: rgba(24, 20, 32, .96); box-shadow: 0 24px 80px rgba(0, 0, 0, .45); text-align: center; }
     .mark { margin: 0 0 10px; font-size: clamp(26px, 7vw, 52px); letter-spacing: .09em; line-height: 1; }
-    .tagline { margin: 0 0 24px; color: #978f9e; line-height: 1.45; }
+    .tagline { margin: 0 0 12px; color: #978f9e; line-height: 1.45; }
+    .orientation-hint { display: none; margin: 0 0 24px; color: #75dab3; line-height: 1.4; }
     #start { width: 100%; min-height: 58px; border: 1px solid #75dab3; background: #432b5b; color: #eee2c5; font: inherit; font-weight: 700; letter-spacing: .06em; cursor: pointer; }
     #start:disabled { border-color: #544860; color: #978f9e; cursor: wait; }
     #status { min-height: 1.4em; margin: 14px 0 0; color: #978f9e; font-size: 12px; }
     #fatal { position: fixed; inset: auto 12px 12px; z-index: 20; display: none; padding: 12px 14px; border: 1px solid #e14d60; background: #181420; color: #eee2c5; white-space: pre-wrap; }
     @media (orientation: portrait) and (max-width: 720px) {
       .gate-card { padding: 22px; }
-      .tagline::after { content: " Поверни телефон горизонтально — так интерфейсу просторнее."; color: #75dab3; }
+      .orientation-hint { display: block; }
     }
   </style>
 </head>
@@ -31,19 +32,59 @@
   <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
   <div id="gate"><div class="gate-card">
     <h1 class="mark">CURSED DRONE</h1>
-    <p class="tagline">Процедурный dark ambient-инструмент: четыре звуковых актёра, меняющиеся пространства, модуляция и эффекты — без семплов.</p>
-    <button id="start" type="button" disabled>ЗАГРУЗКА...</button>
-    <p id="status">Подготавливаю WebAssembly и память инструмента</p>
+    <p id="tagline" class="tagline">A procedural dark ambient instrument with four sound actors, evolving spaces, modulation and effects — no samples.</p>
+    <p id="orientation-hint" class="orientation-hint">Rotate your phone to landscape for the full interface.</p>
+    <button id="start" type="button" disabled>LOADING...</button>
+    <p id="status">Preparing WebAssembly and instrument memory</p>
   </div></div>
   <pre id="fatal"></pre>
 
   <script>
     const canvas = document.getElementById('canvas');
     const gate = document.getElementById('gate');
+    const taglineNode = document.getElementById('tagline');
+    const orientationHintNode = document.getElementById('orientation-hint');
     const startButton = document.getElementById('start');
     const statusNode = document.getElementById('status');
     const fatalNode = document.getElementById('fatal');
     const storageRoot = '/home/web_user/.local/share/myldy20/cursed-drone';
+    const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const translations = {
+      en: {
+        tagline: 'A procedural dark ambient instrument with four sound actors, evolving spaces, modulation and effects — no samples.',
+        orientation: 'Rotate your phone to landscape for the full interface.',
+        loading: 'LOADING...',
+        preparing: 'Preparing WebAssembly and instrument memory',
+        start: 'START CURSED DRONE',
+        sound: 'Audio starts after you press the button',
+        starting: 'Starting the audio engine...',
+        saved: 'Loading saved settings...',
+        unknownError: 'Unknown startup error',
+        startupError: 'STARTUP ERROR'
+      },
+      ru: {
+        tagline: 'Процедурный dark ambient-инструмент: четыре звуковых актёра, меняющиеся пространства, модуляция и эффекты — без семплов.',
+        orientation: 'Поверни телефон горизонтально — так будет доступен весь интерфейс.',
+        loading: 'ЗАГРУЗКА...',
+        preparing: 'Подготавливаю WebAssembly и память инструмента',
+        start: 'ЗАПУСТИТЬ ГУДЕЖ',
+        sound: 'Звук включится после нажатия',
+        starting: 'Запускаю аудиодвижок...',
+        saved: 'Загружаю сохранённые настройки...',
+        unknownError: 'Неизвестная ошибка запуска',
+        startupError: 'ОШИБКА ЗАПУСКА'
+      }
+    };
+    const browserLanguages = navigator.languages && navigator.languages.length
+      ? navigator.languages : [navigator.language || 'en'];
+    const language = browserLanguages.some((value) => /^ru(?:-|$)/i.test(value || '')) ? 'ru' : 'en';
+    const copy = translations[language] || translations.en;
+    document.documentElement.lang = language;
+    taglineNode.textContent = copy.tagline;
+    orientationHintNode.textContent = copy.orientation;
+    startButton.textContent = copy.loading;
+    statusNode.textContent = copy.preparing;
+
     let runtimeReady = false;
     let storageReady = false;
     let started = false;
@@ -53,16 +94,15 @@
     function setStatus(message) { statusNode.textContent = message || ''; }
     function showFatal(message) {
       fatalNode.style.display = 'block';
-      fatalNode.textContent = String(message || 'Неизвестная ошибка запуска');
+      fatalNode.textContent = String(message || copy.unknownError);
       gate.classList.remove('hidden');
       startButton.disabled = true;
-      startButton.textContent = 'ОШИБКА ЗАПУСКА';
+      startButton.textContent = copy.startupError;
     }
     function resizeCanvas() {
       const cssWidth = Math.max(320, Math.floor(window.innerWidth || (window.visualViewport && window.visualViewport.width) || 320));
       const cssHeight = Math.max(240, Math.floor(window.innerHeight || (window.visualViewport && window.visualViewport.height) || 240));
-      const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.35 : 2);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, coarsePointer ? 1 : 2);
       const pixelWidth = Math.floor(cssWidth * pixelRatio);
       const pixelHeight = Math.floor(cssHeight * pixelRatio);
       canvas.style.width = cssWidth + 'px';
@@ -85,11 +125,29 @@
       window.requestAnimationFrame(() => window.requestAnimationFrame(apply));
       [80, 220, 500, 900].forEach((delay) => window.setTimeout(apply, delay));
     }
+    function requestLandscapeFullscreen() {
+      const element = document.documentElement;
+      let result;
+      try {
+        if (element.requestFullscreen) result = element.requestFullscreen({ navigationUI: 'hide' });
+        else if (element.webkitRequestFullscreen) result = element.webkitRequestFullscreen();
+      } catch (error) {
+        console.warn('Fullscreen request failed:', error);
+      }
+      const afterFullscreen = () => {
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+          Promise.resolve(screen.orientation.lock('landscape')).catch(() => {});
+        }
+        scheduleResize();
+      };
+      if (result && typeof result.then === 'function') result.then(afterFullscreen).catch(() => scheduleResize());
+      else window.setTimeout(afterFullscreen, 0);
+    }
     function enableStart() {
       if (!runtimeReady || !storageReady || started) return;
       startButton.disabled = false;
-      startButton.textContent = 'ЗАПУСТИТЬ ГУДЕЖ';
-      setStatus('Звук включится после нажатия');
+      startButton.textContent = copy.start;
+      setStatus(copy.sound);
     }
     function syncStorage(populate, done) {
       try {
@@ -114,7 +172,7 @@
       }
     }
     function beginPersistentSync() {
-      syncTimer = window.setInterval(() => syncStorage(false), 20000);
+      syncTimer = window.setInterval(() => syncStorage(false), 60000);
       window.addEventListener('pagehide', () => syncStorage(false), { capture: true });
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') syncStorage(false);
@@ -122,14 +180,18 @@
     }
     startButton.addEventListener('click', () => {
       if (!runtimeReady || !storageReady || started) return;
+      requestLandscapeFullscreen();
       started = true;
       startButton.disabled = true;
-      setStatus('Запускаю аудиодвижок...');
+      setStatus(copy.starting);
       resizeCanvas();
       beginPersistentSync();
       gate.classList.add('hidden');
       try {
-        Module.callMain(['--android-audio-burst=1024']);
+        const arguments = coarsePointer
+          ? ['--android-audio-burst=2048', '--web-frame-ms=40']
+          : ['--android-audio-burst=1024', '--web-frame-ms=16'];
+        Module.callMain(arguments);
         scheduleResize();
       } catch (error) {
         window.clearInterval(syncTimer);
@@ -139,6 +201,8 @@
     window.addEventListener('resize', scheduleResize, { passive: true });
     window.addEventListener('orientationchange', scheduleResize, { passive: true });
     window.addEventListener('pageshow', scheduleResize, { passive: true });
+    document.addEventListener('fullscreenchange', scheduleResize, { passive: true });
+    document.addEventListener('webkitfullscreenchange', scheduleResize, { passive: true });
     if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleResize, { passive: true });
     if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', scheduleResize);
     resizeCanvas();
@@ -151,7 +215,7 @@
       setStatus,
       onRuntimeInitialized() {
         runtimeReady = true;
-        setStatus('Загружаю сохранённые настройки...');
+        setStatus(copy.saved);
         mountStorage();
       },
       onAbort(reason) { showFatal(reason); }
