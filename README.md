@@ -11,13 +11,15 @@
 
 **Cursed Drone is a handheld live soundscape instrument.** It does not merely generate a pure drone: it creates the atmosphere of a place, populated by four procedural actors and evolving events.
 
-> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**. Packages are firmware-specific and not interchangeable.
+> Verified on real **TrimUI Brick** hardware with both **Knulli/PortMaster** and **NextUI**. Packages are firmware-specific and not interchangeable. The Android build is a public sideload preview.
 
-## Install
+## Download and install
+
+**[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.13.0 release notes](docs/releases/v0.13.0.md)
 
 - Knulli / PortMaster: [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - NextUI: [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
-- Android ARM64 preview: [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
+- Android ARM64 public preview: [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
 
 ## Guided Workflow
 
@@ -76,7 +78,7 @@ cmake --build build -j2
 ctest --test-dir build --output-on-failure
 ```
 
-CI tests Linux, macOS, Android ARM64 and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI and an installable Android preview APK from the same core sources.
+CI tests Linux, macOS, Android ARM64 and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI and an installable Android preview APK from the same core sources. A successful versioned merge to `main` publishes consistent release packages and checksums.
 
 ## Performance release
 
@@ -86,6 +88,7 @@ Run the benchmark locally with `make benchmark` or `build/cursed-drone-benchmark
 
 ## Documentation
 
+- [Release notes](docs/releases/v0.13.0.md)
 - [Workflow](docs/workflow.en.md) · [Сквозная логика](docs/workflow.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
@@ -103,9 +106,11 @@ Developed by **Myldy design — [@myldy20](https://github.com/myldy20)**. First-
 
 **Проклятый гудёж — карманный инструмент живых звуковых пространств.** Он не просто выдаёт чистый дрон, а создаёт атмосферу места, населённого четырьмя процедурными актёрами и развивающимися событиями.
 
-> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**. Пакеты для разных прошивок не взаимозаменяемы.
+> Проверено на реальной **TrimUI Brick** с **Knulli/PortMaster** и **NextUI**. Пакеты для разных прошивок не взаимозаменяемы. Android-сборка пока распространяется как публичная preview-версия для ручной установки.
 
-## Установка
+## Скачать и установить
+
+**[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.13.0](docs/releases/v0.13.0.md)
 
 - Knulli / PortMaster: [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
 - NextUI: [русская инструкция](docs/install.nextui.ru.md) · [English](docs/install.nextui.en.md)
