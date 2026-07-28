@@ -88,8 +88,12 @@ extern "C" int SDL_main(int argc, char** argv) {
     SDL_Window* window = SDL_CreateWindow("Cursed Drone",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1280, 720,
         window_flags);
-    SDL_Renderer* renderer = window != nullptr ? SDL_CreateRenderer(window, -1,
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC) : nullptr;
+    Uint32 renderer_flags = SDL_RENDERER_ACCELERATED;
+#ifndef CURSED_DRONE_WEB
+    renderer_flags |= SDL_RENDERER_PRESENTVSYNC;
+#endif
+    SDL_Renderer* renderer = window != nullptr
+        ? SDL_CreateRenderer(window, -1, renderer_flags) : nullptr;
     if (renderer == nullptr && window != nullptr)
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
     if (window == nullptr || renderer == nullptr) {
@@ -115,13 +119,17 @@ extern "C" int SDL_main(int argc, char** argv) {
 #ifdef CURSED_DRONE_WEB
     const int burst = parse_argument(argc, argv,
         "--android-audio-burst=", 1'024);
+    const int web_frame_ms = std::clamp(parse_argument(argc, argv,
+        "--web-frame-ms=", 33), 16, 100);
     constexpr int minimum_callback_frames = 2'048;
-    constexpr int maximum_callback_frames = 4'096;
+    constexpr int maximum_callback_frames = 8'192;
+    constexpr Uint32 save_debounce_ms = 2'000U;
 #else
     const int burst = parse_argument(argc, argv,
         "--android-audio-burst=", 256);
     constexpr int minimum_callback_frames = 512;
     constexpr int maximum_callback_frames = 2'048;
+    constexpr Uint32 save_debounce_ms = 750U;
 #endif
     AudioBridge audio{};
     SDL_AudioSpec desired{};
@@ -186,7 +194,7 @@ extern "C" int SDL_main(int argc, char** argv) {
                 logical_touch_position(renderer, window, event.tfinger.x,
                     event.tfinger.y, x, y);
                 changed = approved_press(session, state,
-                    hit_at(state, x, y), x) || changed;
+                    approved_hit_at(state, x, y), x) || changed;
             } else if (event.type == SDL_FINGERMOTION && state.finger_down &&
                 event.tfinger.fingerId == state.finger_id &&
                 state.slider_active) {
@@ -239,7 +247,7 @@ extern "C" int SDL_main(int argc, char** argv) {
             audio_session_pending = false;
         }
         if (save_pending && !g_autosave_path.empty() &&
-            now - changed_at >= 750U) {
+            now - changed_at >= save_debounce_ms) {
             std::string error;
             if (cd::save_session(session, g_autosave_path, error))
                 save_pending = false;
@@ -266,7 +274,7 @@ extern "C" int SDL_main(int argc, char** argv) {
             audio.cpu_load.load(std::memory_order_relaxed),
             kAndroidUiWidth, kAndroidUiHeight);
 #ifdef CURSED_DRONE_WEB
-        SDL_Delay(16);
+        SDL_Delay(static_cast<Uint32>(web_frame_ms));
 #else
         SDL_Delay(1);
 #endif

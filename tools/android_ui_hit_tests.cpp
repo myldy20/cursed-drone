@@ -59,7 +59,7 @@ void audit_hit_map(const UiState& state, std::string_view screen) {
         sliders.push_back(&hit);
         const int x = hit.rect.x + hit.rect.w / 2;
         const int y = hit.rect.y + hit.rect.h / 2;
-        const HitTarget resolved = hit_at(state, x, y);
+        const HitTarget resolved = approved_hit_at(state, x, y);
         expect(same_slider(hit, resolved), std::string{screen} +
             ": slider centre is captured by another control");
     }
@@ -93,6 +93,13 @@ const HitTarget* detailed_actor_level(const UiState& state) {
 const HitTarget* actor_card_level(const UiState& state, int actor) {
     for (const auto& hit : state.hits) {
         if (actor_card_level_hit(hit) && hit.a == actor) return &hit;
+    }
+    return nullptr;
+}
+
+const HitTarget* actor_toggle(const UiState& state, int actor) {
+    for (const auto& hit : state.hits) {
+        if (hit.action == Action::actor_toggle && hit.a == actor) return &hit;
     }
     return nullptr;
 }
@@ -149,6 +156,39 @@ void test_actor_level_routing(SDL_Renderer* renderer) {
     }
 }
 
+void test_compact_button_touch_slop(SDL_Renderer* renderer) {
+    cd::Session session = cd::make_default_session();
+    UiState state{};
+    for (const Page page : {Page::place, Page::actor}) {
+        draw(renderer, session, state, page, ActorSection::sound);
+        for (int actor = 0; actor < 4; ++actor) {
+            const HitTarget* toggle = actor_toggle(state, actor);
+            expect(toggle != nullptr,
+                "Each actor card must expose MUTE/UNMUTE");
+            if (toggle == nullptr) continue;
+            const int x = toggle->rect.x + toggle->rect.w / 2;
+            const int y = toggle->rect.y - 6;
+            const HitTarget resolved = approved_hit_at(state, x, y);
+            expect(resolved.action == Action::actor_toggle &&
+                resolved.a == actor,
+                "A small miss above MUTE must still route to that actor");
+        }
+    }
+
+    draw(renderer, session, state, Page::actor, ActorSection::sound);
+    for (int actor = 0; actor < 4; ++actor) {
+        const HitTarget* level = actor_card_level(state, actor);
+        expect(level != nullptr,
+            "Each sidebar actor card must retain its LEVEL slider");
+        if (level == nullptr) continue;
+        const int x = level->rect.x + level->rect.w / 2;
+        const int y = level->rect.y + level->rect.h / 2;
+        const HitTarget resolved = approved_hit_at(state, x, y);
+        expect(same_slider(*level, resolved),
+            "MUTE touch slop must not steal the centre of LEVEL");
+    }
+}
+
 void test_all_hit_maps(SDL_Renderer* renderer) {
     cd::Session session = cd::make_default_session();
     UiState state{};
@@ -199,6 +239,7 @@ int main() {
     SDL_RenderSetLogicalSize(renderer, kAndroidUiWidth, kAndroidUiHeight);
 
     test_actor_level_routing(renderer);
+    test_compact_button_touch_slop(renderer);
     test_all_hit_maps(renderer);
 
     SDL_DestroyRenderer(renderer);

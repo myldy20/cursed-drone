@@ -158,6 +158,46 @@ bool actor_card_level_hit(const HitTarget& hit) noexcept {
         hit.rect.w <= kActorCardLevelMaximumWidth;
 }
 
+SDL_Rect expanded_touch_rect(SDL_Rect rect, int horizontal,
+    int above, int below) noexcept {
+    rect.x -= horizontal;
+    rect.y -= above;
+    rect.w += horizontal * 2;
+    rect.h += above + below;
+    return rect;
+}
+
+HitTarget approved_hit_at(const UiState& state, int x, int y) {
+    const HitTarget exact = hit_at(state, x, y);
+
+    // MUTE/UNMUTE is visually compact in the four-card layouts. Give it a
+    // controlled finger margin. Only the nearest eight logical pixels above
+    // the visible button may override another exact target, so LEVEL remains
+    // easy to drag and the two controls do not become semantically entangled.
+    for (auto it = state.hits.rbegin(); it != state.hits.rend(); ++it) {
+        if (it->action != Action::actor_toggle) continue;
+        const SDL_Rect near = expanded_touch_rect(it->rect, 10, 8, 8);
+        if (!contains(near, x, y)) continue;
+        HitTarget result = *it;
+        result.rect = expanded_touch_rect(it->rect, 10, 16, 8);
+        return result;
+    }
+    if (exact.action != Action::none) return exact;
+
+    // A small fallback margin helps the remaining compact buttons without
+    // changing slider routing or the large actor-selection surfaces.
+    for (auto it = state.hits.rbegin(); it != state.hits.rend(); ++it) {
+        if (it->action == Action::none || it->action == Action::slider ||
+            it->action == Action::actor_select) continue;
+        const SDL_Rect expanded = expanded_touch_rect(it->rect, 8, 8, 8);
+        if (!contains(expanded, x, y)) continue;
+        HitTarget result = *it;
+        result.rect = expanded;
+        return result;
+    }
+    return {};
+}
+
 bool approved_press(cd::Session& session, UiState& state, HitTarget hit,
     int x) {
     if (actor_card_level_hit(hit)) state.actor = hit.a;
