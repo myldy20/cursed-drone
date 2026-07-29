@@ -2,7 +2,8 @@
 <p align="center">
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
 <a href="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml/badge.svg" alt="web build"></a>
-<img src="https://img.shields.io/badge/version-0.14.0-eee2c5" alt="version 0.14.0">
+<a href="https://github.com/myldy20/cursed-drone/actions/workflows/web-smoke.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/web-smoke.yml/badge.svg" alt="web smoke"></a>
+<img src="https://img.shields.io/badge/version-0.14.1-eee2c5" alt="version 0.14.1">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_Knulli-50a99a" alt="verified Knulli">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_NextUI-50a99a" alt="verified NextUI">
 <img src="https://img.shields.io/badge/architecture-AArch64-7550ab" alt="AArch64">
@@ -16,7 +17,7 @@
 
 ## Launch, download and install
 
-**[Launch the WebAssembly version](https://myldy20.github.io/cursed-drone/)** · **[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.14.0 release notes](docs/releases/v0.14.0.md)
+**[Launch the WebAssembly version](https://myldy20.github.io/cursed-drone/)** · **[Download the latest release](https://github.com/myldy20/cursed-drone/releases/latest)** · [0.14.1 release notes](docs/releases/v0.14.1.md)
 
 - **Web:** open the link above in a modern WebAssembly/Web Audio browser and press the launch button. Mouse, drag gestures and touch are supported;
 - **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
@@ -72,7 +73,7 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 
 Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: browser IndexedDB · Android: private app storage.
 
-Runtime data includes `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl` where the platform supports importing files.
+Runtime data includes `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl` where the platform supports importing files. Sessions are sanitized before use; if a primary file is corrupt, Cursed Drone attempts to recover its previous atomic `.bak` copy.
 
 ## Build
 
@@ -90,11 +91,11 @@ emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-web --target cursed-drone-web --parallel 2
 ```
 
-CI tests Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI, an installable Android preview APK and the static browser bundle from the same core sources. A successful merge with a new `VERSION` publishes consistent release packages and checksums; every push to `main` republishes GitHub Pages.
+CI tests Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible AArch64. Every change builds the desktop/handheld frontends, PortMaster, NextUI, an installable Android preview APK and the static browser bundle from the same core sources. Browser smoke tests cover mouse/touch navigation, drag gestures, DPR 1/2 and a letterboxed Retina viewport. Shipped runtime changes must advance `VERSION` and include matching release notes.
 
-## 0.14 release and performance baseline
+## 0.14.1 hardening and performance baseline
 
-Version 0.14.0 adds the public WebAssembly target, browser persistence, fullscreen/localisation handling, restored Musical controls and verified mouse/touch alignment across Retina and letterboxed desktop layouts.
+Version 0.14.1 adds central session sanitization, automatic backup recovery, Android lifecycle saves, prompt IndexedDB persistence and control-rate Scala pitch quantization. It also adds browser interaction and version-discipline gates to prevent repeats of the Web/Retina and same-version release regressions.
 
 The 0.13.1 realtime optimisation baseline remains intact: slowly changing event, modal and effect coefficients run at control rate, equal-power pan uses interpolated tables and muted actors are suspended completely. On the reproducible x86 benchmark used during development, the default Derelict scene rendered about 20% faster and the 20× Black Hole stress case about 70% faster than 0.12.3. These figures are comparative desktop measurements; real TrimUI Brick load depends on firmware, clock and selected scene.
 
@@ -102,7 +103,7 @@ Run the benchmark locally with `make benchmark` or `build/cursed-drone-benchmark
 
 ## Documentation
 
-- [Changelog](CHANGELOG.md) · [0.14.0 release notes](docs/releases/v0.14.0.md)
+- [Changelog](CHANGELOG.md) · [0.14.1 release notes](docs/releases/v0.14.1.md)
 - [Workflow](docs/workflow.en.md) · [Сквозная логика](docs/workflow.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Synthesis catalogue](docs/synthesis-catalog.en.md) · [Каталог синтеза](docs/synthesis-catalog.ru.md)
@@ -126,7 +127,7 @@ The Musical source compiles selected MIT-licensed DSP from Mutable Instruments P
 
 ## Запустить, скачать и установить
 
-**[Запустить веб-версию](https://myldy20.github.io/cursed-drone/)** · **[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.14.0](docs/releases/v0.14.0.md)
+**[Запустить веб-версию](https://myldy20.github.io/cursed-drone/)** · **[Скачать актуальный релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 0.14.1](docs/releases/v0.14.1.md)
 
 - **Web:** открыть ссылку выше в современном браузере с WebAssembly/Web Audio и нажать кнопку запуска. Работают мышь, drag-жесты и тач;
 - **Knulli / PortMaster:** [русская инструкция](docs/install.ru.md) · [English](docs/install.en.md)
@@ -168,7 +169,7 @@ The Musical source compiles selected MIT-licensed DSP from Mutable Instruments P
 
 Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: IndexedDB браузера · Android: приватные данные приложения.
 
-Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`, если платформа поддерживает импорт файлов.
+Там находятся `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone` и пользовательские `scales/*.scl`, если платформа поддерживает импорт файлов. Перед использованием значения сессии проверяются; если основной файл повреждён, приложение пытается восстановить предыдущую атомарную копию `.bak`.
 
 ## Лицензия и Plaits
 
