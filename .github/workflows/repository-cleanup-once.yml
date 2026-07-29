@@ -20,6 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Starting one-shot cleanup"
           default_branch="$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)"
           gh api -X PATCH "repos/$GITHUB_REPOSITORY" \
             -F delete_branch_on_merge=true >/dev/null
