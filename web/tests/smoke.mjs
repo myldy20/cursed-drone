@@ -108,7 +108,14 @@ async function runCase(browser, testCase) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+    // Emscripten maps the application's ordinary stderr diagnostics (including
+    // the negotiated Web Audio format) to console.error. Treat only actual JS/
+    // WASM failure signatures as test failures; #fatal is checked separately.
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    if (/\b(abort(?:ed)?|runtimeerror|exception|uncaught|fatal)\b/i.test(text)) {
+      errors.push(`console: ${text}`);
+    }
   });
 
   await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
