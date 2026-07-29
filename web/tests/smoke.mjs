@@ -25,32 +25,13 @@ async function canvasDigest(page) {
   return digest(await page.locator('#canvas').screenshot());
 }
 
-async function waitForCanvasChange(page, before, label) {
-  await page.waitForFunction(
-    async ({ beforeHash }) => {
-      const canvas = document.querySelector('#canvas');
-      if (!canvas) return false;
-      const data = canvas.toDataURL('image/png');
-      const bytes = new TextEncoder().encode(data);
-      let hash = 2166136261;
-      for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619);
-      return String(hash >>> 0) !== beforeHash;
-    },
-    { beforeHash: await page.locator('#canvas').evaluate((canvas) => {
-      const data = canvas.toDataURL('image/png');
-      const bytes = new TextEncoder().encode(data);
-      let hash = 2166136261;
-      for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619);
-      return String(hash >>> 0);
-    }) },
-    { timeout: 5000 },
-  ).catch(async () => {
-    const after = await canvasDigest(page);
-    if (after === before) throw new Error(`${label}: canvas did not change`);
-  });
+async function requireCanvasChange(page, before, label) {
+  await page.waitForTimeout(220);
+  const after = await canvasDigest(page);
+  if (after === before) throw new Error(`${label}: canvas did not change`);
 }
 
-async function clickLogical(page, context, x, y, touch) {
+async function clickLogical(page, x, y, touch) {
   const box = await page.locator('#canvas').boundingBox();
   if (!box) throw new Error('canvas has no bounding box');
   const point = logicalPoint(box, x, y);
@@ -105,18 +86,16 @@ async function runCase(browser, testCase) {
   ];
   for (const [label, x, y] of tabs) {
     const before = await canvasDigest(page);
-    await clickLogical(page, context, x, y, testCase.touch);
-    await page.waitForTimeout(120);
-    await waitForCanvasChange(page, before, `${testCase.name}/${label}`);
+    await clickLogical(page, x, y, testCase.touch);
+    await requireCanvasChange(page, before, `${testCase.name}/${label}`);
   }
 
   if (!testCase.touch) {
-    // First Place macro row. The exact track is roughly x=300..850, y=270;
-    // moving across it verifies SDL mouse-to-touch drag routing as well as taps.
+    // First Place macro row. Moving across it verifies SDL mouse-to-touch drag
+    // routing as well as tab clicks.
     const before = await canvasDigest(page);
     await dragLogical(page, 360, 265, 790, 265);
-    await page.waitForTimeout(150);
-    await waitForCanvasChange(page, before, `${testCase.name}/drag`);
+    await requireCanvasChange(page, before, `${testCase.name}/drag`);
   }
 
   await page.screenshot({ path: `${outputDir}/${testCase.name}.png`, fullPage: true });
