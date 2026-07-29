@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import { PNG } from 'pngjs';
 
 const url = process.env.CURSED_DRONE_WEB_URL || 'http://127.0.0.1:4173';
 const logicalWidth = 1496;
@@ -17,18 +18,62 @@ function logicalPoint(box, x, y) {
   };
 }
 
+function logicalLocalPoint(box, x, y) {
+  const scale = Math.min(box.width / logicalWidth, box.height / logicalHeight);
+  return {
+    x: (box.width - logicalWidth * scale) * 0.5 + x * scale,
+    y: (box.height - logicalHeight * scale) * 0.5 + y * scale,
+  };
+}
+
 function digest(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-async function canvasDigest(page) {
-  return digest(await page.locator('#canvas').screenshot());
+async function canvasImage(page) {
+  const locator = page.locator('#canvas');
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('canvas has no bounding box');
+  const png = PNG.sync.read(await locator.screenshot());
+  return { box, png };
 }
 
-async function requireCanvasChange(page, before, label) {
-  await page.waitForTimeout(220);
-  const after = await canvasDigest(page);
-  if (after === before) throw new Error(`${label}: canvas did not change`);
+function pixelAtLogical(image, logicalX, logicalY) {
+  const local = logicalLocalPoint(image.box, logicalX, logicalY);
+  const x = Math.max(0, Math.min(image.png.width - 1,
+    Math.round(local.x * image.png.width / image.box.width)));
+  const y = Math.max(0, Math.min(image.png.height - 1,
+    Math.round(local.y * image.png.height / image.box.height)));
+  const offset = (y * image.png.width + x) * 4;
+  return Array.from(image.png.data.subarray(offset, offset + 4));
+}
+
+function regionDigest(image, logicalRect) {
+  const first = logicalLocalPoint(image.box, logicalRect.x, logicalRect.y);
+  const last = logicalLocalPoint(image.box,
+    logicalRect.x + logicalRect.w, logicalRect.y + logicalRect.h);
+  const x0 = Math.max(0, Math.floor(first.x * image.png.width / image.box.width));
+  const y0 = Math.max(0, Math.floor(first.y * image.png.height / image.box.height));
+  const x1 = Math.min(image.png.width, Math.ceil(last.x * image.png.width / image.box.width));
+  const y1 = Math.min(image.png.height, Math.ceil(last.y * image.png.height / image.box.height));
+  const hash = crypto.createHash('sha256');
+  for (let y = y0; y < y1; y += 1) {
+    const start = (y * image.png.width + x0) * 4;
+    const end = (y * image.png.width + x1) * 4;
+    hash.update(image.png.data.subarray(start, end));
+  }
+  return hash.digest('hex');
+}
+
+function requireActiveTab(image, tabIndex, label) {
+  const tabWidth = 282;
+  const tabStart = 27 + tabIndex * (tabWidth + 7);
+  // Sample the clear upper-left interior, away from centred text and borders.
+  const [red, green, blue] = pixelAtLogical(image, tabStart + 13, 78);
+  const looksActive = red > 85 && blue > 115 && red > green + 20;
+  if (!looksActive) {
+    throw new Error(`${label}: active tab pixel was rgb(${red},${green},${blue})`);
+  }
 }
 
 async function clickLogical(page, x, y, touch) {
@@ -74,28 +119,31 @@ async function runCase(browser, testCase) {
   const fatalVisible = await page.locator('#fatal').evaluate((node) => getComputedStyle(node).display !== 'none');
   if (fatalVisible) throw new Error(`startup fatal: ${await page.locator('#fatal').textContent()}`);
 
-  // Top navigation centres in the fixed 1496x672 logical viewport. Requiring
-  // a canvas change after every click catches the Retina/letterbox regression
-  // where the rendered tab and its effective hit location diverged.
+  // Centres and rendered active-state samples in the fixed 1496x672 logical
+  // viewport catch the exact Retina/letterbox bug: a click must activate the
+  // tab drawn at that coordinate, not merely cause an animated canvas update.
   const tabs = [
-    ['actor', 457, 87],
-    ['fx', 752, 87],
-    ['master', 1047, 87],
-    ['memory', 1342, 87],
-    ['place', 162, 87],
+    ['actor', 1, 457, 87],
+    ['fx', 2, 752, 87],
+    ['master', 3, 1047, 87],
+    ['memory', 4, 1342, 87],
+    ['place', 0, 162, 87],
   ];
-  for (const [label, x, y] of tabs) {
-    const before = await canvasDigest(page);
+  for (const [label, index, x, y] of tabs) {
     await clickLogical(page, x, y, testCase.touch);
-    await requireCanvasChange(page, before, `${testCase.name}/${label}`);
+    await page.waitForTimeout(120);
+    requireActiveTab(await canvasImage(page), index, `${testCase.name}/${label}`);
   }
 
   if (!testCase.touch) {
-    // First Place macro row. Moving across it verifies SDL mouse-to-touch drag
-    // routing as well as tab clicks.
-    const before = await canvasDigest(page);
+    // The first Place macro row is isolated from animated telemetry, so a
+    // regional digest verifies that mouse drag changed the actual control.
+    const region = { x: 210, y: 225, w: 650, h: 80 };
+    const before = regionDigest(await canvasImage(page), region);
     await dragLogical(page, 360, 265, 790, 265);
-    await requireCanvasChange(page, before, `${testCase.name}/drag`);
+    await page.waitForTimeout(180);
+    const after = regionDigest(await canvasImage(page), region);
+    if (after === before) throw new Error(`${testCase.name}/drag: macro row did not change`);
   }
 
   await page.screenshot({ path: `${outputDir}/${testCase.name}.png`, fullPage: true });
