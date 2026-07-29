@@ -64,12 +64,22 @@ else()
     message(WARNING "Cursed Drone: musical-engine submodule missing; building the audible fallback actor")
 endif()
 
+# Preserve the mature schema and precise Scala implementations while exposing
+# hardened/control-rate wrappers under the public symbol names.
+set_property(SOURCE src/session.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+    save_session=save_session_unchecked
+    load_session=load_session_unchecked)
+set_property(SOURCE src/scala.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+    quantize_frequency=quantize_frequency_precise)
+
 add_library(cursed_drone_core
     src/audio.cpp
     src/i18n.cpp
+    src/pitch_quantizer.cpp
     src/plaits_actor.cpp
     src/scala.cpp
     src/session.cpp
+    src/session_hardening.cpp
     src/soundscape.cpp
     src/wav.cpp
 )
@@ -171,6 +181,13 @@ else()
             PRIVATE cursed_drone_core)
         add_test(NAME cursed-drone-parameter-mapping-tests
             COMMAND cursed-drone-parameter-mapping-tests)
+
+        add_executable(cursed-drone-hardening-tests
+            tests/hardening_tests.cpp)
+        target_link_libraries(cursed-drone-hardening-tests
+            PRIVATE cursed_drone_core)
+        add_test(NAME cursed-drone-hardening-tests
+            COMMAND cursed-drone-hardening-tests)
     endif()
 
     if(CURSED_DRONE_BUILD_SDL)
