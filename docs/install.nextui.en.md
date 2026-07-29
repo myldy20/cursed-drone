@@ -1,8 +1,8 @@
-# Install Cursed Drone 0.14.0 on NextUI
+# Install Cursed Drone 0.14.1 on NextUI
 
 > Verified on a real TrimUI Brick with NextUI: launch, video, audio and controls work.
 
-1. Download `cursed-drone-v0.14.0-nextui-tg5040.zip` from the GitHub release.
+1. Download `cursed-drone-v0.14.1-nextui-tg5040.zip` from the GitHub release.
 2. Extract the ZIP to the **root of the NextUI SD card**.
 3. Confirm `Tools/tg5040/Cursed Drone.pak/launch.sh` exists.
 4. Open **Tools → Cursed Drone**.

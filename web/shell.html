@@ -97,6 +97,9 @@
     let storageReady = false;
     let started = false;
     let syncTimer = 0;
+    let persistTimer = 0;
+    let syncInFlight = false;
+    let syncQueued = false;
     let resizeGeneration = 0;
 
     function setStatus(message) { statusNode.textContent = message || ''; }
@@ -176,15 +179,31 @@
       setStatus(copy.sound);
     }
     function syncStorage(populate, done) {
+      if (!populate && syncInFlight) {
+        syncQueued = true;
+        if (done) done(null);
+        return;
+      }
+      syncInFlight = true;
       try {
         FS.syncfs(populate, (error) => {
+          syncInFlight = false;
           if (error) console.warn('Cursed Drone storage sync:', error);
           if (done) done(error);
+          if (syncQueued) {
+            syncQueued = false;
+            syncStorage(false);
+          }
         });
       } catch (error) {
+        syncInFlight = false;
         console.warn('Cursed Drone storage unavailable:', error);
         if (done) done(error);
       }
+    }
+    function persistStorageSoon() {
+      window.clearTimeout(persistTimer);
+      persistTimer = window.setTimeout(() => syncStorage(false), 150);
     }
     function mountStorage() {
       try {
@@ -198,7 +217,9 @@
       }
     }
     function beginPersistentSync() {
-      syncTimer = window.setInterval(() => syncStorage(false), 60000);
+      // Immediate save notifications come from C++. This is only a backstop for
+      // browser/platform edge cases where a notification could be interrupted.
+      syncTimer = window.setInterval(() => syncStorage(false), 15000);
       window.addEventListener('pagehide', () => syncStorage(false), { capture: true });
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') syncStorage(false);
@@ -247,6 +268,7 @@
       print: (...args) => console.log(...args),
       printErr: (...args) => console.error(...args),
       setStatus,
+      cursedDronePersistNow: persistStorageSoon,
       onRuntimeInitialized() {
         runtimeReady = true;
         setStatus(copy.saved);

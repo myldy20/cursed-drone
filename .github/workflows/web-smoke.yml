@@ -1,0 +1,62 @@
+name: web-smoke
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: web-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {submodules: recursive}
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.10
+          actions-cache-folder: emsdk-cache
+      - name: Build WebAssembly app
+        run: |
+          emcmake cmake -S . -B build-web -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCURSED_DRONE_BUILD_SDL=OFF \
+            -DCURSED_DRONE_BUILD_TESTS=OFF \
+            -DCURSED_DRONE_BUILD_TOOLS=OFF \
+            -DCURSED_DRONE_ENABLE_PLAITS=ON
+          cmake --build build-web --target cursed-drone-web --parallel 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install pinned browser runtime
+        run: |
+          npm install --no-save --no-package-lock playwright@1.54.1 pngjs@7.0.0
+          npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          nohup python3 -m http.server 4173 --bind 127.0.0.1 --directory build-web >web-server.log 2>&1 &
+          echo $! > web-server.pid
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/index.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat web-server.log
+          exit 1
+      - name: Test mouse, touch, Retina and letterbox routing
+        env:
+          CURSED_DRONE_WEB_URL: http://127.0.0.1:4173
+          CURSED_DRONE_SMOKE_OUTPUT: dist/web-smoke
+        run: node web/tests/smoke.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursed-drone-web-smoke
+          path: |
+            dist/web-smoke
+            web-server.log
+          if-no-files-found: warn

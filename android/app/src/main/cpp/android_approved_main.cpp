@@ -108,8 +108,11 @@ extern "C" int SDL_main(int argc, char** argv) {
     cd::Session session = cd::make_default_session();
     if (!g_autosave_path.empty() && std::filesystem::exists(g_autosave_path)) {
         std::string error;
-        if (!cd::load_session(g_autosave_path, session, error))
+        if (!cd::load_session(g_autosave_path, session, error)) {
             std::fprintf(stderr, "autosave load: %s\n", error.c_str());
+        } else if (!error.empty()) {
+            std::fprintf(stderr, "autosave load: %s\n", error.c_str());
+        }
     }
     session.performance.morph = 0.0F;
     session.performance.morph_target = session.scene;
@@ -176,9 +179,44 @@ extern "C" int SDL_main(int argc, char** argv) {
     Uint32 last_interaction_at = previous;
     Uint32 last_audio_report = previous;
     std::uint32_t previous_deadline_misses = 0U;
+
+    const auto save_now = [&]() noexcept {
+        if (g_autosave_path.empty()) {
+            save_pending = false;
+            return true;
+        }
+        std::string error;
+        if (cd::save_session(session, g_autosave_path, error)) {
+            save_pending = false;
+            return true;
+        }
+        std::fprintf(stderr, "autosave: %s\n", error.c_str());
+        changed_at = SDL_GetTicks();
+        return false;
+    };
+
     while (running) {
         SDL_Event event{};
         while (SDL_PollEvent(&event) != 0) {
+#ifndef CURSED_DRONE_WEB
+            if (event.type == SDL_APP_WILLENTERBACKGROUND ||
+                event.type == SDL_APP_TERMINATING) {
+                // Android can terminate a backgrounded process without a later
+                // SDL_QUIT. Publish the newest UI snapshot and persist it now.
+                if (audio_session_pending && audio.graph.submit_session(session)) {
+                    audio_session_pending = false;
+                }
+                static_cast<void>(save_now());
+                SDL_PauseAudioDevice(device, 1);
+                if (event.type == SDL_APP_TERMINATING) running = false;
+                continue;
+            }
+            if (event.type == SDL_APP_DIDENTERFOREGROUND) {
+                previous = SDL_GetTicks();
+                SDL_PauseAudioDevice(device, 0);
+                continue;
+            }
+#endif
             if (event.type == SDL_QUIT) running = false;
             else if (event.type == SDL_KEYDOWN && event.key.repeat == 0 &&
                 (event.key.keysym.sym == SDLK_ESCAPE ||
@@ -251,12 +289,8 @@ extern "C" int SDL_main(int argc, char** argv) {
         if (audio_session_pending && audio.graph.submit_session(session)) {
             audio_session_pending = false;
         }
-        if (save_pending && !g_autosave_path.empty() &&
-            now - changed_at >= save_debounce_ms) {
-            std::string error;
-            if (cd::save_session(session, g_autosave_path, error))
-                save_pending = false;
-            else changed_at = now;
+        if (save_pending && now - changed_at >= save_debounce_ms) {
+            static_cast<void>(save_now());
         }
 #ifndef CURSED_DRONE_WEB
         if (now - last_audio_report >= 2'000U) {
@@ -289,10 +323,7 @@ extern "C" int SDL_main(int argc, char** argv) {
         SDL_Delay(1);
 #endif
     }
-    if (save_pending && !g_autosave_path.empty()) {
-        std::string error;
-        static_cast<void>(cd::save_session(session, g_autosave_path, error));
-    }
+    if (save_pending) static_cast<void>(save_now());
     SDL_CloseAudioDevice(device);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

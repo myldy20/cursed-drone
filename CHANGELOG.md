@@ -2,6 +2,16 @@
 
 Release-specific details live in `docs/releases/`. This file is the compact project history and version index.
 
+## 0.14.1
+
+- sanitize all session values and recover corrupt primary saves from `.bak`;
+- flush Android state on background/termination and persist Web saves promptly to IndexedDB;
+- move Scala pitch quantization to a bounded control-rate cadence;
+- add real browser mouse/touch/Retina interaction smoke tests;
+- require semantic version bumps and release notes for shipped runtime changes.
+
+See [`docs/releases/v0.14.1.md`](docs/releases/v0.14.1.md).
+
 ## 0.14.0
 
 - added the public GitHub Pages WebAssembly/Web Audio version;

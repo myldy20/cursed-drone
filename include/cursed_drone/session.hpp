@@ -202,6 +202,7 @@ struct Session {
 
 [[nodiscard]] Session make_default_session();
 void apply_scene_recipe(Session& session, SceneKind scene);
+void sanitize_session(Session& session) noexcept;
 [[nodiscard]] bool save_session(const Session& session, const std::filesystem::path& path, std::string& error);
 [[nodiscard]] bool load_session(const std::filesystem::path& path, Session& session, std::string& error);
 
