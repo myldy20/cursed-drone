@@ -1,1 +1,2 @@
 This temporary file exists only to trigger the one-shot repository cleanup workflow.
+Retry after limiting the job to git ref deletion.
