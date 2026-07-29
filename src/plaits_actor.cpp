@@ -3,8 +3,6 @@
 // Additional terms under GPLv3 section 7: see ADDITIONAL_TERMS.md.
 #include "plaits_actor.hpp"
 
-#include "cursed_drone/scala.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -116,6 +114,10 @@ StereoFrame PlaitsActor::next(
     float decay,
     bool trigger,
     bool trigger_patched) noexcept {
+    // AudioGraph has already applied the actor's Scala grid after all pitch
+    // modulation. Quantizing again here duplicated logarithms/degree searches
+    // and could make the Plaits path lag a different control boundary.
+    static_cast<void>(tuning);
     harmonics = std::clamp(harmonics, 0.0F, 1.0F);
     timbre = std::clamp(timbre, 0.0F, 1.0F);
     morph = std::clamp(morph, 0.0F, 1.0F);
@@ -125,8 +127,7 @@ StereoFrame PlaitsActor::next(
     impl_->pending_trigger = impl_->pending_trigger || trigger;
     if (impl_->frame_index >= plaits::kBlockSize) {
         plaits::Patch patch{};
-        const float quantized_frequency = quantize_frequency(frequency_hz, tuning);
-        const float corrected_frequency = quantized_frequency * (48'000.0F / impl_->sample_rate);
+        const float corrected_frequency = frequency_hz * (48'000.0F / impl_->sample_rate);
         patch.note = 69.0F + 12.0F * std::log2(std::max(1.0F, corrected_frequency) / 440.0F);
         patch.harmonics = harmonics;
         patch.timbre = timbre;
@@ -162,7 +163,6 @@ StereoFrame PlaitsActor::next(
     const float aux = -static_cast<float>(frame.aux) / 32768.0F;
     return route(main, aux, output_mode);
 #else
-    frequency_hz = quantize_frequency(frequency_hz, tuning);
     const float ratio = 1.0F + static_cast<float>(engine_index(model) % 7) * 0.125F;
     impl_->phase_a += frequency_hz / impl_->sample_rate;
     impl_->phase_b += frequency_hz * ratio / impl_->sample_rate;
