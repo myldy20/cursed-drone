@@ -13,16 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Delete obsolete branches and enable automatic cleanup
+      - name: Delete every obsolete branch
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           default_branch="$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)"
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY" \
-            -F delete_branch_on_merge=true >/dev/null
-
           mapfile -t branches < <(
             gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" \
               --jq '.[].name'
