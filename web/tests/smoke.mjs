@@ -66,8 +66,10 @@ function regionDigest(image, logicalRect) {
 }
 
 function requireActiveTab(image, tabIndex, label) {
-  const tabWidth = 282;
-  const tabStart = 27 + tabIndex * (tabWidth + 7);
+  // The shared Android/Web surface reserves a 48 px safe area on each side.
+  // Header layout: safe 48 + margin 27, five 263 px tabs and 7 px gaps.
+  const tabWidth = 263;
+  const tabStart = 75 + tabIndex * (tabWidth + 7);
   // Sample the clear upper-left interior, away from centred text and borders.
   const [red, green, blue] = pixelAtLogical(image, tabStart + 13, 78);
   const looksActive = red > 85 && blue > 115 && red > green + 20;
@@ -123,11 +125,11 @@ async function runCase(browser, testCase) {
   // viewport catch the exact Retina/letterbox bug: a click must activate the
   // tab drawn at that coordinate, not merely cause an animated canvas update.
   const tabs = [
-    ['actor', 1, 457, 87],
-    ['fx', 2, 752, 87],
-    ['master', 3, 1047, 87],
-    ['memory', 4, 1342, 87],
-    ['place', 0, 162, 87],
+    ['actor', 1, 477, 87],
+    ['fx', 2, 747, 87],
+    ['master', 3, 1017, 87],
+    ['memory', 4, 1287, 87],
+    ['place', 0, 207, 87],
   ];
   for (const [label, index, x, y] of tabs) {
     await clickLogical(page, x, y, testCase.touch);
