@@ -9,6 +9,10 @@
 #include <string>
 #include <type_traits>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
 namespace cursed_drone {
 
 // src/session.cpp is compiled with symbol-renaming definitions so the original
@@ -40,6 +44,17 @@ template <typename Enum>
     float fallback) noexcept {
     if (!std::isfinite(value)) value = fallback;
     return std::clamp(value, minimum, maximum);
+}
+
+void request_platform_persist() noexcept {
+#if defined(__EMSCRIPTEN__)
+    EM_ASM({
+        if (typeof Module !== 'undefined' &&
+            typeof Module.cursedDronePersistNow === 'function') {
+            Module.cursedDronePersistNow();
+        }
+    });
+#endif
 }
 
 void sanitize_effect(
@@ -210,7 +225,9 @@ bool save_session(
     std::string& error) {
     Session sanitized = session;
     sanitize_session(sanitized);
-    return save_session_unchecked(sanitized, path, error);
+    if (!save_session_unchecked(sanitized, path, error)) return false;
+    request_platform_persist();
+    return true;
 }
 
 bool load_session(
