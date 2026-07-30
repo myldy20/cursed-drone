@@ -2,6 +2,17 @@
 
 Release-specific details live in `docs/releases/`. This file is the compact project history and version index.
 
+## 1.0.0
+
+- declare the standalone instrument feature-complete and move the repository to maintenance mode;
+- record the practical field baseline: roughly 50% ordinary TrimUI Brick load and below 80% maximum observed load, with substantially lower observed load on Pixel 8 Pro and macOS browser testing;
+- document all 16 Musical models, the four macro controls and exact MAIN/AUX/MIX/STEREO routing;
+- add bilingual support guidance and structured reliability issue reports requiring platform, reproduction steps and logs;
+- close the feature roadmap and direct future modular instrument development toward BRKSTN;
+- retain the full 0.14.1 persistence, realtime and browser-regression hardening baseline.
+
+See [`docs/releases/v1.0.0.md`](docs/releases/v1.0.0.md).
+
 ## 0.14.1
 
 - sanitize all session values and recover corrupt primary saves from `.bak`;
