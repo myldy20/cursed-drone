@@ -1,0 +1,106 @@
+name: Bug report / reliability issue
+description: Report a reproducible crash, audio failure, data-loss problem or supported-platform compatibility issue.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cursed Drone is feature-complete and maintained for reproducible defects rather than new features. Please provide enough detail to repeat the problem.
+
+  - type: input
+    id: version
+    attributes:
+      label: Cursed Drone version
+      description: Use the version shown in the application or release filename.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - TrimUI Brick — Knulli / PortMaster
+        - TrimUI Brick — NextUI
+        - Android ARM64
+        - Web browser
+        - macOS native
+        - Other supported build
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Device and environment
+      description: Device model, OS or firmware version, browser and version where relevant.
+      placeholder: "TrimUI Brick, Knulli 2026-05-11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Failure area
+      options:
+        - Audio dropout, crackle or excessive load
+        - Crash, freeze or launch failure
+        - Save, memory slot or recovery problem
+        - Controls, touch, mouse or display problem
+        - Installation or packaging problem
+        - Other reproducible defect
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Exact reproduction steps
+      description: Use numbered steps and include the scene, actor, effects and routing involved.
+      placeholder: |
+        1. Launch the application.
+        2. Load memory slot 3.
+        3. Open Actor 2 and...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Include whether the failure is constant or intermittent and how often it occurred.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audio and live-use context
+      description: Audio output, Bluetooth or USB devices, buffer or CPU display, power arrangement, and whether this happened during rehearsal or performance.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and diagnostics
+      description: Paste relevant lines or attach the log described in docs/support.en.md or docs/support.ru.md.
+      render: shell
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I reproduced this on the latest published release or explained why I could not.
+          required: true
+        - label: This is a defect report, not a request for a new feature.
+          required: true
+        - label: I removed private information from attached sessions and logs.
+          required: true
