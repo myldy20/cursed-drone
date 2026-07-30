@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support and log locations
+    url: https://github.com/myldy20/cursed-drone/blob/main/docs/support.en.md
+    about: Read what information and logs are needed before reporting a reliability problem.
+  - name: Поддержка и расположение логов
+    url: https://github.com/myldy20/cursed-drone/blob/main/docs/support.ru.md
+    about: Что приложить к отчёту об ошибке и где найти логи.
