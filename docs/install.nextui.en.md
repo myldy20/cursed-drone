@@ -1,8 +1,8 @@
-# Install Cursed Drone 0.14.1 on NextUI
+# Install Cursed Drone 1.0.0 on NextUI
 
 > Verified on a real TrimUI Brick with NextUI: launch, video, audio and controls work.
 
-1. Download `cursed-drone-v0.14.1-nextui-tg5040.zip` from the GitHub release.
+1. Download `cursed-drone-v1.0.0-nextui-tg5040.zip` from the GitHub release.
 2. Extract the ZIP to the **root of the NextUI SD card**.
 3. Confirm `Tools/tg5040/Cursed Drone.pak/launch.sh` exists.
 4. Open **Tools → Cursed Drone**.
@@ -38,6 +38,6 @@ Replace `Tools/tg5040/Cursed Drone.pak/`. Runtime data remains under `.userdata/
 .userdata/tg5040/logs/Cursed Drone.txt
 ```
 
-NextUI save states and auto-resume do not apply because Cursed Drone is a standalone SDL app.
+NextUI save states and auto-resume do not apply because Cursed Drone is a standalone SDL app. For defect reports, see [Support and reliability reports](support.en.md).
 
 The Tool Pak includes the project licence, third-party notices, the Musical-engine MIT licence, `NOTICE.md` and `ADDITIONAL_TERMS.md` under `licenses/`.
