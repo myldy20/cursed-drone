@@ -1,17 +1,6 @@
 name: Web / GitHub Pages
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/web-pages.yml"
-      - "CMakeLists.txt"
-      - "VERSION"
-      - "android/app/src/main/cpp/**"
-      - "assets/**"
-      - "include/**"
-      - "src/**"
-      - "third_party/**"
-      - "web/**"
   push:
     branches: [main]
   workflow_dispatch:
@@ -27,38 +16,35 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myldy-vps, cursed-drone]
     timeout-minutes: 30
     steps:
+      - name: Runner metadata
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.environment=${{ runner.environment }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-
       - name: Verify release version discipline
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.before || github.sha }}
         run: python3 tools/check_version_discipline.py "$BASE_SHA"
-
-      - name: Set up Emscripten
+      - name: Set up Emscripten in runner workspace
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 4.0.10
           actions-cache-folder: emsdk-cache
-
-      - name: Configure WebAssembly build
-        run: >-
-          emcmake cmake -S . -B build-web -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DCURSED_DRONE_BUILD_SDL=OFF
-          -DCURSED_DRONE_BUILD_TESTS=OFF
-          -DCURSED_DRONE_BUILD_TOOLS=OFF
-          -DCURSED_DRONE_ENABLE_PLAITS=ON
-
-      - name: Build web app
-        run: cmake --build build-web --target cursed-drone-web --parallel 2
-
+      - name: Build WebAssembly app
+        run: |
+          emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DCURSED_DRONE_BUILD_SDL=OFF -DCURSED_DRONE_BUILD_TESTS=OFF -DCURSED_DRONE_BUILD_TOOLS=OFF -DCURSED_DRONE_ENABLE_PLAITS=ON
+          cmake --build build-web --target cursed-drone-web --parallel 2
       - name: Assemble static site
         run: |
           mkdir -p dist
@@ -71,34 +57,29 @@ jobs:
           test -s dist/index.html
           test -s dist/index.js
           test -s dist/index.wasm
-
-      - name: Upload preview artifact
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cursed-drone-web-preview
-          path: dist
-          if-no-files-found: error
-
       - name: Configure Pages
-        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, myldy-vps, cursed-drone]
     timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Runner metadata
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.environment=${{ runner.environment }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

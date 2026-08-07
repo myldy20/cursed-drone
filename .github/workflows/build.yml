@@ -2,70 +2,62 @@ name: build
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  linux-core:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    timeout-minutes: 30
     steps:
+      - name: Runner metadata
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.environment=${{ runner.environment }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
       - uses: actions/checkout@v4
         with: {submodules: recursive}
-      - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
-      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - run: cmake --build build --parallel 2
-      - run: ctest --test-dir build --output-on-failure
-      - name: Render Pixel 8 Pro Android UI snapshots
+      - name: Verify native toolchain
         run: |
-          mkdir -p dist/android-ui-snapshots
-          SDL_VIDEODRIVER=dummy build/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
-          test "$(find dist/android-ui-snapshots -name 'android-*.bmp' | wc -l)" -eq 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cursed-drone-android-ui-snapshots-2992x1344
-          path: dist/android-ui-snapshots
+          cmake --version
+          c++ --version
+      - name: Build and test portable Linux core
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCURSED_DRONE_BUILD_SDL=OFF -DCURSED_DRONE_BUILD_TESTS=ON -DCURSED_DRONE_BUILD_TOOLS=ON
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+          build/cursed-drone-benchmark 3 | tee performance-benchmark.txt
       - name: Verify Musical engine is linked
         run: grep -q 'CURSED_DRONE_HAS_PLAITS=1' build/CMakeFiles/cursed_drone_core.dir/flags.make
-      - name: Performance benchmark
-        run: build/cursed-drone-benchmark 3 | tee performance-benchmark.txt
       - uses: actions/upload-artifact@v4
-        with: {name: cursed-drone-performance-benchmark, path: performance-benchmark.txt}
-      - name: Handheld SDL smoke test
-        run: |
-          set +e
-          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 timeout 4s build/cursed-drone-sdl
-          status=$?; test "$status" -eq 0 -o "$status" -eq 124
-
-  macos:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-        with: {submodules: recursive}
-      - run: brew install sdl2
-      - run: cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
-      - run: cmake --build build-macos --parallel 3
-      - run: ctest --test-dir build-macos --output-on-failure
-      - name: Assemble bundle
-        run: |
-          mkdir -p dist/cursed-drone-macos/assets/branding dist/cursed-drone-macos/assets/scales dist/cursed-drone-macos/docs dist/cursed-drone-macos/licenses
-          cp build-macos/cursed-drone build-macos/cursed-drone-sdl build-macos/cursed-drone-probe build-macos/cursed-drone-render build-macos/cursed-drone-benchmark dist/cursed-drone-macos/
-          cp VERSION README.md LICENSE NOTICE.md ADDITIONAL_TERMS.md THIRD_PARTY_NOTICES.md dist/cursed-drone-macos/
-          cp assets/branding/* dist/cursed-drone-macos/assets/branding/
-          cp assets/scales/*.scl dist/cursed-drone-macos/assets/scales/
-          cp docs/install.en.md docs/install.ru.md docs/install.android.en.md docs/install.android.ru.md docs/workflow.en.md docs/workflow.ru.md docs/effects.en.md docs/effects.ru.md dist/cursed-drone-macos/docs/
-          cp third_party/PLAITS_LICENSE.txt dist/cursed-drone-macos/licenses/Musical-engine-MIT.txt
-      - uses: actions/upload-artifact@v4
-        with: {name: cursed-drone-macos-arm64, path: dist/cursed-drone-macos}
+        with:
+          name: cursed-drone-performance-benchmark
+          path: performance-benchmark.txt
 
   android:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, myldy-vps, cursed-drone]
     timeout-minutes: 45
     env:
       CURSED_DRONE_PREVIEW_SIGNING: "1"
     steps:
+      - name: Runner metadata
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.environment=${{ runner.environment }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
       - uses: actions/checkout@v4
         with: {submodules: recursive}
       - uses: actions/setup-java@v4
@@ -73,159 +65,18 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
-      - name: Install Android toolchain
+      - name: Install Android SDK components
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.1.12297006" \
-            "cmake;3.22.1"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: "8.10.2"}
-      - name: Build release-optimised Android preview APK
-        id: android_build
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          gradle -p android :app:assembleRelease --stacktrace 2>&1 | tee android-build.log
-      - name: Upload Android build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cursed-drone-android-build-log
-          path: android-build.log
-      - name: Stop after Android build failure
-        if: steps.android_build.outcome == 'failure'
-        run: exit 1
-      - name: Verify native release optimisation
-        run: |
-          test -d android/app/.cxx/Release
-          grep -R -Eq -- '(^| )-O(2|3)( |$)' android/app/.cxx/Release
-          ! grep -R -Eq -- '(^| )-O0( |$)' android/app/.cxx/Release
-      - name: Verify APK identity and version
+      - name: Build Android release APK
+        run: gradle -p android :app:assembleRelease --stacktrace
+      - name: Verify APK identity and optimisation
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee android-apk-badging.txt
-          grep -q "versionName='$(cat VERSION)'" android-apk-badging.txt
-          mkdir -p dist
-          cp "$APK" "dist/cursed-drone-v$(cat VERSION)-android-arm64-preview.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cursed-drone-android-arm64-preview
-          path: dist/cursed-drone-v*-android-arm64-preview.apk
-
-  aarch64-packages:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-        with: {submodules: recursive}
-      - name: Build in Ubuntu 20.04 aarch64 container
-        run: |
-          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip file
-            cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
-            cmake --build build-aarch64 --parallel 4
-            ctest --test-dir build-aarch64 --output-on-failure
-            strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-            ./tools/package_portmaster.sh build-aarch64 dist
-            ./tools/package_nextui.sh build-aarch64 dist
-          '
-      - name: Inspect packages
-        run: |
-          file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/pm.txt
-          grep -q 'curseddrone/VERSION' /tmp/pm.txt
-          grep -q 'curseddrone/assets/scales/19-edo.scl' /tmp/pm.txt
-          grep -q 'curseddrone/docs/workflow.ru.md' /tmp/pm.txt
-          grep -q 'curseddrone/licenses/Musical-engine-MIT.txt' /tmp/pm.txt
-          grep -q 'curseddrone/licenses/NOTICE.md' /tmp/pm.txt
-          grep -q 'curseddrone/licenses/ADDITIONAL_TERMS.md' /tmp/pm.txt
-          unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/VERSION' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/Musical-engine-MIT.txt' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/NOTICE.md' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/ADDITIONAL_TERMS.md' /tmp/next.txt
-      - uses: actions/upload-artifact@v4
-        with: {name: cursed-drone-portmaster-aarch64, path: dist/curseddrone-aarch64-test.zip}
-      - uses: actions/upload-artifact@v4
-        with: {name: cursed-drone-nextui-tg5040, path: dist/cursed-drone-nextui-tg5040-test.zip}
-
-  release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [linux, macos, android, aarch64-packages]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Read version
-        id: version
-        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-      - name: Check whether release already exists
-        id: existing
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.value }}
-        run: |
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Download macOS bundle
-        if: steps.existing.outputs.exists == 'false'
-        uses: actions/download-artifact@v4
-        with: {name: cursed-drone-macos-arm64, path: release-input/macos}
-      - name: Download Android APK
-        if: steps.existing.outputs.exists == 'false'
-        uses: actions/download-artifact@v4
-        with: {name: cursed-drone-android-arm64-preview, path: release-input/android}
-      - name: Download PortMaster package
-        if: steps.existing.outputs.exists == 'false'
-        uses: actions/download-artifact@v4
-        with: {name: cursed-drone-portmaster-aarch64, path: release-input/portmaster}
-      - name: Download NextUI package
-        if: steps.existing.outputs.exists == 'false'
-        uses: actions/download-artifact@v4
-        with: {name: cursed-drone-nextui-tg5040, path: release-input/nextui}
-      - name: Assemble release assets
-        if: steps.existing.outputs.exists == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.value }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist/release
-          cp "release-input/android/cursed-drone-v$VERSION-android-arm64-preview.apk" dist/release/
-          cp "$(find release-input/portmaster -name '*.zip' -print -quit)" \
-            "dist/release/cursed-drone-v$VERSION-portmaster-aarch64.zip"
-          cp "$(find release-input/nextui -name '*.zip' -print -quit)" \
-            "dist/release/cursed-drone-v$VERSION-nextui-tg5040.zip"
-          (cd release-input/macos && zip -qr \
-            "$GITHUB_WORKSPACE/dist/release/cursed-drone-v$VERSION-macos-arm64.zip" .)
-          (cd dist/release && sha256sum * > SHA256SUMS.txt)
-          ls -lh dist/release
-      - name: Publish GitHub release
-        if: steps.existing.outputs.exists == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.value }}
-        run: |
-          NOTES="docs/releases/v$VERSION.md"
-          if test -f "$NOTES"; then
-            gh release create "v$VERSION" dist/release/* \
-              --target "$GITHUB_SHA" \
-              --title "Cursed Drone v$VERSION" \
-              --notes-file "$NOTES"
-          else
-            gh release create "v$VERSION" dist/release/* \
-              --target "$GITHUB_SHA" \
-              --title "Cursed Drone v$VERSION" \
-              --generate-notes
-          fi
+          test -d android/app/.cxx/Release
+          grep -R -Eq -- '(^| )-O(2|3)( |$)' android/app/.cxx/Release
+          ! grep -R -Eq -- '(^| )-O0( |$)' android/app/.cxx/Release
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -q "versionName='$(cat VERSION)'"

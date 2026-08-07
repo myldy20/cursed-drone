@@ -22,7 +22,9 @@ Version **1.0.0** closes the standalone product roadmap. The repository is now m
 - **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - **NextUI:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
 - **Android ARM64 sideload:** [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
-- **macOS Apple Silicon:** download the release archive and run the native application.
+- **macOS Apple Silicon:** the native 1.0.0 archive remains available in the GitHub release; the WebAssembly build is the maintained macOS path under the Linux-only self-hosted CI standard.
+
+The verified 1.0.0 PortMaster/Knulli, NextUI and native macOS packages are frozen release artifacts. New native packages for those architectures require an explicitly approved matching self-hosted toolchain; GitHub-hosted fallback runners are not used.
 
 The Android APK is release-optimised but remains a manually installed package rather than a Google Play production release. Android and Web share the same adaptive fullscreen interface; TrimUI and desktop SDL use the controller-first 512×384 interface.
 
@@ -50,7 +52,7 @@ Detailed guide: [English](docs/workflow.en.md) · [Русский](docs/workflow
 - four Actor FX plus four Master FX;
 - autosave, eight memories, atomic writes, sanitisation and `.bak` recovery;
 - English and Russian interfaces;
-- one shared C++ core, session format, CMake graph and CI pipeline;
+- one shared C++ core, session format and CMake graph;
 - no recorded samples.
 
 ## Field-tested performance
@@ -105,7 +107,7 @@ Knulli: `curseddrone/conf/` · NextUI: `.userdata/tg5040/cursed-drone/` · Web: 
 
 Runtime data includes `autosave.cdrone`, `memory-1.cdrone` … `memory-8.cdrone`, and optional `scales/*.scl`. If a primary session is corrupt, Cursed Drone attempts to recover its previous atomic `.bak` copy.
 
-## Build
+## Build and CI
 
 ```bash
 git submodule update --init --recursive
@@ -117,11 +119,13 @@ ctest --test-dir build --output-on-failure
 WebAssembly:
 
 ```bash
-emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
+emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
 cmake --build build-web --target cursed-drone-web --parallel 2
 ```
 
-CI builds Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible AArch64 packages from the same sources. Browser smoke tests cover mouse, touch, drag gestures, DPR 1/2 and a letterboxed Retina viewport.
+Repository CI uses only the repo-specific Myldy VPS runner `[self-hosted, myldy-vps, cursed-drone]`. Same-repository pull requests can run CI; untrusted fork PR code is never executed on the self-hosted runner. Mandatory maintenance CI validates the portable Linux core, Android ARM64 and WebAssembly. Browser smoke tests cover mouse, touch, drag gestures, DPR 1/2 and a letterboxed Retina viewport. Native macOS and AArch64 handheld 1.0 packages remain immutable published artifacts rather than being emulated or rebuilt through a GitHub-hosted fallback.
+
+The Myldy web preview is deployed directly on that VPS from the `preview` branch or `workflow_dispatch`, with immutable release directories, `build.json`, staging validation, an atomic `current` symlink switch and rollback without rebuild. GitHub Pages remains enabled until the Myldy-hosted preview is separately accepted.
 
 ## Documentation
 
@@ -131,6 +135,7 @@ CI builds Linux, macOS, Android ARM64, WebAssembly and Ubuntu-20.04-compatible A
 - [Effects](docs/effects.en.md) · [Эффекты](docs/effects.ru.md)
 - [Architecture](docs/architecture.en.md) · [Архитектура](docs/architecture.ru.md)
 - [Support](docs/support.en.md) · [Поддержка](docs/support.ru.md)
+- [Deployment](docs/deployment.en.md) · [Развёртывание](docs/deployment.ru.md)
 - [Completed roadmap](docs/roadmap.en.md) · [Завершённая дорожная карта](docs/roadmap.ru.md)
 
 ## Credits and licence
@@ -151,7 +156,7 @@ The Musical source compiles selected MIT-licensed DSP from Mutable Instruments P
 
 **[Веб-версия](https://myldy20.github.io/cursed-drone/)** · **[последний релиз](https://github.com/myldy20/cursed-drone/releases/latest)** · [что нового в 1.0.0](docs/releases/v1.0.0.md)
 
-Проверенные варианты: TrimUI Brick с Knulli/PortMaster и NextUI, Pixel 8 Pro, macOS Apple Silicon, Android ARM64 и современные WebAssembly/Web Audio-браузеры.
+Проверенные варианты: TrimUI Brick с Knulli/PortMaster и NextUI, Pixel 8 Pro, нативный macOS 1.0.0, Android ARM64 и современные WebAssembly/Web Audio-браузеры. Проверенные нативные пакеты 1.0 для handheld и macOS остаются замороженными релизными артефактами; GitHub-hosted fallback для их пересборки не используется.
 
 ## Полевой ориентир
 
@@ -160,6 +165,12 @@ The Musical source compiles selected MIT-licensed DSP from Mutable Instruments P
 Это не гарантия для любой прошивки, аудиосхемы и патча. Перед концертом отрепетируй именно эту сборку и слоты памяти, не обновляй всё в последний момент и держи резервный источник звука.
 
 [Поддержка и расположение логов](docs/support.ru.md) · [English](docs/support.en.md)
+
+## Инфраструктура
+
+CI и preview-deploy выполняются только на repo-specific runner `[self-hosted, myldy-vps, cursed-drone]`. Недоверенный fork PR код на VPS не исполняется. Обязательный maintenance CI проверяет portable Linux core, Android ARM64 и WebAssembly. Preview на `myldy.ru` собирается непосредственно на сервере, проходит тесты и staging validation, после чего атомарно переключается symlink `current`. GitHub Pages пока остаётся включённым.
+
+[Развёртывание](docs/deployment.ru.md) · [English](docs/deployment.en.md)
 
 ## Статус разработки
 
