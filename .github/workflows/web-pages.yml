@@ -50,23 +50,22 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
         run: python3 tools/check_version_discipline.py "$BASE_SHA"
 
-      - name: Set up Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 4.0.10
-          actions-cache-folder: emsdk-cache
-
-      - name: Configure WebAssembly build
-        run: >-
-          emcmake cmake -S . -B build-web -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DCURSED_DRONE_BUILD_SDL=OFF
-          -DCURSED_DRONE_BUILD_TESTS=OFF
-          -DCURSED_DRONE_BUILD_TOOLS=OFF
-          -DCURSED_DRONE_ENABLE_PLAITS=ON
-
-      - name: Build web app
-        run: cmake --build build-web --target cursed-drone-web --parallel 2
+      - name: Build WebAssembly app in pinned Emscripten container
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/src" -w /src \
+            emscripten/emsdk:4.0.10 \
+            bash -ec '
+              emcmake cmake -S . -B build-web -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCURSED_DRONE_BUILD_SDL=OFF \
+                -DCURSED_DRONE_BUILD_TESTS=OFF \
+                -DCURSED_DRONE_BUILD_TOOLS=OFF \
+                -DCURSED_DRONE_ENABLE_PLAITS=ON
+              cmake --build build-web --target cursed-drone-web --parallel 2
+            '
 
       - name: Assemble static site
         run: |
