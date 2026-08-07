@@ -28,6 +28,8 @@ runs-on: [self-hosted, myldy-vps, cursed-drone]
 
 Репозиторий публичный, поэтому self-hosted runner не исполняет код из недоверенных fork PR. Jobs на событии `pull_request` допускаются к VPS только если head-репозиторий самого PR — `myldy20/cursed-drone`. `pull_request_target` не используется.
 
+Runner не должен донастраивать хост через `sudo`, Docker, systemd или глобальную установку пакетов. Portable SDK/toolchain допускаются только внутри рабочего каталога runner.
+
 ## Preview deployment
 
 `.github/workflows/deploy-mydly.yml` — основной workflow публикации preview на Myldy VPS.
@@ -37,7 +39,7 @@ runs-on: [self-hosted, myldy-vps, cursed-drone]
 ```text
 trusted commit
 → обновление ветки preview
-→ native tests
+→ portable native core tests
 → WebAssembly build
 → browser interaction smoke tests
 → staging directory
@@ -73,6 +75,8 @@ trusted commit
 
 Rollback не выполняет rebuild и не делает git revert.
 
-## Нативный macOS CI
+## Замороженные нативные пакеты 1.0
 
-Myldy runner работает на Linux VPS, а единый стандарт запрещает GitHub-hosted fallback runners. Поэтому после миграции репозиторий не может автоматически пересобирать нативный Apple Silicon пакет. Уже опубликованный архив Cursed Drone 1.0.0 для macOS остаётся в GitHub Release; для macOS основным поддерживаемым вариантом становится WebAssembly-версия. Для будущего нативного maintenance-релиза потребуется отдельно одобренный macOS self-hosted runner, а не `macos-*` GitHub-hosted CI.
+Myldy runner — Linux/X64 VPS без Docker и без системной донастройки из project workflow. Единый стандарт также запрещает GitHub-hosted fallback. Поэтому обязательный maintenance CI после миграции покрывает portable Linux core, Android ARM64 и WebAssembly, но не пересобирает нативный macOS и AArch64 handheld packages.
+
+Проверенные и уже опубликованные пакеты Cursed Drone 1.0.0 для macOS, PortMaster/Knulli и NextUI остаются неизменяемыми в GitHub Release. Это соответствует статусу feature-complete/maintenance-only. Если когда-нибудь понадобится новый нативный maintenance-релиз для macOS или handheld, сначала потребуется отдельно одобренный self-hosted runner/toolchain для соответствующей архитектуры; обход через GitHub-hosted runner не допускается.
