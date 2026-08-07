@@ -46,33 +46,46 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install native test dependencies
+      - name: Build native CI image
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libsdl2-dev curl
+          docker build -t cursed-drone-ci:ubuntu24 - <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              build-essential cmake ninja-build pkg-config libsdl2-dev ca-certificates \
+            && rm -rf /var/lib/apt/lists/*
+          DOCKERFILE
 
-      - name: Run native release tests
+      - name: Run native release tests in container
         run: |
-          cmake -S . -B build-preview-native -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-preview-native --parallel 2
-          ctest --test-dir build-preview-native --output-on-failure
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/src" -w /src \
+            cursed-drone-ci:ubuntu24 \
+            bash -ec '
+              cmake -S . -B build-preview-native -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release
+              cmake --build build-preview-native --parallel 2
+              ctest --test-dir build-preview-native --output-on-failure
+            '
 
-      - name: Set up Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 4.0.10
-          actions-cache-folder: emsdk-cache
-
-      - name: Build WebAssembly preview
+      - name: Build WebAssembly preview in pinned Emscripten container
         run: |
-          emcmake cmake -S . -B build-preview-web -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCURSED_DRONE_BUILD_SDL=OFF \
-            -DCURSED_DRONE_BUILD_TESTS=OFF \
-            -DCURSED_DRONE_BUILD_TOOLS=OFF \
-            -DCURSED_DRONE_ENABLE_PLAITS=ON
-          cmake --build build-preview-web --target cursed-drone-web --parallel 2
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/src" -w /src \
+            emscripten/emsdk:4.0.10 \
+            bash -ec '
+              emcmake cmake -S . -B build-preview-web -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCURSED_DRONE_BUILD_SDL=OFF \
+                -DCURSED_DRONE_BUILD_TESTS=OFF \
+                -DCURSED_DRONE_BUILD_TOOLS=OFF \
+                -DCURSED_DRONE_ENABLE_PLAITS=ON
+              cmake --build build-preview-web --target cursed-drone-web --parallel 2
+            '
           rm -rf dist/myldy-preview
           mkdir -p dist/myldy-preview
           cp build-preview-web/index.html dist/myldy-preview/
@@ -85,31 +98,39 @@ jobs:
           test -s dist/myldy-preview/index.js
           test -s dist/myldy-preview/index.wasm
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Run browser interaction smoke tests
+      - name: Start preview server
         run: |
-          npm install --no-save --no-package-lock playwright@1.54.1 pngjs@7.0.0
-          npx playwright install --with-deps chromium
           nohup python3 -m http.server 4173 --bind 127.0.0.1 \
             --directory build-preview-web >preview-web-server.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          echo $! > preview-web-server.pid
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4173/index.html >/dev/null; then
-              break
-            fi
-            if test "$attempt" -eq 30; then
-              cat preview-web-server.log
-              exit 1
-            fi
+            curl --fail --silent http://127.0.0.1:4173/index.html >/dev/null && exit 0
             sleep 1
           done
-          CURSED_DRONE_WEB_URL=http://127.0.0.1:4173 \
-          CURSED_DRONE_SMOKE_OUTPUT=dist/preview-web-smoke \
-            node web/tests/smoke.mjs
+          cat preview-web-server.log
+          exit 1
+
+      - name: Run browser interaction smoke tests in pinned browser container
+        run: |
+          mkdir -p dist/preview-web-smoke
+          docker run --rm --network host --ipc=host \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+            -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+            -e CURSED_DRONE_WEB_URL=http://127.0.0.1:4173 \
+            -e CURSED_DRONE_SMOKE_OUTPUT=/src/dist/preview-web-smoke \
+            -v "$PWD:/src" \
+            mcr.microsoft.com/playwright:v1.54.1-noble \
+            bash -ec '
+              trap "chown -R $HOST_UID:$HOST_GID /src/dist/preview-web-smoke 2>/dev/null || true" EXIT
+              mkdir -p /tmp/cursed-drone-smoke
+              cp /src/web/tests/smoke.mjs /tmp/cursed-drone-smoke/
+              cd /tmp/cursed-drone-smoke
+              npm init -y >/dev/null 2>&1
+              npm install --no-package-lock --no-save playwright@1.54.1 pngjs@7.0.0 >/dev/null
+              node smoke.mjs
+            '
 
       - name: Create build metadata
         id: metadata
