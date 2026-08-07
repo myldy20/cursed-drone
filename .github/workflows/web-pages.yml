@@ -44,29 +44,19 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-
       - name: Verify release version discipline
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
         run: python3 tools/check_version_discipline.py "$BASE_SHA"
-
-      - name: Build WebAssembly app in pinned Emscripten container
+      - name: Set up Emscripten in runner workspace
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.10
+          actions-cache-folder: emsdk-cache
+      - name: Build WebAssembly app
         run: |
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            -e HOME=/tmp \
-            -v "$PWD:/src" -w /src \
-            emscripten/emsdk:4.0.10 \
-            bash -ec '
-              emcmake cmake -S . -B build-web -G Ninja \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCURSED_DRONE_BUILD_SDL=OFF \
-                -DCURSED_DRONE_BUILD_TESTS=OFF \
-                -DCURSED_DRONE_BUILD_TOOLS=OFF \
-                -DCURSED_DRONE_ENABLE_PLAITS=ON
-              cmake --build build-web --target cursed-drone-web --parallel 2
-            '
-
+          emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DCURSED_DRONE_BUILD_SDL=OFF -DCURSED_DRONE_BUILD_TESTS=OFF -DCURSED_DRONE_BUILD_TOOLS=OFF -DCURSED_DRONE_ENABLE_PLAITS=ON
+          cmake --build build-web --target cursed-drone-web --parallel 2
       - name: Assemble static site
         run: |
           mkdir -p dist
@@ -79,7 +69,6 @@ jobs:
           test -s dist/index.html
           test -s dist/index.js
           test -s dist/index.wasm
-
       - name: Upload preview artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -87,11 +76,9 @@ jobs:
           name: cursed-drone-web-preview
           path: dist
           if-no-files-found: error
-
       - name: Configure Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
