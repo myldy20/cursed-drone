@@ -28,6 +28,8 @@ Substantial jobs print `runner.name`, `runner.environment`, `runner.os`, `runner
 
 This is a public repository. Self-hosted jobs are therefore not allowed to execute code from untrusted forks. `pull_request` CI jobs are guarded so that only pull requests whose head repository is `myldy20/cursed-drone` can reach the VPS runner. `pull_request_target` is not used.
 
+The runner is not reconfigured by project workflows through `sudo`, Docker, systemd or global package installation. Portable SDK/toolchain setup is limited to the runner workspace.
+
 ## Preview deployment
 
 `.github/workflows/deploy-mydly.yml` is the authoritative Myldy preview deployment.
@@ -37,7 +39,7 @@ Preferred flow:
 ```text
 trusted commit
 → move/update preview branch
-→ native tests
+→ portable native core tests
 → WebAssembly build
 → browser interaction smoke tests
 → staging directory
@@ -73,6 +75,8 @@ Run the Myldy deploy workflow manually with `action=rollback` and the exact immu
 
 Rollback does not rebuild anything and does not perform a Git revert.
 
-## Native macOS CI
+## Frozen native 1.0 packages
 
-The Myldy runner is a Linux VPS and the deployment standard prohibits GitHub-hosted fallback runners. Native Apple Silicon binaries therefore cannot be rebuilt by repository CI after this migration. The already published Cursed Drone 1.0.0 macOS archive remains available in the GitHub release; macOS is otherwise supported through the WebAssembly version. A future native macOS maintenance release would require an explicitly approved macOS self-hosted runner rather than `macos-*` GitHub-hosted CI.
+The approved Myldy runner is a Linux/X64 VPS without Docker and project workflows do not modify the server to add cross-platform infrastructure. GitHub-hosted fallback is also prohibited. Mandatory maintenance CI therefore covers the portable Linux core, Android ARM64 and WebAssembly, but it does not rebuild native macOS or AArch64 handheld packages.
+
+The verified Cursed Drone 1.0.0 macOS, PortMaster/Knulli and NextUI packages remain immutable and available in the existing GitHub Release. This matches the feature-complete/maintenance-only status. A future native maintenance release for macOS or handhelds first requires an explicitly approved self-hosted runner/toolchain for that architecture; GitHub-hosted runners are not a fallback.
