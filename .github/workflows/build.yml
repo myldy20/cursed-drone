@@ -25,30 +25,43 @@ jobs:
           echo "github.sha=${{ github.sha }}"
       - uses: actions/checkout@v4
         with: {submodules: recursive}
-      - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
-      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - run: cmake --build build --parallel 2
-      - run: ctest --test-dir build --output-on-failure
-      - name: Render Pixel 8 Pro Android UI snapshots
+      - name: Build isolated Linux CI image
         run: |
-          mkdir -p dist/android-ui-snapshots
-          SDL_VIDEODRIVER=dummy build/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
-          test "$(find dist/android-ui-snapshots -name 'android-*.bmp' | wc -l)" -eq 7
+          docker build -t cursed-drone-ci:ubuntu24 - <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              build-essential cmake ninja-build pkg-config libsdl2-dev ca-certificates coreutils \
+            && rm -rf /var/lib/apt/lists/*
+          DOCKERFILE
+      - name: Build, test and benchmark Linux release in container
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/src" -w /src \
+            cursed-drone-ci:ubuntu24 \
+            bash -ec '
+              cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+              cmake --build build --parallel 2
+              ctest --test-dir build --output-on-failure
+              mkdir -p dist/android-ui-snapshots
+              SDL_VIDEODRIVER=dummy build/cursed-drone-android-ui-snapshots dist/android-ui-snapshots
+              test "$(find dist/android-ui-snapshots -name "android-*.bmp" | wc -l)" -eq 7
+              grep -q "CURSED_DRONE_HAS_PLAITS=1" build/CMakeFiles/cursed_drone_core.dir/flags.make
+              build/cursed-drone-benchmark 3 | tee performance-benchmark.txt
+              set +e
+              SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 timeout 4s build/cursed-drone-sdl
+              status=$?
+              set -e
+              test "$status" -eq 0 -o "$status" -eq 124
+            '
       - uses: actions/upload-artifact@v4
         with:
           name: cursed-drone-android-ui-snapshots-2992x1344
           path: dist/android-ui-snapshots
-      - name: Verify Musical engine is linked
-        run: grep -q 'CURSED_DRONE_HAS_PLAITS=1' build/CMakeFiles/cursed_drone_core.dir/flags.make
-      - name: Performance benchmark
-        run: build/cursed-drone-benchmark 3 | tee performance-benchmark.txt
       - uses: actions/upload-artifact@v4
         with: {name: cursed-drone-performance-benchmark, path: performance-benchmark.txt}
-      - name: Handheld SDL smoke test
-        run: |
-          set +e
-          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy CURSED_DRONE_SKIP_SPLASH=1 CURSED_DRONE_HANDHELD=1 timeout 4s build/cursed-drone-sdl
-          status=$?; test "$status" -eq 0 -o "$status" -eq 124
 
   android:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -118,6 +131,7 @@ jobs:
   aarch64-packages:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, myldy-vps, cursed-drone]
+    timeout-minutes: 45
     steps:
       - name: Runner metadata
         run: |
@@ -129,37 +143,40 @@ jobs:
           echo "github.sha=${{ github.sha }}"
       - uses: actions/checkout@v4
         with: {submodules: recursive}
-      - name: Build in Ubuntu 20.04 aarch64 container
+      - name: Build and inspect in Ubuntu 20.04 AArch64 container
         run: |
-          docker run --rm -v "$PWD:/src" -w /src arm64v8/ubuntu:20.04 bash -ec '
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip file
-            cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
-            cmake --build build-aarch64 --parallel 4
-            ctest --test-dir build-aarch64 --output-on-failure
-            strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-            ./tools/package_portmaster.sh build-aarch64 dist
-            ./tools/package_nextui.sh build-aarch64 dist
-          '
-      - name: Inspect packages
-        run: |
-          file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
-          unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/pm.txt
-          grep -q 'curseddrone/VERSION' /tmp/pm.txt
-          grep -q 'curseddrone/assets/scales/19-edo.scl' /tmp/pm.txt
-          grep -q 'curseddrone/docs/workflow.ru.md' /tmp/pm.txt
-          grep -q 'curseddrone/licenses/Musical-engine-MIT.txt' /tmp/pm.txt
-          grep -q 'curseddrone/licenses/NOTICE.md' /tmp/pm.txt
-          grep -q 'curseddrone/licenses/ADDITIONAL_TERMS.md' /tmp/pm.txt
-          unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/VERSION' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/launch.sh' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/Musical-engine-MIT.txt' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/NOTICE.md' /tmp/next.txt
-          grep -q 'Tools/tg5040/Cursed Drone.pak/licenses/ADDITIONAL_TERMS.md' /tmp/next.txt
+          docker run --rm --platform linux/arm64 \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            -v "$PWD:/src" -w /src \
+            arm64v8/ubuntu:20.04 bash -ec '
+              trap "chown -R $HOST_UID:$HOST_GID /src/build-aarch64 /src/dist 2>/dev/null || true" EXIT
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends build-essential cmake pkg-config libsdl2-dev zip unzip file ca-certificates
+              cmake -S . -B build-aarch64 -DCMAKE_BUILD_TYPE=Release
+              cmake --build build-aarch64 --parallel 4
+              ctest --test-dir build-aarch64 --output-on-failure
+              strip build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+              ./tools/package_portmaster.sh build-aarch64 dist
+              ./tools/package_nextui.sh build-aarch64 dist
+              file build-aarch64/cursed-drone-sdl build-aarch64/cursed-drone-probe
+              unzip -l dist/curseddrone-aarch64-test.zip | tee /tmp/pm.txt
+              grep -q "curseddrone/VERSION" /tmp/pm.txt
+              grep -q "curseddrone/assets/scales/19-edo.scl" /tmp/pm.txt
+              grep -q "curseddrone/docs/workflow.ru.md" /tmp/pm.txt
+              grep -q "curseddrone/licenses/Musical-engine-MIT.txt" /tmp/pm.txt
+              grep -q "curseddrone/licenses/NOTICE.md" /tmp/pm.txt
+              grep -q "curseddrone/licenses/ADDITIONAL_TERMS.md" /tmp/pm.txt
+              unzip -l dist/cursed-drone-nextui-tg5040-test.zip | tee /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/VERSION" /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/launch.sh" /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/assets/scales/19-edo.scl" /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/docs/workflow.ru.md" /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/licenses/Musical-engine-MIT.txt" /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/licenses/NOTICE.md" /tmp/next.txt
+              grep -q "Tools/tg5040/Cursed Drone.pak/licenses/ADDITIONAL_TERMS.md" /tmp/next.txt
+            '
       - uses: actions/upload-artifact@v4
         with: {name: cursed-drone-portmaster-aarch64, path: dist/curseddrone-aarch64-test.zip}
       - uses: actions/upload-artifact@v4
