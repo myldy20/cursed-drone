@@ -26,27 +26,22 @@ jobs:
           echo "github.sha=${{ github.sha }}"
       - uses: actions/checkout@v4
         with: {submodules: recursive}
-      - name: Set up Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 4.0.10
-          actions-cache-folder: emsdk-cache
-      - name: Build WebAssembly app
+      - name: Build WebAssembly app in pinned Emscripten container
         run: |
-          emcmake cmake -S . -B build-web -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCURSED_DRONE_BUILD_SDL=OFF \
-            -DCURSED_DRONE_BUILD_TESTS=OFF \
-            -DCURSED_DRONE_BUILD_TOOLS=OFF \
-            -DCURSED_DRONE_ENABLE_PLAITS=ON
-          cmake --build build-web --target cursed-drone-web --parallel 2
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install pinned browser runtime
-        run: |
-          npm install --no-save --no-package-lock playwright@1.54.1 pngjs@7.0.0
-          npx playwright install --with-deps chromium
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/src" -w /src \
+            emscripten/emsdk:4.0.10 \
+            bash -ec '
+              emcmake cmake -S . -B build-web -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCURSED_DRONE_BUILD_SDL=OFF \
+                -DCURSED_DRONE_BUILD_TESTS=OFF \
+                -DCURSED_DRONE_BUILD_TOOLS=OFF \
+                -DCURSED_DRONE_ENABLE_PLAITS=ON
+              cmake --build build-web --target cursed-drone-web --parallel 2
+            '
       - name: Start static server
         run: |
           nohup python3 -m http.server 4173 --bind 127.0.0.1 --directory build-web >web-server.log 2>&1 &
@@ -57,11 +52,27 @@ jobs:
           done
           cat web-server.log
           exit 1
-      - name: Test mouse, touch, Retina and letterbox routing
-        env:
-          CURSED_DRONE_WEB_URL: http://127.0.0.1:4173
-          CURSED_DRONE_SMOKE_OUTPUT: dist/web-smoke
-        run: node web/tests/smoke.mjs
+      - name: Test mouse, touch, Retina and letterbox routing in pinned browser container
+        run: |
+          mkdir -p dist/web-smoke
+          docker run --rm --network host --ipc=host \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+            -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+            -e CURSED_DRONE_WEB_URL=http://127.0.0.1:4173 \
+            -e CURSED_DRONE_SMOKE_OUTPUT=/src/dist/web-smoke \
+            -v "$PWD:/src" \
+            mcr.microsoft.com/playwright:v1.54.1-noble \
+            bash -ec '
+              trap "chown -R $HOST_UID:$HOST_GID /src/dist/web-smoke 2>/dev/null || true" EXIT
+              mkdir -p /tmp/cursed-drone-smoke
+              cp /src/web/tests/smoke.mjs /tmp/cursed-drone-smoke/
+              cd /tmp/cursed-drone-smoke
+              npm init -y >/dev/null 2>&1
+              npm install --no-package-lock --no-save playwright@1.54.1 pngjs@7.0.0 >/dev/null
+              node smoke.mjs
+            '
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
