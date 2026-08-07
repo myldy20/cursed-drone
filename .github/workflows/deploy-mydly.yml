@@ -1,0 +1,302 @@
+name: deploy / myldy.ru preview
+
+on:
+  push:
+    branches: [preview]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Deploy selected ref or roll back to an existing release
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - rollback
+      release:
+        description: Existing release directory name for rollback
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cursed-drone-mydly-preview
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' || inputs.action == 'deploy'
+    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    timeout-minutes: 45
+    steps:
+      - name: Runner metadata
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.environment=${{ runner.environment }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
+
+      - name: Checkout trusted commit
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install native test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libsdl2-dev curl
+
+      - name: Run native release tests
+        run: |
+          cmake -S . -B build-preview-native -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-preview-native --parallel 2
+          ctest --test-dir build-preview-native --output-on-failure
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.10
+          actions-cache-folder: emsdk-cache
+
+      - name: Build WebAssembly preview
+        run: |
+          emcmake cmake -S . -B build-preview-web -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCURSED_DRONE_BUILD_SDL=OFF \
+            -DCURSED_DRONE_BUILD_TESTS=OFF \
+            -DCURSED_DRONE_BUILD_TOOLS=OFF \
+            -DCURSED_DRONE_ENABLE_PLAITS=ON
+          cmake --build build-preview-web --target cursed-drone-web --parallel 2
+          rm -rf dist/myldy-preview
+          mkdir -p dist/myldy-preview
+          cp build-preview-web/index.html dist/myldy-preview/
+          cp build-preview-web/index.js dist/myldy-preview/
+          cp build-preview-web/index.wasm dist/myldy-preview/
+          test ! -f build-preview-web/index.data || cp build-preview-web/index.data dist/myldy-preview/
+          touch dist/myldy-preview/.nojekyll
+          printf '%s\n' "$(cat VERSION)" > dist/myldy-preview/version.txt
+          test -s dist/myldy-preview/index.html
+          test -s dist/myldy-preview/index.js
+          test -s dist/myldy-preview/index.wasm
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run browser interaction smoke tests
+        run: |
+          npm install --no-save --no-package-lock playwright@1.54.1 pngjs@7.0.0
+          npx playwright install --with-deps chromium
+          nohup python3 -m http.server 4173 --bind 127.0.0.1 \
+            --directory build-preview-web >preview-web-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/index.html >/dev/null; then
+              break
+            fi
+            if test "$attempt" -eq 30; then
+              cat preview-web-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          CURSED_DRONE_WEB_URL=http://127.0.0.1:4173 \
+          CURSED_DRONE_SMOKE_OUTPUT=dist/preview-web-smoke \
+            node web/tests/smoke.mjs
+
+      - name: Create build metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          SITE_DIR="$GITHUB_WORKSPACE/dist/myldy-preview"
+          VERSION_VALUE="$(cat VERSION)"
+          BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          CONTENT_HASH="$({
+            cd "$SITE_DIR"
+            find . -type f ! -name build.json -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum
+          } | sha256sum | awk '{print $1}')"
+          DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export VERSION_VALUE BUILT_AT CONTENT_HASH DEPLOYED_AT SITE_DIR
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "project": "cursed-drone",
+              "version": os.environ["VERSION_VALUE"],
+              "commit_sha": os.environ["GITHUB_SHA"],
+              "built_at_utc": os.environ["BUILT_AT"],
+              "deployed_at_utc": os.environ["DEPLOYED_AT"],
+              "content_hash": os.environ["CONTENT_HASH"],
+          }
+          Path(os.environ["SITE_DIR"], "build.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          echo "content_hash=$CONTENT_HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Stage, validate and switch current atomically
+        shell: bash
+        env:
+          EXPECTED_HASH: ${{ steps.metadata.outputs.content_hash }}
+        run: |
+          set -euo pipefail
+          ROOT=/srv/www/cursed-drone
+          RELEASES_ROOT="$ROOT/releases"
+          CURRENT="$ROOT/current"
+          SITE_DIR="$GITHUB_WORKSPACE/dist/myldy-preview"
+          VERSION_VALUE="$(cat VERSION)"
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          RELEASE_ID="${VERSION_VALUE}-${GITHUB_SHA:0:12}-${STAMP}"
+          RELEASE_DIR="$RELEASES_ROOT/$RELEASE_ID"
+          STAGING="$ROOT/.staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TMP_LINK="$ROOT/.current-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          mkdir -p "$RELEASES_ROOT"
+          if test -e "$CURRENT" && ! test -L "$CURRENT"; then
+            echo "Refusing to replace non-symlink $CURRENT" >&2
+            exit 1
+          fi
+          test ! -e "$RELEASE_DIR"
+          rm -rf "$STAGING"
+          mkdir "$STAGING"
+          trap 'rm -rf "$STAGING" "$TMP_LINK"' EXIT
+          cp -a "$SITE_DIR"/. "$STAGING"/
+
+          test -s "$STAGING/index.html"
+          test -s "$STAGING/index.js"
+          test -s "$STAGING/index.wasm"
+          test "$(cat "$STAGING/version.txt")" = "$VERSION_VALUE"
+
+          ACTUAL_HASH="$({
+            cd "$STAGING"
+            find . -type f ! -name build.json -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum
+          } | sha256sum | awk '{print $1}')"
+          test "$ACTUAL_HASH" = "$EXPECTED_HASH"
+
+          export STAGING VERSION_VALUE EXPECTED_HASH
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          data = json.loads(Path(os.environ["STAGING"], "build.json").read_text(encoding="utf-8"))
+          assert data["project"] == "cursed-drone"
+          assert data["version"] == os.environ["VERSION_VALUE"]
+          assert data["commit_sha"] == os.environ["GITHUB_SHA"]
+          assert len(data["commit_sha"]) == 40
+          assert data["content_hash"] == os.environ["EXPECTED_HASH"]
+          assert data["built_at_utc"].endswith("Z")
+          assert data["deployed_at_utc"].endswith("Z")
+          PY
+
+          python3 -m http.server 4174 --bind 127.0.0.1 \
+            --directory "$STAGING" >staging-server.log 2>&1 &
+          validation_pid=$!
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:4174/index.html >/dev/null; then
+              break
+            fi
+            if test "$attempt" -eq 20; then
+              cat staging-server.log
+              kill "$validation_pid" 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4174/build.json >/dev/null
+          kill "$validation_pid" 2>/dev/null || true
+
+          mv "$STAGING" "$RELEASE_DIR"
+          ln -s "$RELEASE_DIR" "$TMP_LINK"
+          mv -Tf "$TMP_LINK" "$CURRENT"
+          test "$(readlink -f "$CURRENT")" = "$RELEASE_DIR"
+          trap - EXIT
+
+          mapfile -t OLD_RELEASES < <(
+            find "$RELEASES_ROOT" -mindepth 1 -maxdepth 1 -type d \
+              -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2-
+          )
+          CURRENT_REAL="$(readlink -f "$CURRENT")"
+          for old_release in "${OLD_RELEASES[@]}"; do
+            if test "$(readlink -f "$old_release")" = "$CURRENT_REAL"; then
+              continue
+            fi
+            rm -rf -- "$old_release"
+          done
+
+          echo "release=$RELEASE_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "current=$(readlink -f "$CURRENT")" >> "$GITHUB_STEP_SUMMARY"
+          echo "commit=$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  rollback:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'rollback'
+    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    timeout-minutes: 10
+    steps:
+      - name: Runner metadata
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.environment=${{ runner.environment }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
+
+      - name: Switch current to an existing immutable release
+        shell: bash
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          ROOT=/srv/www/cursed-drone
+          RELEASES_ROOT="$ROOT/releases"
+          CURRENT="$ROOT/current"
+          case "$RELEASE" in
+            ""|*/*|*..*)
+              echo "Provide an exact release directory name" >&2
+              exit 1
+              ;;
+          esac
+          TARGET="$RELEASES_ROOT/$RELEASE"
+          test -d "$TARGET"
+          TARGET_REAL="$(readlink -f "$TARGET")"
+          case "$TARGET_REAL" in
+            "$RELEASES_ROOT"/*) ;;
+            *) echo "Release resolves outside project directory" >&2; exit 1 ;;
+          esac
+          export TARGET_REAL
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          data = json.loads(Path(os.environ["TARGET_REAL"], "build.json").read_text(encoding="utf-8"))
+          assert data["project"] == "cursed-drone"
+          assert len(data["commit_sha"]) == 40
+          PY
+          if test -e "$CURRENT" && ! test -L "$CURRENT"; then
+            echo "Refusing to replace non-symlink $CURRENT" >&2
+            exit 1
+          fi
+          TMP_LINK="$ROOT/.current-rollback-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -f "$TMP_LINK"
+          ln -s "$TARGET_REAL" "$TMP_LINK"
+          mv -Tf "$TMP_LINK" "$CURRENT"
+          test "$(readlink -f "$CURRENT")" = "$TARGET_REAL"
+          echo "rollback=$RELEASE" >> "$GITHUB_STEP_SUMMARY"
+          echo "current=$TARGET_REAL" >> "$GITHUB_STEP_SUMMARY"
