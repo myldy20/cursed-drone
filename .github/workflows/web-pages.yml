@@ -1,17 +1,6 @@
 name: Web / GitHub Pages
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/web-pages.yml"
-      - "CMakeLists.txt"
-      - "VERSION"
-      - "android/app/src/main/cpp/**"
-      - "assets/**"
-      - "include/**"
-      - "src/**"
-      - "third_party/**"
-      - "web/**"
   push:
     branches: [main]
   workflow_dispatch:
@@ -27,7 +16,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, myldy-vps, cursed-drone]
     timeout-minutes: 30
     steps:
@@ -46,7 +34,7 @@ jobs:
           fetch-depth: 0
       - name: Verify release version discipline
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          BASE_SHA: ${{ github.event.before || github.sha }}
         run: python3 tools/check_version_discipline.py "$BASE_SHA"
       - name: Set up Emscripten in runner workspace
         uses: mymindstorm/setup-emsdk@v14
@@ -69,24 +57,14 @@ jobs:
           test -s dist/index.html
           test -s dist/index.js
           test -s dist/index.wasm
-      - name: Upload preview artifact
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cursed-drone-web-preview
-          path: dist
-          if-no-files-found: error
       - name: Configure Pages
-        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request'
     needs: build
     runs-on: [self-hosted, myldy-vps, cursed-drone]
     timeout-minutes: 10
