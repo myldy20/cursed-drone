@@ -16,8 +16,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    runs-on: [self-hosted, myldy-home]
     timeout-minutes: 30
+    env:
+      EMSDK_CACHE_DIR: ${{ github.workspace }}/.ci-pages-emsdk
     steps:
       - name: Runner metadata
         run: |
@@ -27,6 +29,23 @@ jobs:
           echo "runner.arch=${{ runner.arch }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.sha=${{ github.sha }}"
+      - name: Check home runner disk before Pages build
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE"
+          USED="$(df -P "$GITHUB_WORKSPACE" | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+          if (( USED >= 90 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; investigate disk before CI."
+            exit 1
+          fi
+          if (( USED >= 85 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; refusing a heavy WASM build."
+            exit 1
+          fi
+          if (( USED >= 80 )); then
+            echo "::warning::Home runner filesystem is ${USED}% full; Pages build may proceed but cleanup is mandatory."
+          fi
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -36,11 +55,11 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.before || github.sha }}
         run: python3 tools/check_version_discipline.py "$BASE_SHA"
-      - name: Set up Emscripten in runner workspace
+      - name: Set up Emscripten in temporary home-runner workspace
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 4.0.10
-          actions-cache-folder: emsdk-cache
+          actions-cache-folder: ${{ env.EMSDK_CACHE_DIR }}
       - name: Build WebAssembly app
         run: |
           emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DCURSED_DRONE_BUILD_SDL=OFF -DCURSED_DRONE_BUILD_TESTS=OFF -DCURSED_DRONE_BUILD_TOOLS=OFF -DCURSED_DRONE_ENABLE_PLAITS=ON
@@ -57,12 +76,19 @@ jobs:
           test -s dist/index.html
           test -s dist/index.js
           test -s dist/index.wasm
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
+          retention-days: 1
+      - name: Cleanup Pages build workspace
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            "$GITHUB_WORKSPACE/build-web" \
+            "$GITHUB_WORKSPACE/dist" \
+            "$EMSDK_CACHE_DIR"
 
   deploy:
     needs: build
@@ -80,6 +106,19 @@ jobs:
           echo "runner.arch=${{ runner.arch }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.sha=${{ github.sha }}"
+      - name: Check VPS disk before Pages activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          USED="$(df -P / | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+          if (( USED >= 90 )); then
+            echo "::error::Selectel VPS root is ${USED}% full; investigate disk before deployment work."
+            exit 1
+          fi
+          if (( USED >= 80 )); then
+            echo "::warning::Selectel VPS root is ${USED}% full; keeping this job deployment-only."
+          fi
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

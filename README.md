@@ -22,7 +22,7 @@ Version **1.0.0** closes the standalone product roadmap. The repository is now m
 - **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - **NextUI:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
 - **Android ARM64 sideload:** [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
-- **macOS Apple Silicon:** the native 1.0.0 archive remains available in the GitHub release; the WebAssembly build is the maintained macOS path under the Linux-only self-hosted CI standard.
+- **macOS Apple Silicon:** the native 1.0.0 archive remains available in the GitHub release; the WebAssembly build is the maintained macOS path under the self-hosted CI standard.
 
 The verified 1.0.0 PortMaster/Knulli, NextUI and native macOS packages are frozen release artifacts. New native packages for those architectures require an explicitly approved matching self-hosted toolchain; GitHub-hosted fallback runners are not used.
 
@@ -123,9 +123,9 @@ emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
 cmake --build build-web --target cursed-drone-web --parallel 2
 ```
 
-Repository CI uses only the repo-specific Myldy VPS runner `[self-hosted, myldy-vps, cursed-drone]`. Same-repository pull requests can run CI; untrusted fork PR code is never executed on the self-hosted runner. Mandatory maintenance CI validates the portable Linux core, Android ARM64 and WebAssembly. Browser smoke tests cover mouse, touch, drag gestures, DPR 1/2 and a letterboxed Retina viewport. Native macOS and AArch64 handheld 1.0 packages remain immutable published artifacts rather than being emulated or rebuilt through a GitHub-hosted fallback.
+Heavy repository CI runs on the existing home self-hosted build class `[self-hosted, myldy-home]`; the Selectel production VPS is reserved for small activation/production checks through `[self-hosted, myldy-vps, cursed-drone]`. Same-repository pull requests can run CI; untrusted fork PR code is never executed on a self-hosted runner. Mandatory maintenance CI validates the portable Linux core, Android ARM64 and WebAssembly. Browser smoke tests cover mouse, touch, drag gestures, DPR 1/2 and a letterboxed Retina viewport. Heavy jobs check disk space and clean build trees, SDK/toolchain temp data, browser profiles and child processes even on failure/cancellation.
 
-The Myldy web preview is deployed directly on that VPS from the `preview` branch or `workflow_dispatch`, with immutable release directories, `build.json`, staging validation, an atomic `current` symlink switch and rollback without rebuild. GitHub Pages remains enabled until the Myldy-hosted preview is separately accepted.
+The Myldy web preview is built/tested on the home runner, transferred as a compact one-day Actions artifact, then verified and atomically activated on the VPS from `preview` or `workflow_dispatch`. The VPS does not rebuild the app. Production retention is `current + 2` rollback releases, and failed builds cannot change `current`. GitHub Pages remains enabled until the Myldy-hosted preview is separately accepted; its WASM build runs at home and only the small Pages activation job uses the VPS.
 
 ## Documentation
 
@@ -168,7 +168,9 @@ The Musical source compiles selected MIT-licensed DSP from Mutable Instruments P
 
 ## Инфраструктура
 
-CI и preview-deploy выполняются только на repo-specific runner `[self-hosted, myldy-vps, cursed-drone]`. Недоверенный fork PR код на VPS не исполняется. Обязательный maintenance CI проверяет portable Linux core, Android ARM64 и WebAssembly. Preview на `myldy.ru` собирается непосредственно на сервере, проходит тесты и staging validation, после чего атомарно переключается symlink `current`. GitHub Pages пока остаётся включённым.
+Тяжёлые CI/build jobs выполняются на домашнем self-hosted build class `[self-hosted, myldy-home]`; Selectel VPS используется только для маленьких production-facing операций через `[self-hosted, myldy-vps, cursed-drone]`. Недоверенный fork PR код на self-hosted runners не исполняется. Linux core, Android ARM64, WebAssembly и Playwright/browser smoke строятся и тестируются дома; workflow проверяет свободное место и обязан убрать build trees, временные SDK/toolchains, browser profiles и child processes даже после failure/cancellation.
+
+Preview `myldy.ru` собирается и тестируется на домашнем runner, передаётся на VPS как компактный artifact с retention один день, затем только проверяется и атомарно активируется. VPS приложение заново не собирает. Production retention — `current + 2` rollback releases. GitHub Pages пока остаётся включённым; тяжёлая WASM-сборка Pages идёт на домашнем runner, маленькая activation job — на VPS.
 
 [Развёртывание](docs/deployment.ru.md) · [English](docs/deployment.en.md)
 

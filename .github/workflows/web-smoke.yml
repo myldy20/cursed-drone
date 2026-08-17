@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: web-smoke-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,8 +16,11 @@ concurrency:
 jobs:
   browser:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    runs-on: [self-hosted, myldy-home]
     timeout-minutes: 35
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.ci-playwright
+      EMSDK_CACHE_DIR: ${{ github.workspace }}/.ci-emsdk
     steps:
       - name: Runner metadata
         run: |
@@ -24,13 +30,30 @@ jobs:
           echo "runner.arch=${{ runner.arch }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.sha=${{ github.sha }}"
+      - name: Check home runner disk before browser toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE"
+          USED="$(df -P "$GITHUB_WORKSPACE" | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+          if (( USED >= 90 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; investigate disk before CI."
+            exit 1
+          fi
+          if (( USED >= 85 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; refusing WASM/Chromium setup."
+            exit 1
+          fi
+          if (( USED >= 80 )); then
+            echo "::warning::Home runner filesystem is ${USED}% full; browser CI may proceed but cleanup is mandatory."
+          fi
       - uses: actions/checkout@v4
         with: {submodules: recursive}
-      - name: Set up Emscripten in runner workspace
+      - name: Set up Emscripten in temporary home-runner workspace
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 4.0.10
-          actions-cache-folder: emsdk-cache
+          actions-cache-folder: ${{ env.EMSDK_CACHE_DIR }}
       - name: Build WebAssembly app
         run: |
           emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DCURSED_DRONE_BUILD_SDL=OFF -DCURSED_DRONE_BUILD_TESTS=OFF -DCURSED_DRONE_BUILD_TOOLS=OFF -DCURSED_DRONE_ENABLE_PLAITS=ON
@@ -38,13 +61,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install pinned browser runtime in runner workspace
+      - name: Install pinned browser runtime in temporary home-runner workspace
         run: |
           npm install --no-save --no-package-lock playwright@1.54.1 pngjs@7.0.0
           npx playwright install chromium
       - name: Start static server
+        shell: bash
         run: |
-          nohup python3 -m http.server 4173 --bind 127.0.0.1 --directory build-web >web-server.log 2>&1 &
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory build-web >web-server.log 2>&1 &
           echo $! > web-server.pid
           for attempt in $(seq 1 30); do
             curl --fail --silent http://127.0.0.1:4173/index.html >/dev/null && exit 0
@@ -66,3 +91,19 @@ jobs:
             dist/web-smoke
             web-server.log
           if-no-files-found: warn
+          retention-days: 3
+      - name: Cleanup browser processes and build workspace
+        if: always()
+        shell: bash
+        run: |
+          if test -f web-server.pid; then
+            kill "$(cat web-server.pid)" 2>/dev/null || true
+          fi
+          rm -rf \
+            "$GITHUB_WORKSPACE/web-server.pid" \
+            "$GITHUB_WORKSPACE/web-server.log" \
+            "$GITHUB_WORKSPACE/build-web" \
+            "$GITHUB_WORKSPACE/dist/web-smoke" \
+            "$GITHUB_WORKSPACE/node_modules" \
+            "$PLAYWRIGHT_BROWSERS_PATH" \
+            "$EMSDK_CACHE_DIR"
