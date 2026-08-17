@@ -13,7 +13,7 @@ concurrency:
 jobs:
   linux-core:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    runs-on: [self-hosted, myldy-home]
     timeout-minutes: 30
     steps:
       - name: Runner metadata
@@ -24,6 +24,23 @@ jobs:
           echo "runner.arch=${{ runner.arch }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.sha=${{ github.sha }}"
+      - name: Check home runner disk before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE"
+          USED="$(df -P "$GITHUB_WORKSPACE" | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+          if (( USED >= 90 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; investigate disk before CI."
+            exit 1
+          fi
+          if (( USED >= 85 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; refusing a heavy C++ build."
+            exit 1
+          fi
+          if (( USED >= 80 )); then
+            echo "::warning::Home runner filesystem is ${USED}% full; build may proceed but cleanup is mandatory."
+          fi
       - uses: actions/checkout@v4
         with: {submodules: recursive}
       - name: Verify native toolchain
@@ -32,6 +49,7 @@ jobs:
           c++ --version
       - name: Build and test portable Linux core
         run: |
+          set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCURSED_DRONE_BUILD_SDL=OFF -DCURSED_DRONE_BUILD_TESTS=ON -DCURSED_DRONE_BUILD_TOOLS=ON
           cmake --build build --parallel 2
           ctest --test-dir build --output-on-failure
@@ -42,13 +60,22 @@ jobs:
         with:
           name: cursed-drone-performance-benchmark
           path: performance-benchmark.txt
+          retention-days: 3
+      - name: Cleanup Linux build workspace
+        if: always()
+        shell: bash
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/performance-benchmark.txt"
 
   android:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, myldy-vps, cursed-drone]
+    runs-on: [self-hosted, myldy-home]
     timeout-minutes: 45
     env:
       CURSED_DRONE_PREVIEW_SIGNING: "1"
+      ANDROID_SDK_ROOT: ${{ runner.temp }}/cursed-drone-android-sdk-${{ github.run_id }}-${{ github.run_attempt }}
+      ANDROID_HOME: ${{ runner.temp }}/cursed-drone-android-sdk-${{ github.run_id }}-${{ github.run_attempt }}
+      GRADLE_USER_HOME: ${{ runner.temp }}/cursed-drone-gradle-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Runner metadata
         run: |
@@ -58,6 +85,23 @@ jobs:
           echo "runner.arch=${{ runner.arch }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.sha=${{ github.sha }}"
+      - name: Check home runner disk before Android toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE"
+          USED="$(df -P "$GITHUB_WORKSPACE" | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+          if (( USED >= 90 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; investigate disk before CI."
+            exit 1
+          fi
+          if (( USED >= 85 )); then
+            echo "::error::Home runner filesystem is ${USED}% full; refusing Android SDK/NDK setup."
+            exit 1
+          fi
+          if (( USED >= 80 )); then
+            echo "::warning::Home runner filesystem is ${USED}% full; Android build may proceed but cleanup is mandatory."
+          fi
       - uses: actions/checkout@v4
         with: {submodules: recursive}
       - uses: actions/setup-java@v4
@@ -68,8 +112,10 @@ jobs:
       - name: Install Android SDK components
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
-      - uses: gradle/actions/setup-gradle@v4
-        with: {gradle-version: "8.10.2"}
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.10.2"
+          cache-cleanup: always
       - name: Build Android release APK
         run: gradle -p android :app:assembleRelease --stacktrace
       - name: Verify APK identity and optimisation
@@ -80,3 +126,15 @@ jobs:
           grep -R -Eq -- '(^| )-O(2|3)( |$)' android/app/.cxx/Release
           ! grep -R -Eq -- '(^| )-O0( |$)' android/app/.cxx/Release
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -q "versionName='$(cat VERSION)'"
+      - name: Cleanup Android toolchain and build workspace
+        if: always()
+        shell: bash
+        run: |
+          gradle --stop >/dev/null 2>&1 || true
+          rm -rf \
+            "$ANDROID_SDK_ROOT" \
+            "$GRADLE_USER_HOME" \
+            "$GITHUB_WORKSPACE/android/.gradle" \
+            "$GITHUB_WORKSPACE/android/.cxx" \
+            "$GITHUB_WORKSPACE/android/app/.cxx" \
+            "$GITHUB_WORKSPACE/android/app/build"
