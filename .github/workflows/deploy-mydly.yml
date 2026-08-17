@@ -29,8 +29,8 @@ jobs:
     runs-on: [self-hosted, myldy-home]
     timeout-minutes: 45
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/cursed-drone-preview-playwright-${{ github.run_id }}-${{ github.run_attempt }}
-      EMSDK_CACHE_DIR: ${{ runner.temp }}/cursed-drone-preview-emsdk-${{ github.run_id }}-${{ github.run_attempt }}
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.ci-preview-playwright
+      EMSDK_CACHE_DIR: ${{ github.workspace }}/.ci-preview-emsdk
     steps:
       - name: Runner metadata
         run: |
