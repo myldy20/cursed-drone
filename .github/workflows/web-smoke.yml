@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: web-smoke-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -16,8 +19,8 @@ jobs:
     runs-on: [self-hosted, myldy-home]
     timeout-minutes: 35
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/cursed-drone-playwright-${{ github.run_id }}-${{ github.run_attempt }}
-      EMSDK_CACHE_DIR: ${{ runner.temp }}/cursed-drone-emsdk-${{ github.run_id }}-${{ github.run_attempt }}
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.ci-playwright
+      EMSDK_CACHE_DIR: ${{ github.workspace }}/.ci-emsdk
     steps:
       - name: Runner metadata
         run: |
