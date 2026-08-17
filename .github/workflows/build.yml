@@ -76,9 +76,9 @@ jobs:
     timeout-minutes: 45
     env:
       CURSED_DRONE_PREVIEW_SIGNING: "1"
-      ANDROID_SDK_ROOT: ${{ runner.temp }}/cursed-drone-android-sdk-${{ github.run_id }}-${{ github.run_attempt }}
-      ANDROID_HOME: ${{ runner.temp }}/cursed-drone-android-sdk-${{ github.run_id }}-${{ github.run_attempt }}
-      GRADLE_USER_HOME: ${{ runner.temp }}/cursed-drone-gradle-${{ github.run_id }}-${{ github.run_attempt }}
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      ANDROID_HOME: ${{ github.workspace }}/.ci-android-sdk
+      GRADLE_USER_HOME: ${{ github.workspace }}/.ci-gradle
     steps:
       - name: Runner metadata
         run: |
