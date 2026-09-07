@@ -1,11 +1,10 @@
 <p align="center"><img src="assets/branding/cursed-drone-banner.svg" alt="Cursed Drone — developed by Myldy design" width="100%"></p>
 <p align="center">
-<a href="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/build.yml/badge.svg" alt="build"></a>
-<a href="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/web-pages.yml/badge.svg" alt="web build"></a>
-<a href="https://github.com/myldy20/cursed-drone/actions/workflows/web-smoke.yml"><img src="https://github.com/myldy20/cursed-drone/actions/workflows/web-smoke.yml/badge.svg" alt="web smoke"></a>
-<img src="https://img.shields.io/badge/version-1.0.0-eee2c5" alt="version 1.0.0">
+<a href="https://github.com/myldy20/cursed-drone/releases/latest"><img src="https://img.shields.io/badge/release-1.0.0-eee2c5" alt="release 1.0.0"></a>
 <img src="https://img.shields.io/badge/status-feature--complete-50a99a" alt="feature complete">
+<img src="https://img.shields.io/badge/lifecycle-maintenance-6b7280" alt="maintenance">
 <img src="https://img.shields.io/badge/verified-TrimUI_Brick_/_Pixel_8_Pro_/_Web-7550ab" alt="verified platforms">
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-555555" alt="GPL-3.0-or-later"></a>
 </p>
 
 # Cursed Drone
@@ -21,7 +20,7 @@ Version **1.0.0** closes the standalone product roadmap. The repository is now m
 - **Web:** modern WebAssembly/Web Audio browser; mouse, drag gestures and touch are supported;
 - **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - **NextUI:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
-- **Android ARM64 sideload:** [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
+- **Android ARM64 sideload:** [English](docs/install.android.en.md) · [Русский](docs/install.ru.md)
 - **macOS Apple Silicon:** the native 1.0.0 archive remains available in the GitHub release; the WebAssembly build is the maintained macOS path under the self-hosted CI standard.
 
 The verified 1.0.0 PortMaster/Knulli, NextUI and native macOS packages are frozen release artifacts. New native packages for those architectures require an explicitly approved matching self-hosted toolchain; GitHub-hosted fallback runners are not used.
