@@ -20,7 +20,7 @@ Version **1.0.0** closes the standalone product roadmap. The repository is now m
 - **Web:** modern WebAssembly/Web Audio browser; mouse, drag gestures and touch are supported;
 - **Knulli / PortMaster:** [English](docs/install.en.md) · [Русский](docs/install.ru.md)
 - **NextUI:** [English](docs/install.nextui.en.md) · [Русский](docs/install.nextui.ru.md)
-- **Android ARM64 sideload:** [English](docs/install.android.en.md) · [Русский](docs/install.ru.md)
+- **Android ARM64 sideload:** [English](docs/install.android.en.md) · [Русский](docs/install.android.ru.md)
 - **macOS Apple Silicon:** the native 1.0.0 archive remains available in the GitHub release; the WebAssembly build is the maintained macOS path under the self-hosted CI standard.
 
 The verified 1.0.0 PortMaster/Knulli, NextUI and native macOS packages are frozen release artifacts. New native packages for those architectures require an explicitly approved matching self-hosted toolchain; GitHub-hosted fallback runners are not used.
